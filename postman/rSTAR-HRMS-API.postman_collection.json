@@ -1,0 +1,328 @@
+{
+  "info": {
+    "name": "rSTAR HRMS API",
+    "_postman_id": "b7a1f3c2-5d4e-4a6b-9c8d-0e1f2a3b4c5d",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "HRMS backend API.\n\nRun the requests top to bottom. The bearer token is captured automatically:\nverify-otp stores it in the {{accessToken}} variable, and every request\ninherits the collection-level Bearer auth that reads it. Nothing is pasted.\n\nSet {{baseUrl}} in the Variables tab (or pick an environment) and go."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "loginEmail",
+      "value": "admin@rstartec.com",
+      "type": "string"
+    },
+    {
+      "key": "loginPassword",
+      "value": "admin",
+      "type": "string"
+    },
+    {
+      "key": "otp",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. health",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('up', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "health"
+          ]
+        },
+        "description": "Liveness. No auth."
+      }
+    },
+    {
+      "name": "2. login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('password accepted', () => pm.response.to.have.status(200));",
+              "",
+              "const data = pm.response.json().data;",
+              "",
+              "// The OTP comes back only when the server has OTP_IN_RESPONSE=true",
+              "// (development only). Otherwise read it from the server log and set",
+              "// the `otp` variable yourself.",
+              "if (data.otp) {",
+              "  pm.collectionVariables.set('otp', data.otp);",
+              "  console.log('OTP captured:', data.otp);",
+              "} else {",
+              "  console.warn('No OTP in response - set OTP_IN_RESPONSE=true or fill {{otp}} by hand.');",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{loginEmail}}\",\n  \"password\": \"{{loginPassword}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        },
+        "description": "Step 1: checks email + password, then issues an OTP."
+      }
+    },
+    {
+      "name": "3. verify-otp",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login completes', () => pm.response.to.have.status(200));",
+              "",
+              "const data = pm.response.json().data;",
+              "",
+              "// This is what removes the copy-paste.",
+              "pm.collectionVariables.set('accessToken', data.accessToken);",
+              "pm.collectionVariables.set('refreshToken', data.refreshToken);",
+              "pm.collectionVariables.set('otp', '');",
+              "",
+              "pm.test('tokens stored', () => {",
+              "  pm.expect(data.accessToken).to.be.a('string').and.not.empty;",
+              "  pm.expect(data.refreshToken).to.be.a('string').and.not.empty;",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{loginEmail}}\",\n  \"otp\": \"{{otp}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/verify-otp",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "verify-otp"
+          ]
+        },
+        "description": "Step 2: checks the OTP and returns the token pair. Stores both tokens."
+      }
+    },
+    {
+      "name": "4. me (protected)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('middleware accepts the captured token', () => pm.response.to.have.status(200));",
+              "pm.test('returns the account', () => {",
+              "  pm.expect(pm.response.json().data.email).to.eql(pm.collectionVariables.get('loginEmail'));",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/auth/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "me"
+          ]
+        },
+        "description": "Sends no Authorization header of its own - it inherits the collection Bearer auth, so a 200 proves the middleware accepted the captured token."
+      }
+    },
+    {
+      "name": "5. me without token (should fail)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('rejected with 401', () => pm.response.to.have.status(401));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/auth/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "me"
+          ]
+        },
+        "description": "Auth explicitly off: proves the middleware really does reject an anonymous caller."
+      }
+    },
+    {
+      "name": "6. refresh",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('refreshed', () => pm.response.to.have.status(200));",
+              "const data = pm.response.json().data;",
+              "pm.collectionVariables.set('accessToken', data.accessToken);",
+              "pm.collectionVariables.set('refreshToken', data.refreshToken);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/refresh",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "refresh"
+          ]
+        },
+        "description": "Exchanges the refresh token for a new pair and stores them."
+      }
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// ngrok free serves an HTML interstitial to browser-like clients instead of",
+          "// the JSON response. This header opts out of it, and is harmless elsewhere.",
+          "const base = pm.variables.get('baseUrl') || '';",
+          "if (base.includes('ngrok')) {",
+          "  pm.request.headers.upsert({ key: 'ngrok-skip-browser-warning', value: 'true' });",
+          "}"
+        ]
+      }
+    }
+  ]
+}

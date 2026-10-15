@@ -1,0 +1,10 @@
+{
+  "watch": ["src", ".env"],
+  "ext": "js,json,sql",
+  "ignore": ["node_modules", "postman", "scripts", "db/migrations"],
+  "exec": "node --env-file-if-exists=.env src/index.js",
+  "delay": 300,
+  "env": {
+    "NODE_ENV": "development"
+  }
+}
