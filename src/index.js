@@ -10,11 +10,19 @@ import { env } from './config/env.js';
 import { getPool, closePool } from './config/db.js';
 import { API_PREFIX } from './enums/index.js';
 import { logger } from './utils/logger.js';
+import { assertTemplatesExist } from './utils/template.js';
+import { startEmailWorker, stopEmailWorker } from './workers/email-outbox.worker.js';
 
 async function start() {
   // Connect before listening so a bad connection string fails loudly at boot
   // instead of turning into a 500 on the first request.
   await getPool();
+
+  // Fail here rather than when an employee never receives their email: every
+  // EMAIL_TEMPLATE entry must have a file behind it.
+  logger.debug(`${assertTemplatesExist()} email template(s) loaded`);
+
+  startEmailWorker();
 
   const app = createApp();
   const server = app.listen(env.PORT, () => {
@@ -26,6 +34,7 @@ async function start() {
 
     // Stop accepting connections, then release the pool.
     server.close(async () => {
+      stopEmailWorker();
       await closePool();
       logger.info('Shutdown complete');
       process.exit(0);

@@ -8,7 +8,8 @@
  * inserted twice.
  */
 import { getPool, closePool } from '../src/config/db.js';
-import { queryOne, mutate, sql } from '../src/helpers/query.helper.js';
+import { queryOne, mutate } from '../src/helpers/query.helper.js';
+import { EmployeeLogin } from '../src/models/index.js';
 import { hashPassword } from '../src/utils/password.js';
 import { logger } from '../src/utils/logger.js';
 
@@ -20,29 +21,31 @@ async function run() {
   await getPool();
 
   const hash = await hashPassword(password);
-  const existing = await queryOne('SELECT EmployeeId FROM dbo.EmployeeLogin WHERE Email = @email', {
-    email: { type: sql.NVarChar(256), value: email },
-  });
+  const existing = await queryOne(
+    `SELECT ${EmployeeLogin.select(['employeeId'])}
+       FROM ${EmployeeLogin.table} WHERE Email = @email`,
+    EmployeeLogin.params({ email }),
+  );
 
   if (existing) {
     await mutate(
-      `UPDATE dbo.EmployeeLogin
+      `UPDATE ${EmployeeLogin.table}
           SET HashPassword = @hash, Otp = NULL, OtpExpiresTime = NULL, ModifiedAt = SYSUTCDATETIME()
         WHERE EmployeeId = @employeeId`,
       {
-        hash: { type: sql.NVarChar(255), value: hash },
-        employeeId: { type: sql.Int, value: existing.EmployeeId },
+        hash: EmployeeLogin.param('hashPassword', hash),
+        ...EmployeeLogin.params({ employeeId: existing.employeeId }),
       },
     );
-    logger.info(`Password reset for existing account ${email} (EmployeeId ${existing.EmployeeId})`);
+    logger.info(`Password reset for existing account ${email} (EmployeeId ${existing.employeeId})`);
   } else {
     const inserted = await queryOne(
-      `INSERT INTO dbo.EmployeeLogin (Email, HashPassword)
+      `INSERT INTO ${EmployeeLogin.table} (Email, HashPassword)
        OUTPUT INSERTED.EmployeeId AS employeeId
        VALUES (@email, @hash)`,
       {
-        email: { type: sql.NVarChar(256), value: email },
-        hash: { type: sql.NVarChar(255), value: hash },
+        ...EmployeeLogin.params({ email }),
+        hash: EmployeeLogin.param('hashPassword', hash),
       },
     );
     logger.info(`Created account ${email} (EmployeeId ${inserted.employeeId})`);

@@ -8,30 +8,26 @@
  * Nothing here touches req or res, so each function is equally callable from a
  * controller, a script, or a future scheduled job.
  */
-import { query, queryOne, mutate, sql } from '../helpers/query.helper.js';
+import { query, queryOne, mutate, withTransaction } from '../helpers/query.helper.js';
+import { queueTemplatedMail } from './email.service.js';
 import { verifyPassword, fakeVerifyPassword } from '../utils/password.js';
 import { generateOtp, otpExpiryDate, otpMatches } from '../utils/otp.js';
 import { issueTokens, verifyToken, TOKEN_TYPE } from '../utils/jwt.js';
 import { ApiError } from '../utils/api-error.js';
 import { logger } from '../utils/logger.js';
-import { MESSAGES } from '../enums/index.js';
+import { MESSAGES, EMAIL_TEMPLATE } from '../enums/index.js';
 import { env, exposeOtpInResponse } from '../config/env.js';
+import { EmployeeLogin, EMPLOYEE_PUBLIC_PROPS } from '../models/index.js';
 
-/** The columns safe to return to a client. HashPassword and Otp never leave here. */
-const PUBLIC_COLUMNS = `
-  EmployeeId AS employeeId,
-  Email      AS email,
-  LastLoginedAt AS lastLoginedAt,
-  CreatedAt  AS createdAt,
-  ModifiedAt AS modifiedAt
-`;
+/** The columns safe to return to a client. HashPassword and Otp are not among them. */
+const PUBLIC_COLUMNS = EmployeeLogin.select(EMPLOYEE_PUBLIC_PROPS);
 
 function findByEmail(email) {
   return queryOne(
-    `SELECT EmployeeId, Email, HashPassword, Otp, OtpExpiresTime
-       FROM dbo.EmployeeLogin
+    `SELECT ${EmployeeLogin.select(['employeeId', 'email', 'hashPassword', 'otp', 'otpExpiresTime'])}
+       FROM ${EmployeeLogin.table}
       WHERE Email = @email`,
-    { email: { type: sql.NVarChar(256), value: email } },
+    EmployeeLogin.params({ email }),
   );
 }
 
@@ -50,34 +46,16 @@ export async function login(email, password) {
     throw ApiError.unauthorized(MESSAGES.INVALID_CREDENTIALS);
   }
 
-  const passwordOk = await verifyPassword(password, account.HashPassword);
+  const passwordOk = await verifyPassword(password, account.hashPassword);
   if (!passwordOk) {
     throw ApiError.unauthorized(MESSAGES.INVALID_CREDENTIALS);
   }
 
-  const otp = generateOtp();
-  const expiresAt = otpExpiryDate();
-
   // Issuing a new OTP replaces any previous one, so an old code stops working
   // the moment a new login starts.
-  await mutate(
-    `UPDATE dbo.EmployeeLogin
-        SET Otp = @otp,
-            OtpExpiresTime = @expiresAt,
-            ModifiedAt = SYSUTCDATETIME()
-      WHERE EmployeeId = @employeeId`,
-    {
-      otp: { type: sql.NVarChar(10), value: otp },
-      expiresAt: { type: sql.DateTime2, value: expiresAt },
-      employeeId: { type: sql.Int, value: account.EmployeeId },
-    },
-  );
+  const { otp, expiresAt } = await issueOtpFor(account);
 
-  // No mail provider is wired up yet, so the OTP goes to the server log.
-  // Replace this call with the mailer and the rest of the flow is unchanged.
-  logger.info(`OTP for ${account.Email}: ${otp} (valid ${env.OTP_EXPIRY_MINUTES} min)`);
-
-  return otpResponse(account.Email, expiresAt, otp);
+  return otpResponse(account.email, expiresAt, otp);
 }
 
 /**
@@ -91,36 +69,91 @@ export async function verifyOtp(email, otp) {
 
   // Same vague error as a bad OTP: a valid email with no login in progress
   // should not be distinguishable from an invalid one.
-  if (!account || !account.Otp || !account.OtpExpiresTime) {
+  if (!account || !account.otp || !account.otpExpiresTime) {
     throw ApiError.unauthorized(MESSAGES.OTP_NOT_REQUESTED);
   }
 
-  if (new Date(account.OtpExpiresTime).getTime() < Date.now()) {
-    await clearOtp(account.EmployeeId);
+  if (new Date(account.otpExpiresTime).getTime() < Date.now()) {
+    await clearOtp(account.employeeId);
     throw ApiError.unauthorized(MESSAGES.OTP_EXPIRED);
   }
 
-  if (!otpMatches(otp, account.Otp)) {
+  if (!otpMatches(otp, account.otp)) {
     throw ApiError.unauthorized(MESSAGES.OTP_INVALID);
   }
 
   // One shot: clear the code and stamp the login in the same statement.
   await mutate(
-    `UPDATE dbo.EmployeeLogin
+    `UPDATE ${EmployeeLogin.table}
         SET Otp = NULL,
             OtpExpiresTime = NULL,
             LastLoginedAt = SYSUTCDATETIME(),
             ModifiedAt = SYSUTCDATETIME()
       WHERE EmployeeId = @employeeId`,
-    { employeeId: { type: sql.Int, value: account.EmployeeId } },
+    EmployeeLogin.params({ employeeId: account.employeeId }),
   );
 
-  const tokens = issueTokens({ employeeId: account.EmployeeId, email: account.Email });
+  const tokens = issueTokens({ employeeId: account.employeeId, email: account.email });
 
   return {
     ...tokens,
-    employee: { employeeId: account.EmployeeId, email: account.Email },
+    employee: { employeeId: account.employeeId, email: account.email },
   };
+}
+
+/**
+ * Stores a fresh OTP and queues the email carrying it, in one transaction.
+ *
+ * Both halves commit together or neither does: an account left holding a code
+ * whose email was never queued would lock the person out until the code
+ * expired, with nothing in the logs to explain it.
+ *
+ * Queueing is a single INSERT - the SMTP conversation happens later on the
+ * outbox worker - so login latency does not depend on the mail server.
+ */
+async function issueOtpFor(account, { resent = false } = {}) {
+  const otp = generateOtp();
+  const expiresAt = otpExpiryDate();
+
+  await withTransaction(async (run) => {
+    await run(
+      `UPDATE ${EmployeeLogin.table}
+          SET Otp = @otp,
+              OtpExpiresTime = @expiresAt,
+              ModifiedAt = SYSUTCDATETIME()
+        WHERE EmployeeId = @employeeId`,
+      {
+        ...EmployeeLogin.params({ otp, employeeId: account.employeeId }),
+        expiresAt: EmployeeLogin.param('otpExpiresTime', expiresAt),
+      },
+    );
+
+    await queueTemplatedMail(
+      {
+        to: account.email,
+        template: EMAIL_TEMPLATE.OTP_LOGIN,
+        data: {
+          // Until there is an employee profile table, the local part of the
+          // address is the friendliest name available.
+          name: account.email.split('@')[0],
+          otp,
+          minutes: env.OTP_EXPIRY_MINUTES,
+        },
+      },
+      run,
+    );
+  });
+
+  // Kept for the development flow that reads the code off the console; the
+  // same gate that may echo the OTP in the response governs it.
+  if (exposeOtpInResponse) {
+    logger.info(
+      `OTP for ${account.email}: ${otp}${resent ? ' (resent)' : ''} ` +
+        `(valid ${env.OTP_EXPIRY_MINUTES} min)`,
+    );
+  }
+
+  return { otp, expiresAt };
 }
 
 /**
@@ -143,35 +176,21 @@ function otpResponse(email, expiresAt, otp) {
 /** Issues a new OTP for an account that already passed the password step. */
 export async function resendOtp(email) {
   const account = await findByEmail(email);
-  if (!account || !account.Otp) {
+  if (!account || !account.otp) {
     throw ApiError.unauthorized(MESSAGES.OTP_NOT_REQUESTED);
   }
 
-  const otp = generateOtp();
-  const expiresAt = otpExpiryDate();
+  const { otp, expiresAt } = await issueOtpFor(account, { resent: true });
 
-  await mutate(
-    `UPDATE dbo.EmployeeLogin
-        SET Otp = @otp, OtpExpiresTime = @expiresAt, ModifiedAt = SYSUTCDATETIME()
-      WHERE EmployeeId = @employeeId`,
-    {
-      otp: { type: sql.NVarChar(10), value: otp },
-      expiresAt: { type: sql.DateTime2, value: expiresAt },
-      employeeId: { type: sql.Int, value: account.EmployeeId },
-    },
-  );
-
-  logger.info(`OTP for ${account.Email}: ${otp} (resent, valid ${env.OTP_EXPIRY_MINUTES} min)`);
-
-  return otpResponse(account.Email, expiresAt, otp);
+  return otpResponse(account.email, expiresAt, otp);
 }
 
 function clearOtp(employeeId) {
   return mutate(
-    `UPDATE dbo.EmployeeLogin
+    `UPDATE ${EmployeeLogin.table}
         SET Otp = NULL, OtpExpiresTime = NULL, ModifiedAt = SYSUTCDATETIME()
       WHERE EmployeeId = @employeeId`,
-    { employeeId: { type: sql.Int, value: employeeId } },
+    EmployeeLogin.params({ employeeId }),
   );
 }
 
@@ -185,8 +204,9 @@ export async function refresh(refreshToken) {
   const { employeeId } = verifyToken(refreshToken, TOKEN_TYPE.REFRESH);
 
   const account = await queryOne(
-    `SELECT EmployeeId, Email FROM dbo.EmployeeLogin WHERE EmployeeId = @employeeId`,
-    { employeeId: { type: sql.Int, value: employeeId } },
+    `SELECT ${EmployeeLogin.select(['employeeId', 'email'])}
+       FROM ${EmployeeLogin.table} WHERE EmployeeId = @employeeId`,
+    EmployeeLogin.params({ employeeId }),
   );
 
   if (!account) {
@@ -194,16 +214,16 @@ export async function refresh(refreshToken) {
   }
 
   return {
-    ...issueTokens({ employeeId: account.EmployeeId, email: account.Email }),
-    employee: { employeeId: account.EmployeeId, email: account.Email },
+    ...issueTokens({ employeeId: account.employeeId, email: account.email }),
+    employee: { employeeId: account.employeeId, email: account.email },
   };
 }
 
 /** The signed-in account, for GET /auth/me. */
 export async function getProfile(employeeId) {
   const account = await queryOne(
-    `SELECT ${PUBLIC_COLUMNS} FROM dbo.EmployeeLogin WHERE EmployeeId = @employeeId`,
-    { employeeId: { type: sql.Int, value: employeeId } },
+    `SELECT ${PUBLIC_COLUMNS} FROM ${EmployeeLogin.table} WHERE EmployeeId = @employeeId`,
+    EmployeeLogin.params({ employeeId }),
   );
 
   if (!account) {
@@ -215,8 +235,9 @@ export async function getProfile(employeeId) {
 
 /** Used by the seed script and, later, by employee onboarding. */
 export async function emailExists(email) {
-  const rows = await query('SELECT 1 AS hit FROM dbo.EmployeeLogin WHERE Email = @email', {
-    email: { type: sql.NVarChar(256), value: email },
-  });
+  const rows = await query(
+    `SELECT 1 AS hit FROM ${EmployeeLogin.table} WHERE Email = @email`,
+    EmployeeLogin.params({ email }),
+  );
   return rows.length > 0;
 }

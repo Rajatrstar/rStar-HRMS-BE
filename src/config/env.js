@@ -65,6 +65,23 @@ export const env = Object.freeze({
   // can complete the two-step login without a human reading the server log.
   // Off by default, and ignored outright in production - see OTP_IN_RESPONSE below.
   OTP_IN_RESPONSE: toBool('OTP_IN_RESPONSE', false),
+
+  // Outbound mail. All optional: the server must still boot on a machine that
+  // has no SMTP credentials, with queued mail rendered to the log instead.
+  MAIL_ENABLED: toBool('MAIL_ENABLED', false),
+  MAIL_HOST: optional('MAIL_HOST', 'smtp.office365.com'),
+  MAIL_PORT: toInt('MAIL_PORT', 587),
+  // Port 587 upgrades to TLS with STARTTLS, so the socket does NOT start
+  // encrypted. Set true only for implicit TLS on port 465.
+  MAIL_SECURE: toBool('MAIL_SECURE', false),
+  MAIL_USER: optional('MAIL_USER', ''),
+  MAIL_PASSWORD: optional('MAIL_PASSWORD', ''),
+  MAIL_FROM_NAME: optional('MAIL_FROM_NAME', 'rSTAR HRMS'),
+  MAIL_FROM_ADDRESS: optional('MAIL_FROM_ADDRESS', ''),
+
+  MAIL_POLL_SECONDS: toInt('MAIL_POLL_SECONDS', 15),
+  MAIL_BATCH_SIZE: toInt('MAIL_BATCH_SIZE', 10),
+  MAIL_MAX_ATTEMPTS: toInt('MAIL_MAX_ATTEMPTS', 5),
 });
 
 export const isProduction = env.NODE_ENV === 'production';
@@ -77,3 +94,18 @@ export const isProduction = env.NODE_ENV === 'production';
  * endpoint if it were ever set wrong on a deployed server.
  */
 export const exposeOtpInResponse = env.OTP_IN_RESPONSE && !isProduction;
+
+/**
+ * Whether real mail can actually be sent.
+ *
+ * Enabling the flag without credentials would fail on every single outbox row
+ * and burn through the retry budget, so the username and password are part of
+ * the test rather than the flag alone.
+ */
+export const mailEnabled = env.MAIL_ENABLED && env.MAIL_USER !== '' && env.MAIL_PASSWORD !== '';
+
+/**
+ * The From address. Microsoft 365 rejects a From that is not the authenticated
+ * mailbox unless that mailbox has Send As rights, so the login is the default.
+ */
+export const mailFromAddress = env.MAIL_FROM_ADDRESS || env.MAIL_USER;

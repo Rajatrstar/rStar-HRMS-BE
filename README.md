@@ -24,6 +24,8 @@ npm run dev              # http://localhost:5000/api/v1
 | `npm start`          | Starts once, no watcher                                    |
 | `npm run db:migrate` | Applies new files in `db/migrations`, once each            |
 | `npm run db:seed`    | Creates or resets a login — defaults to `admin@rstartec.com` / `admin` |
+| `npm run db:verify`  | Checks every model in `src/models` against the live schema |
+| `npm run mail:test`  | Sends one real email to prove the SMTP settings work       |
 
 Seed a different account with `npm run db:seed -- someone@rstartec.com theirPassword`.
 
@@ -171,6 +173,66 @@ by design — run `login`, take the OTP from the server console, put it in the
 - **Passwords are capped at 72 characters** because bcrypt ignores anything
   beyond 72 bytes; rejecting it is honest, silently truncating is not.
 
+## Email
+
+Mail is never sent from the request path. A caller renders a template and writes
+one row to `dbo.EmailOutbox`; a worker started in `src/index.js` drains that
+queue every `MAIL_POLL_SECONDS`. A dead mail server therefore delays email
+instead of breaking login.
+
+Sending one, from anywhere in the app:
+
+```js
+import { queueTemplatedMail } from '../services/email.service.js';
+import { EMAIL_TEMPLATE } from '../enums/index.js';
+
+await queueTemplatedMail({
+  to: employee.email,
+  template: EMAIL_TEMPLATE.OTP_LOGIN,
+  data: { name, otp, minutes: 5 },
+});
+```
+
+Pass the `run` callback from `withTransaction()` as a second argument to queue
+the mail inside a wider transaction — `auth.service.js` does this so an account
+can never hold an OTP whose email was never queued.
+
+**Adding a template:** add an entry to `src/enums/email-template.enum.js`, then
+drop `src/templates/<that-value>.html` next to its siblings. The file opens with
+a front-matter block carrying the subject:
+
+```html
+---
+subject: Your rSTAR HRMS login code
+---
+<p>Hi {{name}}, your code is {{otp}}.</p>
+```
+
+`{{key}}` is HTML-escaped, `{{{key}}}` is not, and a placeholder with no value
+throws rather than mailing `{{nmae}}` to someone. An optional `<name>.txt`
+sibling supplies the plain-text part; without one it is derived from the HTML.
+Startup fails if an enum entry has no file.
+
+**Without credentials** (`MAIL_ENABLED=false`, the default) mail is still queued
+and the worker writes the rendered message to the server log, marking the row
+`Sent` with a note saying nothing was delivered. The whole flow is testable
+before a mailbox exists.
+
+**With Office 365**, fill in `MAIL_USER` / `MAIL_PASSWORD`, set
+`MAIL_ENABLED=true`, then `npm run mail:test -- you@rstartec.com`. Three things
+make a correct password fail: SMTP AUTH disabled on the mailbox, MFA on the
+mailbox, or a `MAIL_FROM_ADDRESS` that is not the authenticated mailbox. See
+`.env.example`.
+
+> Microsoft disables SMTP basic authentication by default for existing tenants
+> at the end of **December 2026**, and tenants created after that cannot use it
+> at all. The switch to OAuth2 is confined to the `auth` block in
+> `src/utils/mailer.js`.
+
+**Inspecting the queue:** `dbo.EmailOutbox` carries filtered indexes, so SQL
+Server rejects DML on it unless `QUOTED_IDENTIFIER` is ON. SSMS and the app
+driver set it; `sqlcmd` does not, so use `sqlcmd -I` when querying it by hand.
+
 ## Layout
 
 ```
@@ -179,15 +241,18 @@ src/
 ├── app.js            express app: middleware, router mount, 404, error handler
 ├── config/           env.js (validated settings), db.js (connection pool)
 ├── enums/            route paths, HTTP status codes, response messages
+├── models/           one file per table: columns, SQL types, select lists
 ├── routes/           path -> controller mapping only
 ├── controllers/      req/res handling only
 ├── services/         business logic and SQL; never sees req/res
 ├── middlewares/      404 and central error handler
 ├── helpers/          app-aware shared logic (query binding, response envelope)
-└── utils/            generic primitives (ApiError, logger, jwt, password, otp)
+├── utils/            generic primitives (ApiError, logger, jwt, password, otp)
+├── templates/        email bodies, one .html per EMAIL_TEMPLATE entry
+└── workers/          background loops (outbox mail sender)
 
 db/migrations/        .sql files applied in order by `npm run db:migrate`
-scripts/              migrate.js and seed.js
+scripts/              migrate.js, seed.js, send-test-email.js, verify-schema.js
 ```
 
 **Request flow:** `routes` → `controllers` → `services` → `helpers` → `config/db`.
@@ -210,6 +275,49 @@ Four files and two enum lines — say, employees:
 5. `src/routes/index.js` — `router.use(ROUTE_GROUP.EMPLOYEES, employeeRoutes)`.
 
 No path string is ever written outside `api-routes.enum.js`.
+
+## Models
+
+`src/models/` holds one file per table, mirroring `db/migrations`. There is no
+ORM: a model is a **reference and a source of typed parameters**, not a query
+builder. SQL stays hand-written, because readable SQL is worth more than a
+fluent API that hides what the database runs.
+
+```js
+import { EmployeeLogin } from '../models/index.js';
+
+await queryOne(
+  `SELECT ${EmployeeLogin.select(['employeeId', 'email'])}
+     FROM ${EmployeeLogin.table} WHERE Email = @email`,
+  EmployeeLogin.params({ email }),
+);
+```
+
+| Member | Gives you |
+| ------ | --------- |
+| `.table` | `'dbo.EmployeeLogin'` |
+| `.col(prop)` | `'EmployeeId'` — the database column name |
+| `.param(prop, value)` | one correctly typed parameter |
+| `.params({ ... })` | several at once, ready for the query helpers |
+| `.select(props)` | `'EmployeeId AS employeeId, Email AS email'` |
+| `.columns`, `.props` | the raw definition, for reflection |
+
+Using `.param`/`.params` is what stops an `NVARCHAR(256)` column being probed
+with an `NVARCHAR(MAX)` parameter, which quietly costs you the index. Rows come
+back with JS property names because every select list is aliased.
+
+**Keeping models honest:** they are hand-written, so `npm run db:verify`
+compares each one against `INFORMATION_SCHEMA` and exits non-zero on a missing
+column, a wrong type or a changed length. Run it after every migration.
+
+**Adding a table:** write the migration, add `src/models/<table>.model.js` with
+`defineModel`, export it from `src/models/index.js`, then `npm run db:migrate &&
+npm run db:verify`.
+
+Column names inside `WHERE` and `SET` clauses stay written out — swapping them
+for `${Model.col('x')}` makes the SQL harder to read than the rename it guards
+against. `dbo._Migrations` has no model on purpose: it belongs to
+`scripts/migrate.js` and nothing else should read it.
 
 ## Writing queries
 

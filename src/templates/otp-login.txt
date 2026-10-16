@@ -1,0 +1,10 @@
+Hi {{name}},
+
+Use this code to finish signing in to rSTAR HRMS:
+
+    {{otp}}
+
+The code expires in {{minutes}} minutes and can be used once.
+If you did not try to sign in, you can ignore this email - your password is still safe.
+
+rSTAR HRMS
