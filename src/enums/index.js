@@ -3,3 +3,4 @@ export * from './api-routes.enum.js';
 export * from './http-status.enum.js';
 export * from './messages.enum.js';
 export * from './email-template.enum.js';
+export * from './employee.enum.js';

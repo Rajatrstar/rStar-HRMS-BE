@@ -29,6 +29,8 @@ export const ROUTES = Object.freeze({
     LOGIN: '/login',
     VERIFY_OTP: '/verify-otp',
     RESEND_OTP: '/resend-otp',
+    FORGOT_PASSWORD: '/forgot-password',
+    RESET_PASSWORD: '/reset-password',
     REFRESH: '/refresh',
     ME: '/me',
   }),

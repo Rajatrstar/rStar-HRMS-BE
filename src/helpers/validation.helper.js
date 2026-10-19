@@ -17,6 +17,18 @@ import { MESSAGES } from '../enums/index.js';
 // sending mail to it; anything stricter rejects valid, unusual addresses.
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// ISO calendar date only. A full timestamp is rejected rather than truncated:
+// silently dropping a time zone is how a date of birth shifts by a day.
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/** True when the string is both well-formed and a real calendar date. */
+function isCalendarDate(value) {
+  if (!DATE_PATTERN.test(value)) return false;
+  // Round-tripping catches 2024-02-31, which Date happily rolls into March.
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(value);
+}
+
 function label(field) {
   // otpCode -> "Otp code"
   const spaced = field.replace(/([A-Z])/g, ' $1').toLowerCase();
@@ -45,6 +57,11 @@ export function validateBody(body, schema) {
 
     if (rule.email && !EMAIL_PATTERN.test(value)) {
       errors[field] = 'Must be a valid email address';
+      continue;
+    }
+
+    if (rule.date && !isCalendarDate(value)) {
+      errors[field] = `${label(field)} must be a real date in YYYY-MM-DD format`;
       continue;
     }
 

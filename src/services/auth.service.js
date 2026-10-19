@@ -10,14 +10,14 @@
  */
 import { query, queryOne, mutate, withTransaction } from '../helpers/query.helper.js';
 import { queueTemplatedMail } from './email.service.js';
-import { verifyPassword, fakeVerifyPassword } from '../utils/password.js';
+import { verifyPassword, fakeVerifyPassword, hashPassword } from '../utils/password.js';
 import { generateOtp, otpExpiryDate, otpMatches } from '../utils/otp.js';
 import { issueTokens, verifyToken, TOKEN_TYPE } from '../utils/jwt.js';
 import { ApiError } from '../utils/api-error.js';
 import { logger } from '../utils/logger.js';
 import { MESSAGES, EMAIL_TEMPLATE } from '../enums/index.js';
 import { env, exposeOtpInResponse } from '../config/env.js';
-import { EmployeeLogin, EMPLOYEE_PUBLIC_PROPS } from '../models/index.js';
+import { EmployeeLogin, EmployeeDetails, EMPLOYEE_PUBLIC_PROPS } from '../models/index.js';
 
 /** The columns safe to return to a client. HashPassword and Otp are not among them. */
 const PUBLIC_COLUMNS = EmployeeLogin.select(EMPLOYEE_PUBLIC_PROPS);
@@ -111,7 +111,17 @@ export async function verifyOtp(email, otp) {
  * Queueing is a single INSERT - the SMTP conversation happens later on the
  * outbox worker - so login latency does not depend on the mail server.
  */
-async function issueOtpFor(account, { resent = false } = {}) {
+async function issueOtpFor(account, options = {}) {
+  const {
+    resent = false,
+    template = EMAIL_TEMPLATE.OTP_LOGIN,
+    // Where the code goes, and who it greets. The login flow has only the
+    // address to work with; the forgot-password flow has a profile and uses
+    // the employee's real name and work email.
+    to = account.email,
+    name = account.email.split('@')[0],
+  } = options;
+
   const otp = generateOtp();
   const expiresAt = otpExpiryDate();
 
@@ -130,15 +140,9 @@ async function issueOtpFor(account, { resent = false } = {}) {
 
     await queueTemplatedMail(
       {
-        to: account.email,
-        template: EMAIL_TEMPLATE.OTP_LOGIN,
-        data: {
-          // Until there is an employee profile table, the local part of the
-          // address is the friendliest name available.
-          name: account.email.split('@')[0],
-          otp,
-          minutes: env.OTP_EXPIRY_MINUTES,
-        },
+        to,
+        template,
+        data: { name, otp, minutes: env.OTP_EXPIRY_MINUTES },
       },
       run,
     );
@@ -185,6 +189,133 @@ export async function resendOtp(email) {
   return otpResponse(account.email, expiresAt, otp);
 }
 
+/**
+ * Finds the live employee whose work email and date of birth both match.
+ *
+ * The date of birth is the second factor of this step: an address alone is
+ * public, so without it anyone could post a colleague's email and have a
+ * reset code sent. Both are compared in SQL, so no profile is read into
+ * memory on a failed attempt.
+ *
+ * Soft-deleted and inactive employees are excluded - an exited employee must
+ * not be able to let themselves back in.
+ */
+function findVerifiedEmployee(workEmail, dateOfBirth) {
+  return queryOne(
+    `SELECT ${EmployeeDetails.select(['employeeDetailId', 'employeeId', 'firstName', 'workEmail'])}
+       FROM ${EmployeeDetails.table}
+      WHERE WorkEmail = @workEmail
+        AND DateOfBirth = @dateOfBirth
+        AND IsActive = 1
+        AND DeletedAt IS NULL`,
+    EmployeeDetails.params({ workEmail, dateOfBirth }),
+  );
+}
+
+/**
+ * Forgot password, step 1. Proves identity from the employee record, then
+ * sends a reset code to the work address on file.
+ *
+ * The code is deliberately sent to the stored work email rather than to
+ * whatever address was posted - they are the same string here, but reading it
+ * back from the row is what keeps that true if the lookup ever widens.
+ *
+ * Note: a wrong email or date of birth is reported as such. That tells an
+ * attacker who posts a real address that it belongs to an employee, which the
+ * login endpoint deliberately avoids revealing. It is the behaviour asked for;
+ * returning the same success either way is the stricter alternative.
+ */
+export async function forgotPassword(email, dateOfBirth) {
+  const employee = await findVerifiedEmployee(email, dateOfBirth);
+
+  if (!employee) {
+    throw ApiError.unauthorized(MESSAGES.EMPLOYEE_NOT_VERIFIED);
+  }
+
+  // A profile with no login has no password to reset.
+  if (!employee.employeeId) {
+    throw ApiError.badRequest(MESSAGES.EMPLOYEE_HAS_NO_LOGIN);
+  }
+
+  const account = await queryOne(
+    `SELECT ${EmployeeLogin.select(['employeeId', 'email'])}
+       FROM ${EmployeeLogin.table} WHERE EmployeeId = @employeeId`,
+    EmployeeLogin.params({ employeeId: employee.employeeId }),
+  );
+
+  if (!account) {
+    throw ApiError.badRequest(MESSAGES.EMPLOYEE_HAS_NO_LOGIN);
+  }
+
+  // Replaces any code already outstanding, so an older one stops working.
+  const { otp, expiresAt } = await issueOtpFor(account, {
+    template: EMAIL_TEMPLATE.PASSWORD_RESET,
+    to: employee.workEmail,
+    name: employee.firstName,
+  });
+
+  return otpResponse(employee.workEmail, expiresAt, otp);
+}
+
+/**
+ * Forgot password, step 2. Checks the emailed code and writes the new password.
+ *
+ * The account is reached through the employee profile, exactly as step 1 did,
+ * so the same address works across both calls even where a login email and a
+ * work email differ.
+ *
+ * The update is one statement: the hash lands and the code is cleared
+ * together, so a code can never survive the password it authorised.
+ */
+export async function resetPassword(email, otp, newPassword) {
+  const account = await queryOne(
+    `SELECT ${EmployeeLogin.select(['employeeId', 'email', 'otp', 'otpExpiresTime'])}
+       FROM ${EmployeeLogin.table} AS l
+      WHERE EXISTS (
+              SELECT 1 FROM ${EmployeeDetails.table} AS d
+               WHERE d.EmployeeId = l.EmployeeId
+                 AND d.WorkEmail = @workEmail
+                 AND d.IsActive = 1
+                 AND d.DeletedAt IS NULL
+            )`,
+    EmployeeDetails.params({ workEmail: email }),
+  );
+
+  // No account, or no reset in progress. Same error either way: which of the
+  // two it is would tell an attacker whether the address exists.
+  if (!account?.otp || !account.otpExpiresTime) {
+    throw ApiError.unauthorized(MESSAGES.OTP_NOT_REQUESTED);
+  }
+
+  if (new Date(account.otpExpiresTime).getTime() < Date.now()) {
+    await clearOtp(account.employeeId);
+    throw ApiError.unauthorized(MESSAGES.OTP_EXPIRED);
+  }
+
+  if (!otpMatches(otp, account.otp)) {
+    throw ApiError.unauthorized(MESSAGES.OTP_INVALID);
+  }
+
+  const hash = await hashPassword(newPassword);
+
+  await mutate(
+    `UPDATE ${EmployeeLogin.table}
+        SET HashPassword = @hash,
+            Otp = NULL,
+            OtpExpiresTime = NULL,
+            ModifiedAt = SYSUTCDATETIME()
+      WHERE EmployeeId = @employeeId`,
+    {
+      hash: EmployeeLogin.param('hashPassword', hash),
+      ...EmployeeLogin.params({ employeeId: account.employeeId }),
+    },
+  );
+
+  logger.info(`Password reset completed for ${account.email} (EmployeeId ${account.employeeId})`);
+
+  return { email: account.email, passwordUpdated: true };
+}
+
 function clearOtp(employeeId) {
   return mutate(
     `UPDATE ${EmployeeLogin.table}
@@ -227,7 +358,7 @@ export async function getProfile(employeeId) {
   );
 
   if (!account) {
-    throw ApiError.notFound('Account no longer exists');
+    throw ApiError.notFound(MESSAGES.ACCOUNT_NOT_FOUND);
   }
 
   return account;

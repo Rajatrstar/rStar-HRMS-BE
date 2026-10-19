@@ -24,6 +24,7 @@ npm run dev              # http://localhost:5000/api/v1
 | `npm start`          | Starts once, no watcher                                    |
 | `npm run db:migrate` | Applies new files in `db/migrations`, once each            |
 | `npm run db:seed`    | Creates or resets a login — defaults to `admin@rstartec.com` / `admin` |
+| `npm run db:seed:employees` | Gives every login an `tblEmployeeDetails` profile, if it has none |
 | `npm run db:verify`  | Checks every model in `src/models` against the live schema |
 | `npm run mail:test`  | Sends one real email to prove the SMTP settings work       |
 
@@ -44,6 +45,8 @@ server. Type `rs` + Enter in the terminal to force a restart.
 | POST   | `/api/v1/auth/login`      | —      | Step 1: check email + password, issue an OTP  |
 | POST   | `/api/v1/auth/verify-otp` | —      | Step 2: check the OTP, return the token pair  |
 | POST   | `/api/v1/auth/resend-otp` | —      | Issue a fresh OTP for a login in progress     |
+| POST   | `/api/v1/auth/forgot-password` | —  | Check work email + date of birth, email a reset code |
+| POST   | `/api/v1/auth/reset-password`  | —  | Exchange that code for a new password          |
 | POST   | `/api/v1/auth/refresh`    | —      | Exchange a refresh token for a new pair       |
 | GET    | `/api/v1/auth/me`         | Bearer | The signed-in account                         |
 
@@ -105,6 +108,28 @@ postman/Local.postman_environment.json      baseUrl + the seeded login
 postman/Staging.postman_environment.json    placeholders, password left empty
 ```
 
+Ten requests, in run order: health, health/ready, login, resend-otp, verify-otp,
+me, me-without-token, refresh, forgot-password, reset-password. Every one also
+asserts the response envelope, so a change to the reply shape fails the run
+rather than slipping through.
+
+`resend-otp` sits between login and verify-otp deliberately — it replaces the
+live code, and after verify-otp succeeds there is no OTP left to resend.
+
+**`10. reset-password` really changes a password.** It resets `{{forgotEmail}}`
+(not `{{loginEmail}}`) to `{{newPassword}}`, a fixed value, so repeated runs are
+idempotent. The employee needs a matching `WorkEmail` **and** `DateOfBirth` in
+`dbo.tblEmployeeDetails` — `npm run db:seed:employees` sets both.
+
+Two things scripts in this collection must not do:
+
+- **never `const data = ...` at the top level of a script.** The sandbox already
+  declares `data` for the current data-file row, so it is a redeclaration and
+  the script dies with a `SyntaxError` before any test runs.
+- **read variables with `pm.variables.get()`, not `pm.collectionVariables.get()`,**
+  when asserting against what was sent. Only the former resolves through the
+  scope chain and sees an environment override.
+
 `{{baseUrl}}` also exists as a collection variable, so the collection runs even
 with no environment selected. An environment overrides it — that is how you
 point the same requests at another host. Tokens are deliberately **not** in the
@@ -122,6 +147,9 @@ The same flow in plain curl:
 ```bash
 ./scripts/api-flow.sh
 BASE_URL=https://hrms-staging.rstartec.com/api/v1 ./scripts/api-flow.sh
+
+# The reset flow is opt-in there too - it is skipped unless an employee is named.
+FORGOT_EMAIL=anmol.ghai@rstartec.com FORGOT_DOB=1995-06-12 ./scripts/api-flow.sh
 ```
 
 ## Exposing the local API with ngrok
@@ -262,6 +290,44 @@ service never touches `req` or `res`.
 `helpers/` vs `utils/`: a helper knows about this app (binding SQL parameters,
 shaping a response); a util would work in any project (an error class, a logger).
 
+## Response contract
+
+Every endpoint replies with the same envelope, success or failure. Clients parse
+one shape and never branch on the route:
+
+```jsonc
+// success
+{ "success": true,  "statusCode": 200, "message": "Login successful", "data": { } }
+
+// failure
+{ "success": false, "statusCode": 400, "message": "The submitted data is invalid",
+  "data": null, "details": { "email": "Email is required" } }
+```
+
+| Key | Always present | Notes |
+| --- | -------------- | ----- |
+| `success` | yes | Derived from `statusCode`, never passed in — the two cannot disagree |
+| `statusCode` | yes | Mirrors the HTTP status, for clients that only read the body |
+| `message` | yes | Human-readable, always from `MESSAGES` |
+| `data` | yes | `null` rather than absent on failure, so `body.data` needs no guard |
+| `meta` | no | Pagination and the like, on a success |
+| `details` | no | Field errors or diagnostics, on a failure |
+
+Three rules keep it that way:
+
+1. **Never call `res.json`, `res.send` or `res.status` in a controller.** Reply
+   only through `sendSuccess` / `sendError` in `helpers/response.helper.js`.
+2. **Never write a status code as a number.** Use `HTTP_STATUS`; for a thrown
+   failure prefer `ApiError.badRequest(...)` and friends, which carry the code
+   for you.
+3. **Never write a client-visible string inline.** Add it to `MESSAGES` and
+   reference it, so wording stays consistent and is changed in one place.
+
+Anything thrown that is not an `ApiError` is treated as a bug: logged in full
+and reported as a generic 500, so stack traces and driver messages never leak.
+A malformed JSON body is the one exception — `express.json()` flags it and the
+handler answers `400 MALFORMED_JSON` rather than blaming the server.
+
 ## Adding a module
 
 Four files and two enum lines — say, employees:
@@ -270,7 +336,8 @@ Four files and two enum lines — say, employees:
    and an `EMPLOYEES` block to `ROUTES` with its endpoints.
 2. `src/services/employee.service.js` — the logic, using `query`/`queryOne`/`mutate`
    from `helpers/query.helper.js`.
-3. `src/controllers/employee.controller.js` — call the service, reply via `sendSuccess`.
+3. `src/controllers/employee.controller.js` — call the service, reply via `sendSuccess`
+   with a `HTTP_STATUS` code and a `MESSAGES` string (see **Response contract**).
 4. `src/routes/employee.routes.js` — map `ROUTES.EMPLOYEES.*` to controller methods.
 5. `src/routes/index.js` — `router.use(ROUTE_GROUP.EMPLOYEES, employeeRoutes)`.
 

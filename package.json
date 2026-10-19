@@ -13,6 +13,7 @@
     "start": "node --env-file-if-exists=.env src/index.js",
     "db:migrate": "node --env-file-if-exists=.env scripts/migrate.js",
     "db:seed": "node --env-file-if-exists=.env scripts/seed.js",
+    "db:seed:employees": "node --env-file-if-exists=.env scripts/seed-employees.js",
     "dev:node": "node --watch --env-file-if-exists=.env src/index.js",
     "mail:test": "node --env-file-if-exists=.env scripts/send-test-email.js",
     "db:verify": "node --env-file-if-exists=.env scripts/verify-schema.js"

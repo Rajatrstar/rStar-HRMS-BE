@@ -45,6 +45,42 @@ export async function resendOtp(req, res) {
   return sendSuccess(res, { statusCode: HTTP_STATUS.OK, message: MESSAGES.OTP_SENT, data });
 }
 
+/** POST /api/v1/auth/forgot-password */
+export async function forgotPassword(req, res) {
+  const { email, dateOfBirth } = validateBody(req.body, {
+    email: { required: true, email: true, lowercase: true, maxLength: 255 },
+    dateOfBirth: { required: true, date: true },
+  });
+
+  const data = await authService.forgotPassword(email, dateOfBirth);
+
+  return sendSuccess(res, {
+    statusCode: HTTP_STATUS.OK,
+    message: MESSAGES.USER_VERIFIED_OTP_SENT,
+    data,
+  });
+}
+
+/** POST /api/v1/auth/reset-password */
+export async function resetPassword(req, res) {
+  const { email, otp, newPassword } = validateBody(req.body, {
+    email: { required: true, email: true, lowercase: true, maxLength: 255 },
+    otp: { required: true, digits: true, maxLength: 10 },
+    // trim: false - trimming would silently change the password that gets
+    // hashed, and then the first login attempt would fail for no visible
+    // reason. 72 is bcrypt's limit: anything beyond it is ignored outright.
+    newPassword: { required: true, trim: false, minLength: 8, maxLength: 72 },
+  });
+
+  const data = await authService.resetPassword(email, otp, newPassword);
+
+  return sendSuccess(res, {
+    statusCode: HTTP_STATUS.OK,
+    message: MESSAGES.PASSWORD_RESET_SUCCESS,
+    data,
+  });
+}
+
 /** POST /api/v1/auth/refresh */
 export async function refresh(req, res) {
   const { refreshToken } = validateBody(req.body, {
