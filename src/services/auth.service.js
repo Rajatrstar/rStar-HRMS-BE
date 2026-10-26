@@ -24,7 +24,15 @@ const PUBLIC_COLUMNS = EmployeeLogin.select(EMPLOYEE_PUBLIC_PROPS);
 
 function findByEmail(email) {
   return queryOne(
-    `SELECT ${EmployeeLogin.select(['employeeId', 'email', 'hashPassword', 'otp', 'otpExpiresTime'])}
+    `SELECT ${EmployeeLogin.select([
+      'employeeId',
+      // What the token will carry, and what every permission check keys on.
+      'employeeDetailId',
+      'email',
+      'hashPassword',
+      'otp',
+      'otpExpiresTime',
+    ])}
        FROM ${EmployeeLogin.table}
       WHERE Email = @email`,
     EmployeeLogin.params({ email }),
@@ -93,11 +101,15 @@ export async function verifyOtp(email, otp) {
     EmployeeLogin.params({ employeeId: account.employeeId }),
   );
 
-  const tokens = issueTokens({ employeeId: account.employeeId, email: account.email });
+  // Number(), because the driver hands BIGINT back as a string and
+  // `employee.employeeDetailId === 3` would otherwise be false for a client.
+  // Same reason src/services/organization.service.js converts its ids.
+  const employeeDetailId = Number(account.employeeDetailId);
+  const tokens = issueTokens({ employeeDetailId, email: account.email });
 
   return {
     ...tokens,
-    employee: { employeeId: account.employeeId, email: account.email },
+    employee: { employeeDetailId, email: account.email },
   };
 }
 
@@ -202,7 +214,7 @@ export async function resendOtp(email) {
  */
 function findVerifiedEmployee(workEmail, dateOfBirth) {
   return queryOne(
-    `SELECT ${EmployeeDetails.select(['employeeDetailId', 'employeeId', 'firstName', 'workEmail'])}
+    `SELECT ${EmployeeDetails.select(['employeeDetailId', 'firstName', 'workEmail'])}
        FROM ${EmployeeDetails.table}
       WHERE WorkEmail = @workEmail
         AND DateOfBirth = @dateOfBirth
@@ -232,15 +244,13 @@ export async function forgotPassword(email, dateOfBirth) {
     throw ApiError.unauthorized(MESSAGES.EMPLOYEE_NOT_VERIFIED);
   }
 
-  // A profile with no login has no password to reset.
-  if (!employee.employeeId) {
-    throw ApiError.badRequest(MESSAGES.EMPLOYEE_HAS_NO_LOGIN);
-  }
-
+  // An employee may legitimately have no login - plenty never sign in - and
+  // then there is no password to reset. One lookup answers it now that the
+  // link lives on the login side.
   const account = await queryOne(
-    `SELECT ${EmployeeLogin.select(['employeeId', 'email'])}
-       FROM ${EmployeeLogin.table} WHERE EmployeeId = @employeeId`,
-    EmployeeLogin.params({ employeeId: employee.employeeId }),
+    `SELECT ${EmployeeLogin.select(['employeeId', 'employeeDetailId', 'email'])}
+       FROM ${EmployeeLogin.table} WHERE EmployeeDetailId = @employeeDetailId`,
+    EmployeeLogin.params({ employeeDetailId: employee.employeeDetailId }),
   );
 
   if (!account) {
@@ -273,7 +283,7 @@ export async function resetPassword(email, otp, newPassword) {
        FROM ${EmployeeLogin.table} AS l
       WHERE EXISTS (
               SELECT 1 FROM ${EmployeeDetails.table} AS d
-               WHERE d.EmployeeId = l.EmployeeId
+               WHERE d.EmployeeDetailId = l.EmployeeDetailId
                  AND d.WorkEmail = @workEmail
                  AND d.IsActive = 1
                  AND d.DeletedAt IS NULL
@@ -332,36 +342,39 @@ function clearOtp(employeeId) {
  * account cannot keep refreshing its way into the system.
  */
 export async function refresh(refreshToken) {
-  const { employeeId } = verifyToken(refreshToken, TOKEN_TYPE.REFRESH);
+  const { employeeDetailId } = verifyToken(refreshToken, TOKEN_TYPE.REFRESH);
 
   const account = await queryOne(
-    `SELECT ${EmployeeLogin.select(['employeeId', 'email'])}
-       FROM ${EmployeeLogin.table} WHERE EmployeeId = @employeeId`,
-    EmployeeLogin.params({ employeeId }),
+    `SELECT ${EmployeeLogin.select(['employeeId', 'employeeDetailId', 'email'])}
+       FROM ${EmployeeLogin.table} WHERE EmployeeDetailId = @employeeDetailId`,
+    EmployeeLogin.params({ employeeDetailId }),
   );
 
   if (!account) {
     throw ApiError.unauthorized(MESSAGES.TOKEN_INVALID);
   }
 
+  const resolved = Number(account.employeeDetailId);
+
   return {
-    ...issueTokens({ employeeId: account.employeeId, email: account.email }),
-    employee: { employeeId: account.employeeId, email: account.email },
+    ...issueTokens({ employeeDetailId: resolved, email: account.email }),
+    employee: { employeeDetailId: resolved, email: account.email },
   };
 }
 
 /** The signed-in account, for GET /auth/me. */
-export async function getProfile(employeeId) {
+export async function getProfile(employeeDetailId) {
   const account = await queryOne(
-    `SELECT ${PUBLIC_COLUMNS} FROM ${EmployeeLogin.table} WHERE EmployeeId = @employeeId`,
-    EmployeeLogin.params({ employeeId }),
+    `SELECT ${PUBLIC_COLUMNS} FROM ${EmployeeLogin.table}
+      WHERE EmployeeDetailId = @employeeDetailId`,
+    EmployeeLogin.params({ employeeDetailId }),
   );
 
   if (!account) {
     throw ApiError.notFound(MESSAGES.ACCOUNT_NOT_FOUND);
   }
 
-  return account;
+  return { ...account, employeeDetailId: Number(account.employeeDetailId) };
 }
 
 /** Used by the seed script and, later, by employee onboarding. */

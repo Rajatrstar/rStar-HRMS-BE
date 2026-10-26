@@ -3,8 +3,9 @@
  *
  *   router.get(ROUTES.AUTH.ME, authenticate, authController.me);
  *
- * On success it attaches `req.employee`; otherwise it throws a 401 that the
- * central error handler turns into the standard response envelope.
+ * On success it attaches `req.employee`, which carries `employeeDetailId` -
+ * the person the token speaks for. The login's own id is not in the token and
+ * is not needed: nothing downstream keys on it.
  */
 import { verifyToken, TOKEN_TYPE } from '../utils/jwt.js';
 import { ApiError } from '../utils/api-error.js';

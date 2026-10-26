@@ -1,9 +1,10 @@
 /**
  * dbo.tblEmployeeDetails - the HR record for a person.
  *
- * Mirrors db/migrations/003_employee_details.sql. Credentials are a separate
- * table (dbo.EmployeeLogin); `employeeId` joins the two and is NULL for an
- * employee with no account.
+ * Mirrors db/migrations/001_employee_details.sql. THE employee table: every
+ * role, permission and audit column in this schema keys on employeeDetailId.
+ * Credentials live in dbo.EmployeeLogin, which points here - not the reverse,
+ * so there is no nullable link column on this side any more.
  *
  * Soft delete: every read path must filter `WHERE DeletedAt IS NULL`. Nothing
  * in this table is ever DELETEd.
@@ -15,9 +16,6 @@ export const EmployeeDetails = defineModel({
   table: 'dbo.tblEmployeeDetails',
   columns: {
     employeeDetailId: { column: 'EmployeeDetailId', type: sql.BigInt, identity: true },
-
-    // The login this profile belongs to. Unique when set.
-    employeeId: { column: 'EmployeeId', type: sql.Int, nullable: true },
 
     employeeCode: { column: 'EmployeeCode', type: sql.NVarChar(50) },
 
@@ -54,8 +52,9 @@ export const EmployeeDetails = defineModel({
 
     isActive: { column: 'IsActive', type: sql.Bit },
 
-    createdBy: { column: 'CreatedBy', type: sql.Int, nullable: true },
-    modifiedBy: { column: 'ModifiedBy', type: sql.Int, nullable: true },
+    // EmployeeDetailIds, self-referencing.
+    createdBy: { column: 'CreatedBy', type: sql.BigInt, nullable: true },
+    modifiedBy: { column: 'ModifiedBy', type: sql.BigInt, nullable: true },
 
     createdAt: { column: 'CreatedAt', type: sql.DateTime2 },
     modifiedAt: { column: 'ModifiedAt', type: sql.DateTime2 },
@@ -67,7 +66,6 @@ export const EmployeeDetails = defineModel({
 /** Columns safe to hand back to a client. Audit columns are not among them. */
 export const EMPLOYEE_DETAILS_PUBLIC_PROPS = Object.freeze([
   'employeeDetailId',
-  'employeeId',
   'employeeCode',
   'firstName',
   'middleName',

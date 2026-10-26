@@ -14,15 +14,22 @@ import { MESSAGES } from '../enums/index.js';
 export const TOKEN_TYPE = Object.freeze({ ACCESS: 'access', REFRESH: 'refresh' });
 
 /**
- * @param {{ employeeId: number, email: string }} employee
+ * `sub` is the EMPLOYEE, not the credential.
+ *
+ * dbo.EmployeeLogin.EmployeeId identifies a password row and nothing else;
+ * every permission, grant and audit column in this schema keys on
+ * EmployeeDetailId. Carrying that in the token is what lets the resolver and
+ * the row-scope clauses work in one id space with no lookup to translate.
+ *
+ * @param {{ employeeDetailId: number, email: string }} employee
  * @returns {{ accessToken: string, refreshToken: string, tokenType: 'Bearer', expiresIn: string }}
  */
-export function issueTokens({ employeeId, email }) {
-  const accessToken = jwt.sign({ sub: String(employeeId), email, type: TOKEN_TYPE.ACCESS }, env.JWT_ACCESS_SECRET, {
+export function issueTokens({ employeeDetailId, email }) {
+  const accessToken = jwt.sign({ sub: String(employeeDetailId), email, type: TOKEN_TYPE.ACCESS }, env.JWT_ACCESS_SECRET, {
     expiresIn: env.JWT_ACCESS_EXPIRES_IN,
   });
 
-  const refreshToken = jwt.sign({ sub: String(employeeId), type: TOKEN_TYPE.REFRESH }, env.JWT_REFRESH_SECRET, {
+  const refreshToken = jwt.sign({ sub: String(employeeDetailId), type: TOKEN_TYPE.REFRESH }, env.JWT_REFRESH_SECRET, {
     expiresIn: env.JWT_REFRESH_EXPIRES_IN,
   });
 
@@ -32,7 +39,7 @@ export function issueTokens({ employeeId, email }) {
 /**
  * Verifies a token of the given type. Throws a 401 ApiError on any problem —
  * bad signature, expiry, or a token of the wrong kind.
- * @returns {{ employeeId: number, email?: string }}
+ * @returns {{ employeeDetailId: number, email?: string }}
  */
 export function verifyToken(token, type) {
   const secret = type === TOKEN_TYPE.ACCESS ? env.JWT_ACCESS_SECRET : env.JWT_REFRESH_SECRET;
@@ -49,5 +56,5 @@ export function verifyToken(token, type) {
     throw ApiError.unauthorized(MESSAGES.TOKEN_INVALID);
   }
 
-  return { employeeId: Number(payload.sub), email: payload.email };
+  return { employeeDetailId: Number(payload.sub), email: payload.email };
 }

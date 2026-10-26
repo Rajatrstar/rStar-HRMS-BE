@@ -7,22 +7,24 @@
  * service - otherwise "OWN" quietly means four different things within six
  * months.
  *
- * THE TRAP, stated once so it is never rediscovered the hard way:
- * dbo.tblEmployeeDetails.ManagerId references EmployeeDetailId (BIGINT), NOT
- * EmployeeLogin.EmployeeId (INT). A TEAM clause written against the wrong one
- * compiles, runs, returns rows, and returns the WRONG PEOPLE. The two
- * parameter names below differ on purpose - @scopeDetailId and
- * @scopeEmployeeId - so a mix-up fails loudly instead of silently.
+ * ONE ID SPACE. The subject of every grant is an EmployeeDetailId, and
+ * ManagerId on dbo.tblEmployeeDetails is an EmployeeDetailId too, so a TEAM
+ * clause is a plain comparison. The earlier schema keyed grants on the login
+ * id instead, which meant every row-scoped query had to translate between two
+ * id spaces first - a mistake that compiled, ran, returned rows, and returned
+ * the WRONG PEOPLE. Inverting the login/employee relationship removed that
+ * whole class of bug rather than documenting it.
  *
- * Every parameter is prefixed `scope` so a caller's own @employeeId can never
- * collide with one of these.
+ * Every parameter is prefixed `scope` so a caller's own @employeeDetailId can
+ * never collide with one of these.
  */
 import { ApiError } from '../utils/api-error.js';
 import { EmployeeDetails } from '../models/index.js';
 import { PERMISSION_SCOPE, MESSAGES, ERROR_CODE } from '../enums/index.js';
 
 /**
- * A scope that needs a profile, on a login that has none, is unresolvable.
+ * A scope that needs something the employee record does not carry - a
+ * department, usually - is unresolvable.
  *
  * It throws rather than returning a clause that matches nothing. An empty list
  * looks exactly like "there are no employees" and gets debugged as a data
@@ -34,7 +36,7 @@ function requireContext(value, access, code, field) {
   throw ApiError.forbidden(MESSAGES.SCOPE_UNRESOLVED, {
     code: ERROR_CODE.SCOPE_UNRESOLVED,
     requiredPermission: code,
-    reason: `The employee profile for this login has no ${field}`,
+    reason: `This employee record has no ${field}`,
   });
 }
 
@@ -78,20 +80,18 @@ export function employeeScopeClause(alias, access, code) {
       return {
         clause: `(${alias}.ManagerId = @scopeDetailId OR ${alias}.EmployeeDetailId = @scopeDetailId)`,
         params: {
-          scopeDetailId: EmployeeDetails.param(
-            'employeeDetailId',
-            requireContext(access.employeeDetailId, access, code, 'profile record'),
-          ),
+          scopeDetailId: EmployeeDetails.param('employeeDetailId', access.employeeDetailId),
         },
       };
 
     case PERMISSION_SCOPE.OWN:
     default:
-      // Keyed on the login id, which always exists - so OWN is the one scope
-      // that works for a login with no profile yet.
+      // The same id the subject is keyed on, so OWN can never be unresolvable.
       return {
-        clause: `${alias}.EmployeeId = @scopeEmployeeId`,
-        params: { scopeEmployeeId: EmployeeDetails.param('employeeId', access.employeeId) },
+        clause: `${alias}.EmployeeDetailId = @scopeDetailId`,
+        params: {
+          scopeDetailId: EmployeeDetails.param('employeeDetailId', access.employeeDetailId),
+        },
       };
   }
 }
@@ -113,12 +113,11 @@ export function canReachEmployee(access, code, row) {
       return access.departmentId !== null && Number(row.departmentId) === access.departmentId;
     case PERMISSION_SCOPE.TEAM:
       return (
-        access.employeeDetailId !== null &&
-        (Number(row.managerId) === access.employeeDetailId ||
-          Number(row.employeeDetailId) === access.employeeDetailId)
+        Number(row.managerId) === access.employeeDetailId ||
+        Number(row.employeeDetailId) === access.employeeDetailId
       );
     case PERMISSION_SCOPE.OWN:
-      return Number(row.employeeId) === access.employeeId;
+      return Number(row.employeeDetailId) === access.employeeDetailId;
     default:
       return false;
   }

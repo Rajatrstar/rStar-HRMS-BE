@@ -12,13 +12,15 @@
   in the hot path - and so the OWN/TEAM/DEPARTMENT/ALL ordering cannot drift
   between the database and src/enums/permission.enum.js.
 
-  Subjects are keyed on dbo.EmployeeLogin.EmployeeId (INT), not on
-  dbo.tblEmployeeDetails.EmployeeDetailId. The request path already has the
-  login id from the token, the column is never NULL, and a person with no login
-  cannot make a request. Note the consequence for row scope: ManagerId on the
-  profile table references EmployeeDetailId (BIGINT), so resolving TEAM means
-  translating login id -> detail id first. That translation lives in exactly
-  one place, src/helpers/access-scope.helper.js.
+  Subjects are keyed on dbo.tblEmployeeDetails.EmployeeDetailId (BIGINT) - the
+  person, not the credential. Permissions belong to an employee; the login is
+  just one way that employee reaches the system, and dbo.EmployeeLogin carries
+  a NOT NULL EmployeeDetailId so the token can hand the resolver that id
+  directly.
+
+  Row scope falls out of this for free: ManagerId and DepartmentId on the
+  profile table are in the same id space as the subject, so a TEAM clause is a
+  plain comparison with no translation step to get wrong.
 
   Soft delete everywhere, including the join tables: "who gave Bob HR Admin, and
   when" is worth keeping, and the DeletedAt predicate is free because every
@@ -55,8 +57,8 @@ BEGIN
         -- ticked. NULL when IsScoped = 0.
         DefaultScope    NVARCHAR(20)    NULL,
 
-        CreatedBy       INT             NULL,
-        ModifiedBy      INT             NULL,
+        CreatedBy       BIGINT             NULL,
+        ModifiedBy      BIGINT             NULL,
         CreatedAt       DATETIME2(3)    NOT NULL
             CONSTRAINT DF_tblPermission_CreatedAt  DEFAULT SYSUTCDATETIME(),
         ModifiedAt      DATETIME2(3)    NOT NULL
@@ -66,9 +68,9 @@ BEGIN
 
         CONSTRAINT PK_tblPermission PRIMARY KEY CLUSTERED (PermissionId),
         CONSTRAINT FK_tblPermission_CreatedBy
-            FOREIGN KEY (CreatedBy)  REFERENCES dbo.EmployeeLogin (EmployeeId),
+            FOREIGN KEY (CreatedBy)  REFERENCES dbo.tblEmployeeDetails (EmployeeDetailId),
         CONSTRAINT FK_tblPermission_ModifiedBy
-            FOREIGN KEY (ModifiedBy) REFERENCES dbo.EmployeeLogin (EmployeeId),
+            FOREIGN KEY (ModifiedBy) REFERENCES dbo.tblEmployeeDetails (EmployeeDetailId),
 
         -- The code is the join between the enum and the table. A comma would
         -- break the STRING_SPLIT retirement sweep in the seed; an uppercase
@@ -120,8 +122,8 @@ BEGIN
         IsActive    BIT             NOT NULL
             CONSTRAINT DF_tblRole_IsActive DEFAULT 1,
 
-        CreatedBy   INT             NULL,
-        ModifiedBy  INT             NULL,
+        CreatedBy   BIGINT             NULL,
+        ModifiedBy  BIGINT             NULL,
         CreatedAt   DATETIME2(3)    NOT NULL
             CONSTRAINT DF_tblRole_CreatedAt  DEFAULT SYSUTCDATETIME(),
         ModifiedAt  DATETIME2(3)    NOT NULL
@@ -130,9 +132,9 @@ BEGIN
 
         CONSTRAINT PK_tblRole PRIMARY KEY CLUSTERED (RoleId),
         CONSTRAINT FK_tblRole_CreatedBy
-            FOREIGN KEY (CreatedBy)  REFERENCES dbo.EmployeeLogin (EmployeeId),
+            FOREIGN KEY (CreatedBy)  REFERENCES dbo.tblEmployeeDetails (EmployeeDetailId),
         CONSTRAINT FK_tblRole_ModifiedBy
-            FOREIGN KEY (ModifiedBy) REFERENCES dbo.EmployeeLogin (EmployeeId),
+            FOREIGN KEY (ModifiedBy) REFERENCES dbo.tblEmployeeDetails (EmployeeDetailId),
 
         -- Delete protection, declared rather than left to a service-layer `if`
         -- that one future endpoint will forget.
@@ -169,8 +171,8 @@ BEGIN
         IsActive    BIT             NOT NULL
             CONSTRAINT DF_tblGroup_IsActive DEFAULT 1,
 
-        CreatedBy   INT             NULL,
-        ModifiedBy  INT             NULL,
+        CreatedBy   BIGINT             NULL,
+        ModifiedBy  BIGINT             NULL,
         CreatedAt   DATETIME2(3)    NOT NULL
             CONSTRAINT DF_tblGroup_CreatedAt  DEFAULT SYSUTCDATETIME(),
         ModifiedAt  DATETIME2(3)    NOT NULL
@@ -179,9 +181,9 @@ BEGIN
 
         CONSTRAINT PK_tblGroup PRIMARY KEY CLUSTERED (GroupId),
         CONSTRAINT FK_tblGroup_CreatedBy
-            FOREIGN KEY (CreatedBy)  REFERENCES dbo.EmployeeLogin (EmployeeId),
+            FOREIGN KEY (CreatedBy)  REFERENCES dbo.tblEmployeeDetails (EmployeeDetailId),
         CONSTRAINT FK_tblGroup_ModifiedBy
-            FOREIGN KEY (ModifiedBy) REFERENCES dbo.EmployeeLogin (EmployeeId)
+            FOREIGN KEY (ModifiedBy) REFERENCES dbo.tblEmployeeDetails (EmployeeDetailId)
     );
 
     CREATE UNIQUE INDEX UQ_tblGroup_GroupCode
@@ -207,8 +209,8 @@ BEGIN
         ScopeRank AS (CASE Scope WHEN 'OWN' THEN 1 WHEN 'TEAM' THEN 2
                                  WHEN 'DEPARTMENT' THEN 3 WHEN 'ALL' THEN 4 END) PERSISTED,
 
-        CreatedBy  INT          NULL,
-        ModifiedBy INT          NULL,
+        CreatedBy  BIGINT          NULL,
+        ModifiedBy BIGINT          NULL,
         CreatedAt  DATETIME2(3) NOT NULL
             CONSTRAINT DF_tblRolePermission_CreatedAt  DEFAULT SYSUTCDATETIME(),
         ModifiedAt DATETIME2(3) NOT NULL
@@ -223,9 +225,9 @@ BEGIN
         CONSTRAINT FK_tblRolePermission_Permission
             FOREIGN KEY (PermissionId) REFERENCES dbo.tblPermission (PermissionId),
         CONSTRAINT FK_tblRolePermission_CreatedBy
-            FOREIGN KEY (CreatedBy)    REFERENCES dbo.EmployeeLogin (EmployeeId),
+            FOREIGN KEY (CreatedBy)    REFERENCES dbo.tblEmployeeDetails (EmployeeDetailId),
         CONSTRAINT FK_tblRolePermission_ModifiedBy
-            FOREIGN KEY (ModifiedBy)   REFERENCES dbo.EmployeeLogin (EmployeeId),
+            FOREIGN KEY (ModifiedBy)   REFERENCES dbo.tblEmployeeDetails (EmployeeDetailId),
         CONSTRAINT CK_tblRolePermission_Scope CHECK (Scope IN ('OWN','TEAM','DEPARTMENT','ALL'))
     );
 
@@ -252,8 +254,8 @@ BEGIN
         ScopeRank AS (CASE Scope WHEN 'OWN' THEN 1 WHEN 'TEAM' THEN 2
                                  WHEN 'DEPARTMENT' THEN 3 WHEN 'ALL' THEN 4 END) PERSISTED,
 
-        CreatedBy  INT          NULL,
-        ModifiedBy INT          NULL,
+        CreatedBy  BIGINT          NULL,
+        ModifiedBy BIGINT          NULL,
         CreatedAt  DATETIME2(3) NOT NULL
             CONSTRAINT DF_tblGroupPermission_CreatedAt  DEFAULT SYSUTCDATETIME(),
         ModifiedAt DATETIME2(3) NOT NULL
@@ -266,9 +268,9 @@ BEGIN
         CONSTRAINT FK_tblGroupPermission_Permission
             FOREIGN KEY (PermissionId) REFERENCES dbo.tblPermission (PermissionId),
         CONSTRAINT FK_tblGroupPermission_CreatedBy
-            FOREIGN KEY (CreatedBy)    REFERENCES dbo.EmployeeLogin (EmployeeId),
+            FOREIGN KEY (CreatedBy)    REFERENCES dbo.tblEmployeeDetails (EmployeeDetailId),
         CONSTRAINT FK_tblGroupPermission_ModifiedBy
-            FOREIGN KEY (ModifiedBy)   REFERENCES dbo.EmployeeLogin (EmployeeId),
+            FOREIGN KEY (ModifiedBy)   REFERENCES dbo.tblEmployeeDetails (EmployeeDetailId),
         CONSTRAINT CK_tblGroupPermission_Scope CHECK (Scope IN ('OWN','TEAM','DEPARTMENT','ALL'))
     );
 
@@ -284,15 +286,13 @@ IF OBJECT_ID('dbo.tblEmployeeRole', 'U') IS NULL
 BEGIN
     CREATE TABLE dbo.tblEmployeeRole (
         EmployeeRoleId BIGINT       IDENTITY(1,1) NOT NULL,
-        -- INT, matching dbo.EmployeeLogin.EmployeeId exactly. Not
-        -- EmployeeDetailId: that column is BIGINT and its EmployeeId FK is
-        -- nullable, so a profile is the wrong anchor for something the request
-        -- path reads on every call.
-        EmployeeId     INT          NOT NULL,
-        RoleId         BIGINT       NOT NULL,
+        -- The person who holds the role, never the credential. BIGINT,
+        -- matching dbo.tblEmployeeDetails.EmployeeDetailId exactly.
+        EmployeeDetailId BIGINT     NOT NULL,
+        RoleId           BIGINT     NOT NULL,
 
-        CreatedBy  INT          NULL,
-        ModifiedBy INT          NULL,
+        CreatedBy  BIGINT          NULL,
+        ModifiedBy BIGINT          NULL,
         CreatedAt  DATETIME2(3) NOT NULL
             CONSTRAINT DF_tblEmployeeRole_CreatedAt  DEFAULT SYSUTCDATETIME(),
         ModifiedAt DATETIME2(3) NOT NULL
@@ -301,34 +301,34 @@ BEGIN
 
         CONSTRAINT PK_tblEmployeeRole PRIMARY KEY CLUSTERED (EmployeeRoleId),
         CONSTRAINT FK_tblEmployeeRole_Employee
-            FOREIGN KEY (EmployeeId) REFERENCES dbo.EmployeeLogin (EmployeeId),
+            FOREIGN KEY (EmployeeDetailId) REFERENCES dbo.tblEmployeeDetails (EmployeeDetailId),
         CONSTRAINT FK_tblEmployeeRole_Role
             FOREIGN KEY (RoleId)     REFERENCES dbo.tblRole (RoleId),
         CONSTRAINT FK_tblEmployeeRole_CreatedBy
-            FOREIGN KEY (CreatedBy)  REFERENCES dbo.EmployeeLogin (EmployeeId),
+            FOREIGN KEY (CreatedBy)  REFERENCES dbo.tblEmployeeDetails (EmployeeDetailId),
         CONSTRAINT FK_tblEmployeeRole_ModifiedBy
-            FOREIGN KEY (ModifiedBy) REFERENCES dbo.EmployeeLogin (EmployeeId)
+            FOREIGN KEY (ModifiedBy) REFERENCES dbo.tblEmployeeDetails (EmployeeDetailId)
     );
 
     CREATE UNIQUE INDEX UQ_tblEmployeeRole_EmployeeRole
-        ON dbo.tblEmployeeRole (EmployeeId, RoleId) WHERE DeletedAt IS NULL;
+        ON dbo.tblEmployeeRole (EmployeeDetailId, RoleId) WHERE DeletedAt IS NULL;
     CREATE INDEX IX_tblEmployeeRole_Employee
-        ON dbo.tblEmployeeRole (EmployeeId) INCLUDE (RoleId) WHERE DeletedAt IS NULL;
+        ON dbo.tblEmployeeRole (EmployeeDetailId) INCLUDE (RoleId) WHERE DeletedAt IS NULL;
     -- "Who holds SUPER_ADMIN" - the admin screen, and the guard that refuses
     -- to unassign the last one.
     CREATE INDEX IX_tblEmployeeRole_Role
-        ON dbo.tblEmployeeRole (RoleId) INCLUDE (EmployeeId) WHERE DeletedAt IS NULL;
+        ON dbo.tblEmployeeRole (RoleId) INCLUDE (EmployeeDetailId) WHERE DeletedAt IS NULL;
 END;
 
 IF OBJECT_ID('dbo.tblEmployeeGroup', 'U') IS NULL
 BEGIN
     CREATE TABLE dbo.tblEmployeeGroup (
         EmployeeGroupId BIGINT       IDENTITY(1,1) NOT NULL,
-        EmployeeId      INT          NOT NULL,
+        EmployeeDetailId      BIGINT          NOT NULL,
         GroupId         BIGINT       NOT NULL,
 
-        CreatedBy  INT          NULL,
-        ModifiedBy INT          NULL,
+        CreatedBy  BIGINT          NULL,
+        ModifiedBy BIGINT          NULL,
         CreatedAt  DATETIME2(3) NOT NULL
             CONSTRAINT DF_tblEmployeeGroup_CreatedAt  DEFAULT SYSUTCDATETIME(),
         ModifiedAt DATETIME2(3) NOT NULL
@@ -337,21 +337,21 @@ BEGIN
 
         CONSTRAINT PK_tblEmployeeGroup PRIMARY KEY CLUSTERED (EmployeeGroupId),
         CONSTRAINT FK_tblEmployeeGroup_Employee
-            FOREIGN KEY (EmployeeId) REFERENCES dbo.EmployeeLogin (EmployeeId),
+            FOREIGN KEY (EmployeeDetailId) REFERENCES dbo.tblEmployeeDetails (EmployeeDetailId),
         CONSTRAINT FK_tblEmployeeGroup_Group
             FOREIGN KEY (GroupId)    REFERENCES dbo.tblGroup (GroupId),
         CONSTRAINT FK_tblEmployeeGroup_CreatedBy
-            FOREIGN KEY (CreatedBy)  REFERENCES dbo.EmployeeLogin (EmployeeId),
+            FOREIGN KEY (CreatedBy)  REFERENCES dbo.tblEmployeeDetails (EmployeeDetailId),
         CONSTRAINT FK_tblEmployeeGroup_ModifiedBy
-            FOREIGN KEY (ModifiedBy) REFERENCES dbo.EmployeeLogin (EmployeeId)
+            FOREIGN KEY (ModifiedBy) REFERENCES dbo.tblEmployeeDetails (EmployeeDetailId)
     );
 
     CREATE UNIQUE INDEX UQ_tblEmployeeGroup_EmployeeGroup
-        ON dbo.tblEmployeeGroup (EmployeeId, GroupId) WHERE DeletedAt IS NULL;
+        ON dbo.tblEmployeeGroup (EmployeeDetailId, GroupId) WHERE DeletedAt IS NULL;
     CREATE INDEX IX_tblEmployeeGroup_Employee
-        ON dbo.tblEmployeeGroup (EmployeeId) INCLUDE (GroupId) WHERE DeletedAt IS NULL;
+        ON dbo.tblEmployeeGroup (EmployeeDetailId) INCLUDE (GroupId) WHERE DeletedAt IS NULL;
     CREATE INDEX IX_tblEmployeeGroup_Group
-        ON dbo.tblEmployeeGroup (GroupId) INCLUDE (EmployeeId) WHERE DeletedAt IS NULL;
+        ON dbo.tblEmployeeGroup (GroupId) INCLUDE (EmployeeDetailId) WHERE DeletedAt IS NULL;
 END;
 
 IF OBJECT_ID('dbo.tblEmployeePermission', 'U') IS NULL
@@ -362,7 +362,7 @@ BEGIN
     */
     CREATE TABLE dbo.tblEmployeePermission (
         EmployeePermissionId BIGINT       IDENTITY(1,1) NOT NULL,
-        EmployeeId           INT          NOT NULL,
+        EmployeeDetailId           BIGINT          NOT NULL,
         PermissionId         BIGINT       NOT NULL,
 
         Effect               NVARCHAR(10) NOT NULL,   -- 'GRANT' | 'DENY'
@@ -382,8 +382,8 @@ BEGIN
         -- Optional expiry for a temporary grant. NULL means permanent.
         ExpiresAt            DATETIME2(3)  NULL,
 
-        CreatedBy  INT          NULL,
-        ModifiedBy INT          NULL,
+        CreatedBy  BIGINT          NULL,
+        ModifiedBy BIGINT          NULL,
         CreatedAt  DATETIME2(3) NOT NULL
             CONSTRAINT DF_tblEmployeePermission_CreatedAt  DEFAULT SYSUTCDATETIME(),
         ModifiedAt DATETIME2(3) NOT NULL
@@ -392,13 +392,13 @@ BEGIN
 
         CONSTRAINT PK_tblEmployeePermission PRIMARY KEY CLUSTERED (EmployeePermissionId),
         CONSTRAINT FK_tblEmployeePermission_Employee
-            FOREIGN KEY (EmployeeId)   REFERENCES dbo.EmployeeLogin (EmployeeId),
+            FOREIGN KEY (EmployeeDetailId) REFERENCES dbo.tblEmployeeDetails (EmployeeDetailId),
         CONSTRAINT FK_tblEmployeePermission_Permission
             FOREIGN KEY (PermissionId) REFERENCES dbo.tblPermission (PermissionId),
         CONSTRAINT FK_tblEmployeePermission_CreatedBy
-            FOREIGN KEY (CreatedBy)    REFERENCES dbo.EmployeeLogin (EmployeeId),
+            FOREIGN KEY (CreatedBy)    REFERENCES dbo.tblEmployeeDetails (EmployeeDetailId),
         CONSTRAINT FK_tblEmployeePermission_ModifiedBy
-            FOREIGN KEY (ModifiedBy)   REFERENCES dbo.EmployeeLogin (EmployeeId),
+            FOREIGN KEY (ModifiedBy)   REFERENCES dbo.tblEmployeeDetails (EmployeeDetailId),
 
         CONSTRAINT CK_tblEmployeePermission_Effect CHECK (Effect IN ('GRANT','DENY')),
         CONSTRAINT CK_tblEmployeePermission_Scope CHECK (
@@ -412,10 +412,10 @@ BEGIN
     -- than a conflict the resolver has to arbitrate at runtime. Precedence
     -- then only ever fires across sources, never within one.
     CREATE UNIQUE INDEX UQ_tblEmployeePermission_EmployeePermission
-        ON dbo.tblEmployeePermission (EmployeeId, PermissionId) WHERE DeletedAt IS NULL;
+        ON dbo.tblEmployeePermission (EmployeeDetailId, PermissionId) WHERE DeletedAt IS NULL;
 
     CREATE INDEX IX_tblEmployeePermission_Employee
-        ON dbo.tblEmployeePermission (EmployeeId)
+        ON dbo.tblEmployeePermission (EmployeeDetailId)
         INCLUDE (PermissionId, Effect, ScopeRank, ExpiresAt)
         WHERE DeletedAt IS NULL;
 END;

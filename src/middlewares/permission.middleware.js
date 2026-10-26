@@ -45,12 +45,13 @@ function buildPermissionGuard({ name, codes, mode }) {
   const wanted = codes.map((code) => String(code).toLowerCase());
 
   const guard = async (req, res, next) => {
-    const access = await resolveAccess(req.employee.employeeId);
+    const access = await resolveAccess(req.employee.employeeDetailId);
 
-    // A profile that exists and has been switched off or soft-deleted is a
-    // leaver. This is the only revocation that beats the access token's
-    // lifetime, so it is checked before permissions rather than after.
-    if (access.hasProfile && !access.active) {
+    // An employee who has been switched off or soft-deleted is a leaver. This
+    // is the only revocation that beats the access token's lifetime, so it is
+    // checked before permissions rather than after. `exists` is false only
+    // when the token names an employee the table has never had.
+    if (!access.exists || !access.active) {
       throw ApiError.forbidden(MESSAGES.ACCOUNT_INACTIVE, {
         code: ERROR_CODE.ACCOUNT_INACTIVE,
       });
@@ -69,7 +70,7 @@ function buildPermissionGuard({ name, codes, mode }) {
       // like a broken button and would otherwise leave no trace anywhere.
       logger.warn(
         `[permission:${name}] denied ${req.method} ${req.originalUrl} ` +
-          `for employee ${access.employeeId}`,
+          `for employee ${access.employeeDetailId}`,
       );
       // `requiredPermission` is not a secret - it names a capability, not
       // data, and it is exactly what a user quotes in a help-desk ticket and

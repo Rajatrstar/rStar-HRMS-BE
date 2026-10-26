@@ -7,6 +7,7 @@
  *
  * Three things make it safe rather than just fast:
  *
+ *   - Keyed by EmployeeDetailId, the same subject the resolver uses.
  *   - It stores the PROMISE, not the resolved value. A hundred concurrent
  *     requests from one person on a cold key produce one query, not a hundred.
  *     Exactly the pattern config/db.js uses for poolPromise.
@@ -25,7 +26,7 @@
 import { env } from '../config/env.js';
 import { logger } from './logger.js';
 
-/** @type {Map<number, { promise: Promise<any>, expiresAt: number }>} */
+/** @type {Map<number, { promise: Promise<any>, expiresAt: number }>} keyed by EmployeeDetailId */
 const entries = new Map();
 
 const ttlMs = () => env.ACCESS_CONTROL_CACHE_TTL_SECONDS * 1000;
@@ -37,14 +38,14 @@ const ttlMs = () => env.ACCESS_CONTROL_CACHE_TTL_SECONDS * 1000;
  * nothing until somebody asks for it, and the size bound below handles the
  * pathological case.
  */
-export function getCached(employeeId) {
+export function getCached(employeeDetailId) {
   if (!env.ACCESS_CONTROL_CACHE_ENABLED) return undefined;
 
-  const entry = entries.get(employeeId);
+  const entry = entries.get(employeeDetailId);
   if (!entry) return undefined;
 
   if (entry.expiresAt <= Date.now()) {
-    entries.delete(employeeId);
+    entries.delete(employeeDetailId);
     return undefined;
   }
 
@@ -57,7 +58,7 @@ export function getCached(employeeId) {
  * A rejected promise is dropped rather than cached: a transient database error
  * must not deny the next request for a whole TTL.
  */
-export function cacheAccess(employeeId, promise) {
+export function cacheAccess(employeeDetailId, promise) {
   if (!env.ACCESS_CONTROL_CACHE_ENABLED) return promise;
 
   // A hard bound rather than an LRU. Access sets are small and uniform, the
@@ -68,18 +69,18 @@ export function cacheAccess(employeeId, promise) {
     entries.clear();
   }
 
-  entries.set(employeeId, { promise, expiresAt: Date.now() + ttlMs() });
+  entries.set(employeeDetailId, { promise, expiresAt: Date.now() + ttlMs() });
 
   promise.catch(() => {
-    entries.delete(employeeId);
+    entries.delete(employeeDetailId);
   });
 
   return promise;
 }
 
 /** Drops one person's entry. For writes that touch a single user. */
-export function invalidateEmployee(employeeId) {
-  entries.delete(employeeId);
+export function invalidateEmployee(employeeDetailId) {
+  entries.delete(employeeDetailId);
 }
 
 /**

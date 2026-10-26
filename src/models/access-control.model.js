@@ -11,9 +11,9 @@
  *   - `scopeRank` is a PERSISTED computed column. Read it, never write it;
  *     SQL Server rejects it in an INSERT column list. It is here so
  *     `npm run db:verify` does not warn about an unmapped column.
- *   - Subjects are keyed on dbo.EmployeeLogin.EmployeeId (INT). The profile
- *     table's EmployeeDetailId (BIGINT) is a different number, and row scope
- *     needs the translation - see src/helpers/access-scope.helper.js.
+ *   - Subjects are keyed on dbo.tblEmployeeDetails.EmployeeDetailId (BIGINT) -
+ *     the person, not the credential. Row scope compares against ManagerId and
+ *     DepartmentId in that same id space, so there is nothing to translate.
  *
  * Soft delete: every read path must filter `WHERE DeletedAt IS NULL`, except
  * tblAccessControlStamp, which has no such column.
@@ -23,8 +23,8 @@ import { defineModel } from './define-model.js';
 
 /** Audit and soft-delete columns, identical on eight of the nine tables. */
 const auditColumns = () => ({
-  createdBy: { column: 'CreatedBy', type: sql.Int, nullable: true },
-  modifiedBy: { column: 'ModifiedBy', type: sql.Int, nullable: true },
+  createdBy: { column: 'CreatedBy', type: sql.BigInt, nullable: true },
+  modifiedBy: { column: 'ModifiedBy', type: sql.BigInt, nullable: true },
   createdAt: { column: 'CreatedAt', type: sql.DateTime2 },
   modifiedAt: { column: 'ModifiedAt', type: sql.DateTime2 },
   // NULL means live.
@@ -126,7 +126,7 @@ export const EmployeeRole = defineModel({
     employeeRoleId: { column: 'EmployeeRoleId', type: sql.BigInt, identity: true },
 
     // dbo.EmployeeLogin.EmployeeId, not EmployeeDetailId.
-    employeeId: { column: 'EmployeeId', type: sql.Int },
+    employeeDetailId: { column: 'EmployeeDetailId', type: sql.BigInt },
     roleId: { column: 'RoleId', type: sql.BigInt },
 
     ...auditColumns(),
@@ -139,7 +139,7 @@ export const EmployeeGroup = defineModel({
   columns: {
     employeeGroupId: { column: 'EmployeeGroupId', type: sql.BigInt, identity: true },
 
-    employeeId: { column: 'EmployeeId', type: sql.Int },
+    employeeDetailId: { column: 'EmployeeDetailId', type: sql.BigInt },
     groupId: { column: 'GroupId', type: sql.BigInt },
 
     ...auditColumns(),
@@ -157,7 +157,7 @@ export const EmployeePermission = defineModel({
   columns: {
     employeePermissionId: { column: 'EmployeePermissionId', type: sql.BigInt, identity: true },
 
-    employeeId: { column: 'EmployeeId', type: sql.Int },
+    employeeDetailId: { column: 'EmployeeDetailId', type: sql.BigInt },
     permissionId: { column: 'PermissionId', type: sql.BigInt },
 
     effect: { column: 'Effect', type: sql.NVarChar(10) },

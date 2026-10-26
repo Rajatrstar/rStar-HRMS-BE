@@ -95,7 +95,7 @@ export async function refresh(req, res) {
 /** GET /api/v1/auth/me — requires a valid access token. */
 export async function me(req, res) {
   // req.employee is attached by authenticate().
-  const data = await authService.getProfile(req.employee.employeeId);
+  const data = await authService.getProfile(req.employee.employeeDetailId);
 
   return sendSuccess(res, { statusCode: HTTP_STATUS.OK, message: MESSAGES.PROFILE_FETCHED, data });
 }

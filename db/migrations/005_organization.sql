@@ -68,8 +68,8 @@ BEGIN
         IsActive            BIT             NOT NULL
             CONSTRAINT DF_tblOrganization_IsActive DEFAULT 1,
 
-        CreatedBy           INT             NULL,
-        ModifiedBy          INT             NULL,
+        CreatedBy           BIGINT             NULL,
+        ModifiedBy          BIGINT             NULL,
         CreatedAt           DATETIME2(3)    NOT NULL
             CONSTRAINT DF_tblOrganization_CreatedAt  DEFAULT SYSUTCDATETIME(),
         ModifiedAt          DATETIME2(3)    NOT NULL
@@ -78,9 +78,9 @@ BEGIN
 
         CONSTRAINT PK_tblOrganization PRIMARY KEY CLUSTERED (OrganizationId),
         CONSTRAINT FK_tblOrganization_CreatedBy
-            FOREIGN KEY (CreatedBy)  REFERENCES dbo.EmployeeLogin (EmployeeId),
+            FOREIGN KEY (CreatedBy)  REFERENCES dbo.tblEmployeeDetails (EmployeeDetailId),
         CONSTRAINT FK_tblOrganization_ModifiedBy
-            FOREIGN KEY (ModifiedBy) REFERENCES dbo.EmployeeLogin (EmployeeId)
+            FOREIGN KEY (ModifiedBy) REFERENCES dbo.tblEmployeeDetails (EmployeeDetailId)
     );
 
     -- Filtered, like tblRole and unlike tblPermission: soft-deleting an
@@ -122,8 +122,8 @@ BEGIN
         IsActive            BIT             NOT NULL
             CONSTRAINT DF_tblOrganizationLocation_IsActive DEFAULT 1,
 
-        CreatedBy           INT             NULL,
-        ModifiedBy          INT             NULL,
+        CreatedBy           BIGINT             NULL,
+        ModifiedBy          BIGINT             NULL,
         CreatedAt           DATETIME2(3)    NOT NULL
             CONSTRAINT DF_tblOrganizationLocation_CreatedAt  DEFAULT SYSUTCDATETIME(),
         ModifiedAt          DATETIME2(3)    NOT NULL
@@ -134,9 +134,9 @@ BEGIN
         CONSTRAINT FK_tblOrganizationLocation_Organization
             FOREIGN KEY (OrganizationId) REFERENCES dbo.tblOrganization (OrganizationId),
         CONSTRAINT FK_tblOrganizationLocation_CreatedBy
-            FOREIGN KEY (CreatedBy)      REFERENCES dbo.EmployeeLogin (EmployeeId),
+            FOREIGN KEY (CreatedBy)      REFERENCES dbo.tblEmployeeDetails (EmployeeDetailId),
         CONSTRAINT FK_tblOrganizationLocation_ModifiedBy
-            FOREIGN KEY (ModifiedBy)     REFERENCES dbo.EmployeeLogin (EmployeeId)
+            FOREIGN KEY (ModifiedBy)     REFERENCES dbo.tblEmployeeDetails (EmployeeDetailId)
     );
 
     -- Two organisations may both have a "Head Office"; one may not have two.

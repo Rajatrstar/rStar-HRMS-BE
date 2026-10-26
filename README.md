@@ -23,8 +23,8 @@ npm run dev              # http://localhost:5000/api/v1
 | `npm run dev:node`   | Same, using Node's built-in `--watch` instead of nodemon   |
 | `npm start`          | Starts once, no watcher                                    |
 | `npm run db:migrate` | Applies new files in `db/migrations`, once each            |
-| `npm run db:seed`    | Creates or resets a login — defaults to `admin@rstartec.com` / `admin` |
-| `npm run db:seed:employees` | Gives every login an `tblEmployeeDetails` profile, if it has none |
+| `npm run db:seed`    | Creates an employee **and** their login — defaults to `admin@rstartec.com` / `admin`. No role |
+| `npm run db:seed:employees` | Creates a couple of sample employees. They have no login and cannot sign in |
 | `npm run db:seed:permissions` | Syncs the permission catalog and the five master roles |
 | `npm run db:create:admin` | Creates a login **+** profile **+** role — a usable administrator |
 | `npm run db:verify`  | Checks every model in `src/models` against the live schema |
@@ -34,8 +34,12 @@ Seed a different account with `npm run db:seed -- someone@rstartec.com theirPass
 
 **An administrator is three rows, not one**, and missing the third is silent — the
 account logs in and then holds zero permissions, so every endpoint answers `403`
-with nothing to explain it. `db:seed` writes the login, `db:seed:employees` writes
-the profile, and **nothing** writes the role. That is what `db:create:admin` is for:
+with nothing to explain it. The order matters: `dbo.tblEmployeeDetails` is the root
+of the schema and `dbo.EmployeeLogin.EmployeeDetailId` is **NOT NULL**, so the
+person is created first and the credentials point at them.
+
+`db:seed:employees` writes the employee, `db:seed` writes an employee **and** a
+login, and **neither writes the role**. That is what `db:create:admin` is for:
 
 ```bash
 EMAIL=someone@rstartec.com FIRST_NAME=Super LAST_NAME=Admin npm run db:create:admin

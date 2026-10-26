@@ -1,30 +1,37 @@
 /**
- * Seeds one employee profile per existing login account.
+ * Seeds a handful of employee records to develop against.
  *
  *   npm run db:seed:employees
  *
- * Idempotent: a login that already has a profile is left alone, so re-running
- * after adding an account fills in only the gap. Nothing is overwritten -
- * these rows are meant to be edited by hand once they exist.
+ * These are PEOPLE, not accounts. dbo.tblEmployeeDetails is the root of this
+ * schema and a row here stands on its own - plenty of employees never sign in.
+ * Giving one of them a login is a separate step, and the only thing that can
+ * do it today is scripts/create-admin.js.
  *
- * The first account seeded becomes the manager of the rest, purely so the
- * ManagerId join has something to return during development.
+ * This script used to run the other way round: it walked dbo.EmployeeLogin and
+ * invented a profile for each account. That inverted with the schema. A login
+ * now REQUIRES an employee, so there can no longer be an account missing one.
+ *
+ * Idempotent: an employee whose work email is already on file is left alone,
+ * so re-running fills gaps and overwrites nothing. These rows are meant to be
+ * edited by hand once they exist.
+ *
+ * The first entry becomes the manager of the rest, purely so the ManagerId
+ * join and the TEAM scope have something to return during development.
  */
 import { getPool, closePool } from '../src/config/db.js';
-import { query, queryOne } from '../src/helpers/query.helper.js';
-import { EmployeeLogin, EmployeeDetails } from '../src/models/index.js';
+import { queryOne } from '../src/helpers/query.helper.js';
+import { EmployeeDetails } from '../src/models/index.js';
 import { EMPLOYMENT_TYPE, EMPLOYMENT_STATUS, GENDER } from '../src/enums/index.js';
 import { logger } from '../src/utils/logger.js';
 
-/**
- * Profile details per login email. An account with no entry here still gets a
- * row, built from its email address - see fallbackProfile().
- */
-const PROFILES = {
-  'anmol.ghai@rstartec.com': {
+/** In order. The first is made everybody else's manager. */
+const EMPLOYEES = [
+  {
     employeeCode: 'EMP001',
     firstName: 'Anmol',
     lastName: 'Ghai',
+    workEmail: 'anmol.ghai@rstartec.com',
     phone: '+91-98765-43210',
     dateOfBirth: '1995-06-12',
     gender: GENDER.MALE,
@@ -32,10 +39,11 @@ const PROFILES = {
     dateOfJoining: '2024-01-15',
     workLocation: 'Mohali',
   },
-  'akshay.singh@rstartec.com': {
+  {
     employeeCode: 'EMP002',
     firstName: 'Akshay',
     lastName: 'Singh',
+    workEmail: 'akshay.singh@rstartec.com',
     phone: '+91-98765-43211',
     dateOfBirth: '1993-11-23',
     gender: GENDER.MALE,
@@ -43,128 +51,85 @@ const PROFILES = {
     dateOfJoining: '2024-03-01',
     workLocation: 'Mohali',
   },
-};
+];
 
-/**
- * For a login with no entry above: enough of a profile to be a valid row.
- *
- * The code comes from nextFreeCode() rather than the loop index, because the
- * codes in PROFILES are fixed - numbering by position hands EMP001 to whoever
- * happens to sort first and collides with the real EMP001.
- */
-function fallbackProfile(email, usedCodes) {
-  const local = email.split('@')[0];
-  const [first, ...rest] = local.split(/[._-]/);
-  const capitalise = (word) => word.charAt(0).toUpperCase() + word.slice(1);
-
-  return {
-    employeeCode: nextFreeCode(usedCodes),
-    firstName: capitalise(first),
-    lastName: rest.length ? capitalise(rest.join(' ')) : 'Unknown',
-    employmentType: EMPLOYMENT_TYPE.FULL_TIME,
-    dateOfJoining: new Date().toISOString().slice(0, 10),
-    workLocation: 'Mohali',
-  };
+/** The live employee with this work email, or null. */
+function findByWorkEmail(workEmail) {
+  return queryOne(
+    `SELECT ${EmployeeDetails.select(['employeeDetailId', 'employeeCode'])}
+       FROM ${EmployeeDetails.table}
+      WHERE WorkEmail = @workEmail AND DeletedAt IS NULL`,
+    EmployeeDetails.params({ workEmail }),
+  );
 }
 
-/** Lowest EMPnnn not already spoken for. Mutates `usedCodes` to claim it. */
-function nextFreeCode(usedCodes) {
-  for (let n = 1; ; n += 1) {
-    const code = `EMP${String(n).padStart(3, '0')}`;
-    if (!usedCodes.has(code)) {
-      usedCodes.add(code);
-      return code;
-    }
-  }
+async function insertEmployee(employee, managerId) {
+  const row = await queryOne(
+    `INSERT INTO ${EmployeeDetails.table} (
+          EmployeeCode, FirstName, LastName, WorkEmail, Phone, DateOfBirth,
+          Gender, EmploymentType, EmploymentStatus, DateOfJoining,
+          WorkLocation, ManagerId
+     )
+     OUTPUT inserted.EmployeeDetailId AS employeeDetailId
+     VALUES (
+          @employeeCode, @firstName, @lastName, @workEmail, @phone, @dateOfBirth,
+          @gender, @employmentType, @employmentStatus, @dateOfJoining,
+          @workLocation, @managerId
+     )`,
+    EmployeeDetails.params({
+      employeeCode: employee.employeeCode,
+      firstName: employee.firstName,
+      lastName: employee.lastName,
+      workEmail: employee.workEmail,
+      phone: employee.phone ?? null,
+      dateOfBirth: employee.dateOfBirth ?? null,
+      gender: employee.gender ?? null,
+      employmentType: employee.employmentType,
+      employmentStatus: EMPLOYMENT_STATUS.ACTIVE,
+      dateOfJoining: employee.dateOfJoining,
+      workLocation: employee.workLocation ?? null,
+      managerId,
+    }),
+  );
+
+  return row.employeeDetailId;
 }
 
 async function run() {
   await getPool();
 
-  const logins = await query(
-    `SELECT ${EmployeeLogin.select(['employeeId', 'email'])}
-       FROM ${EmployeeLogin.table} ORDER BY EmployeeId`,
-  );
-
-  if (logins.length === 0) {
-    logger.warn('No rows in dbo.EmployeeLogin - run npm run db:seed first.');
-    await closePool();
-    return;
-  }
-
-  // Every code that is already claimed - by a row in the table, or by an entry
-  // in PROFILES that this run is about to insert.
-  const taken = await query(
-    `SELECT ${EmployeeDetails.select(['employeeCode'])} FROM ${EmployeeDetails.table}`,
-  );
-  const usedCodes = new Set([
-    ...taken.map((row) => row.employeeCode),
-    ...Object.values(PROFILES).map((profile) => profile.employeeCode),
-  ]);
-
-  let managerDetailId = null;
+  let managerId = null;
   let created = 0;
 
-  for (const login of logins) {
-    const existing = await queryOne(
-      `SELECT ${EmployeeDetails.select(['employeeDetailId'])}
-         FROM ${EmployeeDetails.table}
-        WHERE EmployeeId = @employeeId AND DeletedAt IS NULL`,
-      EmployeeDetails.params({ employeeId: login.employeeId }),
-    );
+  for (const employee of EMPLOYEES) {
+    const existing = await findByWorkEmail(employee.workEmail);
 
     if (existing) {
-      logger.info(`skip ${login.email} - profile already exists (${existing.employeeDetailId})`);
-      managerDetailId ??= existing.employeeDetailId;
+      logger.info(`${employee.workEmail} already on file (${existing.employeeCode})`);
+      managerId ??= existing.employeeDetailId;
       continue;
     }
 
-    const profile = PROFILES[login.email] ?? fallbackProfile(login.email, usedCodes);
-
-    const inserted = await queryOne(
-      `INSERT INTO ${EmployeeDetails.table} (
-         EmployeeId, EmployeeCode, FirstName, LastName, WorkEmail, Phone, Gender,
-         DateOfBirth, ManagerId, EmploymentType, EmploymentStatus, DateOfJoining,
-         WorkLocation, IsActive, CreatedBy, ModifiedBy
-       )
-       OUTPUT INSERTED.EmployeeDetailId AS employeeDetailId
-       VALUES (
-         @employeeId, @employeeCode, @firstName, @lastName, @workEmail, @phone, @gender,
-         @dateOfBirth, @managerId, @employmentType, @employmentStatus, @dateOfJoining,
-         @workLocation, @isActive, @createdBy, @modifiedBy
-       )`,
-      EmployeeDetails.params({
-        employeeId: login.employeeId,
-        employeeCode: profile.employeeCode,
-        firstName: profile.firstName,
-        lastName: profile.lastName,
-        // The login address is the official one by definition.
-        workEmail: login.email,
-        phone: profile.phone ?? null,
-        gender: profile.gender ?? null,
-        dateOfBirth: profile.dateOfBirth ?? null,
-        // The first profile seeded has nobody above it.
-        managerId: managerDetailId,
-        employmentType: profile.employmentType,
-        employmentStatus: EMPLOYMENT_STATUS.ACTIVE,
-        dateOfJoining: profile.dateOfJoining,
-        workLocation: profile.workLocation,
-        isActive: true,
-        // A seed has no human behind it; the audit columns stay NULL.
-        createdBy: null,
-        modifiedBy: null,
-      }),
-    );
-
-    managerDetailId ??= inserted.employeeDetailId;
+    // managerId is null for the first one - nobody to report to yet, and a
+    // self-reference is rejected by CK_tblEmployeeDetails_NotOwnManager.
+    const employeeDetailId = await insertEmployee(employee, managerId);
     created += 1;
     logger.info(
-      `created ${profile.employeeCode} ${profile.firstName} ${profile.lastName} ` +
-        `<${login.email}> (EmployeeDetailId ${inserted.employeeDetailId})`,
+      `created ${employee.employeeCode} ${employee.firstName} ${employee.lastName} ` +
+        `(EmployeeDetailId ${employeeDetailId})` +
+        (managerId === null ? ' - manager for the rest' : ` reporting to ${managerId}`),
     );
+
+    managerId ??= employeeDetailId;
   }
 
-  logger.info(`Done. ${created} profile(s) created, ${logins.length - created} already present.`);
+  logger.info(
+    created === 0
+      ? 'Nothing to do - every seeded employee already exists'
+      : `Created ${created} employee(s)`,
+  );
+  logger.info('None of them can sign in. Use npm run db:create:admin to add a login.');
+
   await closePool();
 }
 

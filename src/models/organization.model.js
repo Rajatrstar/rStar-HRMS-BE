@@ -13,8 +13,8 @@ import { defineModel } from './define-model.js';
 
 /** Audit and soft-delete columns, identical on both tables. */
 const auditColumns = () => ({
-  createdBy: { column: 'CreatedBy', type: sql.Int, nullable: true },
-  modifiedBy: { column: 'ModifiedBy', type: sql.Int, nullable: true },
+  createdBy: { column: 'CreatedBy', type: sql.BigInt, nullable: true },
+  modifiedBy: { column: 'ModifiedBy', type: sql.BigInt, nullable: true },
   createdAt: { column: 'CreatedAt', type: sql.DateTime2 },
   modifiedAt: { column: 'ModifiedAt', type: sql.DateTime2 },
   // NULL means live.

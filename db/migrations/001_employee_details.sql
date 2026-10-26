@@ -1,12 +1,26 @@
 /*
-  Employee profile - the HR record for a person.
+  The employee. THE table this schema is built around.
 
-  This is the "future employee profile table" that 001_employee_login.sql keeps
-  itself separate from: credentials live in dbo.EmployeeLogin, everything a
-  human would recognise as an employee record lives here, and EmployeeId joins
-  the two. A person can exist here with no login (not every employee signs in),
-  which is why that column is nullable - but when it is set it must be unique,
-  so one login never maps to two profiles.
+  Everything that is about a person hangs off EmployeeDetailId: their manager,
+  their roles, their permissions, who created which row. Credentials are a
+  satellite - dbo.EmployeeLogin in 002 carries a NOT NULL EmployeeDetailId
+  pointing back here, so a login cannot exist without a person, while a person
+  can exist with no way to sign in. Plenty of employees never log in.
+
+  WHY THIS DIRECTION, since the first cut had it the other way round. A
+  nullable EmployeeId on this table modelled the same cardinality, but it put
+  the optional half on the main entity and left "a login with no profile"
+  representable - which the resolver and the scope helper then had to carry
+  branches for. Moving the key onto the login makes that case unrepresentable
+  rather than handled, and removes the translation between two id spaces that
+  every row-scoped query previously had to get right.
+
+  This table is created FIRST for that reason: a FOREIGN KEY cannot reference a
+  table that does not exist yet, so the file order is the dependency order.
+
+  CreatedBy and ModifiedBy are self-references - an employee record is created
+  by an employee. Both are nullable, because a seed or a migration has no human
+  behind it, and because the very first row has nobody to point at.
 
   Soft delete: DeletedAt is the only way a row leaves. Nothing is ever DELETEd,
   because payroll, leave and audit history all point at these ids. Every read
@@ -14,11 +28,10 @@
   filtered the same way, so a deleted employee's code and work email are freed
   for reuse while the row is kept.
 
-  DepartmentId, DesignationId and WorkLocationId are plain columns for now:
-  the departments, designations and work_locations tables do not exist yet, so
-  there is nothing to point a FOREIGN KEY at. The constraints get added in the
-  migration that creates those tables. ManagerId is a real FK already, because
-  it points back at this table.
+  DepartmentId and DesignationId are plain columns for now: those tables do not
+  exist yet, so there is nothing to point a FOREIGN KEY at. WorkLocationId gets
+  its constraint in 005, which creates the locations table. ManagerId is a real
+  FK already, because it points back at this table.
 
   Times are UTC (SYSUTCDATETIME()), as everywhere else in this schema.
 
@@ -32,10 +45,6 @@ BEGIN
     CREATE TABLE dbo.tblEmployeeDetails (
         EmployeeDetailId    BIGINT          IDENTITY(1,1) NOT NULL,
 
-        -- The login this profile belongs to. NULL for an employee with no
-        -- account; unique when set, so the join is always one-to-one.
-        EmployeeId          INT             NULL,
-
         -- Human-facing identifier, e.g. EMP001. Unique among live rows.
         EmployeeCode        NVARCHAR(50)    NOT NULL,
 
@@ -44,7 +53,9 @@ BEGIN
         LastName            NVARCHAR(100)   NOT NULL,
 
         -- Official address. Unique among live rows; it is how HR and most
-        -- integrations identify a person.
+        -- integrations identify a person. Note this is NOT the login address:
+        -- dbo.EmployeeLogin.Email is what you sign in with, and the two are
+        -- allowed to differ.
         WorkEmail           NVARCHAR(255)   NOT NULL,
         PersonalEmail       NVARCHAR(255)   NULL,
         Phone               NVARCHAR(20)    NULL,
@@ -61,11 +72,12 @@ BEGIN
         DepartmentId        BIGINT          NULL,
         DesignationId       BIGINT          NULL,
         WorkLocationId      BIGINT          NULL,
-        -- The location as written, so a profile reads correctly before the
-        -- work_locations table exists and for anyone who has no id yet.
+        -- The location as written, so a profile reads correctly for anyone who
+        -- has no location id yet.
         WorkLocation        NVARCHAR(150)   NULL,
 
-        -- Self-reference: this employee's manager.
+        -- Self-reference: this employee's manager. The TEAM scope compares
+        -- against this directly now - same id space, no translation.
         ManagerId           BIGINT          NULL,
 
         -- Values come from EMPLOYMENT_TYPE / EMPLOYMENT_STATUS in
@@ -86,10 +98,10 @@ BEGIN
         IsActive            BIT             NOT NULL
             CONSTRAINT DF_tblEmployeeDetails_IsActive DEFAULT 1,
 
-        -- Who touched the row. EmployeeLogin ids, nullable because a seed or a
-        -- migration has no human behind it.
-        CreatedBy           INT             NULL,
-        ModifiedBy          INT             NULL,
+        -- Who touched the row: EmployeeDetailIds, self-referencing. Nullable
+        -- because a seed or a migration has no human behind it.
+        CreatedBy           BIGINT          NULL,
+        ModifiedBy          BIGINT          NULL,
 
         CreatedAt           DATETIME2(3)    NOT NULL
             CONSTRAINT DF_tblEmployeeDetails_CreatedAt  DEFAULT SYSUTCDATETIME(),
@@ -100,14 +112,12 @@ BEGIN
 
         CONSTRAINT PK_tblEmployeeDetails PRIMARY KEY CLUSTERED (EmployeeDetailId),
 
-        CONSTRAINT FK_tblEmployeeDetails_Login
-            FOREIGN KEY (EmployeeId)  REFERENCES dbo.EmployeeLogin (EmployeeId),
         CONSTRAINT FK_tblEmployeeDetails_Manager
             FOREIGN KEY (ManagerId)   REFERENCES dbo.tblEmployeeDetails (EmployeeDetailId),
         CONSTRAINT FK_tblEmployeeDetails_CreatedBy
-            FOREIGN KEY (CreatedBy)   REFERENCES dbo.EmployeeLogin (EmployeeId),
+            FOREIGN KEY (CreatedBy)   REFERENCES dbo.tblEmployeeDetails (EmployeeDetailId),
         CONSTRAINT FK_tblEmployeeDetails_ModifiedBy
-            FOREIGN KEY (ModifiedBy)  REFERENCES dbo.EmployeeLogin (EmployeeId),
+            FOREIGN KEY (ModifiedBy)  REFERENCES dbo.tblEmployeeDetails (EmployeeDetailId),
 
         -- Cheap guards against a typo reaching the table. The accepted values
         -- are the enum in src/enums/employee.enum.js; widening the list means
@@ -121,6 +131,12 @@ BEGIN
         -- A leaving date before the joining date is always a data-entry error.
         CONSTRAINT CK_tblEmployeeDetails_LeavingAfterJoining CHECK (
             DateOfLeaving IS NULL OR DateOfLeaving >= DateOfJoining
+        ),
+        -- Nobody manages themselves. One level of nonsense the self-FK cannot
+        -- catch on its own, and it would make the TEAM scope return the
+        -- manager twice.
+        CONSTRAINT CK_tblEmployeeDetails_NotOwnManager CHECK (
+            ManagerId IS NULL OR ManagerId <> EmployeeDetailId
         )
     );
 
@@ -133,10 +149,6 @@ BEGIN
 
     CREATE UNIQUE INDEX UQ_tblEmployeeDetails_WorkEmail
         ON dbo.tblEmployeeDetails (WorkEmail)    WHERE DeletedAt IS NULL;
-
-    -- One profile per login, enforced only where a login is actually set.
-    CREATE UNIQUE INDEX UQ_tblEmployeeDetails_EmployeeId
-        ON dbo.tblEmployeeDetails (EmployeeId)   WHERE EmployeeId IS NOT NULL;
 
     -- "Who reports to X" and "who is in department Y" are the two list screens
     -- this table exists to serve.

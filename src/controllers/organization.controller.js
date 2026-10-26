@@ -103,9 +103,9 @@ export async function create(req, res) {
   const input = validateBody(req.body, ORGANIZATION_RULES);
 
   // req.access is attached by the permission guard and carries the resolved
-  // employee id - the same number the token holds, already proven to belong
-  // to a live account.
-  const data = await organizationService.createOrganization(req.access.employeeId, input);
+  // EmployeeDetailId - the same number the token holds, already proven to
+  // belong to a live employee.
+  const data = await organizationService.createOrganization(req.access.employeeDetailId, input);
 
   return sendSuccess(res, {
     statusCode: HTTP_STATUS.CREATED,
@@ -120,7 +120,7 @@ export async function update(req, res) {
   const input = validateBody(req.body, { ...ORGANIZATION_RULES, isActive: { boolean: true } });
 
   const data = await organizationService.updateOrganization(
-    req.access.employeeId,
+    req.access.employeeDetailId,
     organizationId,
     input,
   );
@@ -171,7 +171,7 @@ export async function createLocation(req, res) {
   const input = validateBody(req.body, LOCATION_RULES);
 
   const data = await organizationService.createLocation(
-    req.access.employeeId,
+    req.access.employeeDetailId,
     organizationId,
     input,
   );
@@ -189,7 +189,7 @@ export async function updateLocation(req, res) {
   const input = validateBody(req.body, { ...LOCATION_RULES, isActive: { boolean: true } });
 
   const data = await organizationService.updateLocation(
-    req.access.employeeId,
+    req.access.employeeDetailId,
     organizationId,
     locationId,
     input,
@@ -207,7 +207,7 @@ export async function deleteLocation(req, res) {
   const { organizationId, locationId } = validateParams(req.params, LOCATION_PARAMS);
 
   const data = await organizationService.deleteLocation(
-    req.access.employeeId,
+    req.access.employeeDetailId,
     organizationId,
     locationId,
   );

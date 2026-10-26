@@ -216,7 +216,7 @@ the aggregate in the resolver's final `SELECT`. One CHECK widening and one
 ### A GRANT and a DENY for the same pair cannot both exist
 
 `UQ_tblEmployeePermission_EmployeePermission` is a filtered unique index on
-`(EmployeeId, PermissionId)`. Precedence therefore only ever fires *across*
+`(EmployeeDetailId, PermissionId)`. Precedence therefore only ever fires *across*
 sources, never within one — there is no runtime conflict to arbitrate.
 
 ### `tblPermission`'s unique index is deliberately NOT filtered
@@ -232,11 +232,23 @@ orphan every existing grant.
 A group holding roles would create a second inheritance axis and the diamond
 problem with it, for no capability a flat bundle does not already give.
 
-### Subjects are keyed on `EmployeeLogin.EmployeeId`
+### Subjects are keyed on `tblEmployeeDetails.EmployeeDetailId`
 
-Not `EmployeeDetailId`. The request path already has the login id from the
-token, the column is never NULL, and a person with no login cannot make a
-request.
+The person, not the credential. `dbo.EmployeeLogin` is a satellite: it carries
+a **NOT NULL** `EmployeeDetailId`, so a login cannot exist without an employee
+while an employee can exist with no way to sign in. The token carries that same
+id, so the resolver gets it for free.
+
+This was the other way round at first — grants keyed on the login id, with a
+nullable `EmployeeId` on the employee table. Two things came out of inverting
+it, and both are the reason it is worth the churn:
+
+- **Row scope stopped needing a translation.** `ManagerId` and `DepartmentId`
+  are `EmployeeDetailId`s. When the subject was a login id, every scoped query
+  had to convert first — and getting it wrong compiled, ran, returned rows,
+  and returned the *wrong people*.
+- **"Signed in with no profile" became unrepresentable** rather than handled.
+  The resolver's `hasProfile` flag and a branch in the guard both went away.
 
 ### `ScopeRank` is a PERSISTED computed column
 
@@ -312,43 +324,47 @@ onboarding mistake; the admin UI warns about it.
 
 **Built and verified**
 
-- Migration `004` — nine tables, applied
-- Models — `npm run db:verify` passes 12/12
-- Enums — 56 permissions across 15 modules, `PERMISSION` ↔ `PERMISSION_CATALOG`
+- Migrations `001`–`005`, applied from scratch on a rebuilt database
+- Models — `npm run db:verify` passes 14/14
+- Enums — 63 permissions across 17 modules, `PERMISSION` ↔ `PERMISSION_CATALOG`
   in sync
-- Resolver, cache, scope helper, permission guard
+- Resolver, cache, scope helper, permission guard — subject is
+  `EmployeeDetailId` throughout
 - `scripts/seed-permissions.js` — five roles seeded, idempotent on re-run
+- `scripts/create-admin.js` — the only path that produces a usable
+  administrator (employee + login + role in one transaction)
+- The Organization module — the first module behind the permission guard
+- Postman coverage (folder-grouped) and `scripts/api-flow.sh`
 
 **Not built yet**
 
-- The validator extension (arrays, numbers, enums, `req.params`) that the admin
-  endpoints need
-- The admin API: roles, groups, catalog, `/access/my-permissions`
+- The admin API: roles, groups, catalog, `/access/my-permissions`. Until it
+  exists, assigning a role means `scripts/create-admin.js` or SQL
 - The boot-time route audit
-- The Employees module — the first real consumer of row scope
-- The stamp poller worker
-- Postman coverage, the curl script, and the environment files
+- The Employees module — the first real consumer of row scope through an
+  endpoint. The scope helper itself is tested directly
+- The stamp poller worker (`src/workers/access-stamp.worker.js`), so a second
+  instance only picks up a grant change when its 60 s TTL expires
 
 ---
 
 ## 8. Gotchas
 
-**`EmployeeId` is not `EmployeeDetailId`.** `tblEmployeeDetails.ManagerId`
-references `EmployeeDetailId` (BIGINT); permissions key on
-`EmployeeLogin.EmployeeId` (INT). A TEAM clause written against the wrong one
-compiles, runs, returns rows, and returns the **wrong people**. The comparison
-lives in exactly one function, and the parameter names differ on purpose
-(`@scopeDetailId` vs `@scopeEmployeeId`).
+**`EmployeeId` is not `EmployeeDetailId` — and you should never need both.**
+`EmployeeLogin.EmployeeId` (INT) identifies a password row. Everything else —
+`ManagerId`, grants, audit columns, the JWT subject, every scope clause — is
+`EmployeeDetailId` (BIGINT). Grants, audit columns, the JWT subject and
+every scope clause are all `EmployeeDetailId`. If you find yourself converting
+between them, something is wrong.
 
-> **Current test data hides this bug.** Anmol is login 4 / detail 4 and Akshay
-> is login 5 / detail 5 — the ids coincide, so a mix-up would pass unnoticed.
-> Only Rajat (login 1, detail 3) exposes it. **Test scope changes with Rajat.**
+> The seeded data keeps them deliberately out of step — login 1 is employee 3,
+> login 2 is employee 4 — so a stray `EmployeeId` shows up immediately instead
+> of passing because the numbers happened to match.
 
-**A login may have no profile.** `tblEmployeeDetails.EmployeeId` is nullable.
-Such a user has no `departmentId` and no `employeeDetailId`, so TEAM and
-DEPARTMENT have nothing to filter on. The helper throws `403 SCOPE_UNRESOLVED`
-rather than returning an empty list — an empty list reads as "there are no
-employees" and gets debugged as a data problem for an hour.
+**An employee may have no login**, which is normal: plenty of staff never sign
+in. There is no inverse case to worry about. `SCOPE_UNRESOLVED` still exists,
+but only for DEPARTMENT on an employee with no `DepartmentId` — `OWN` and
+`TEAM` key on a column that is always present.
 
 **`withTransaction`'s `run()` returns no `rowsAffected`.** Any write that needs
 to know whether it changed anything must use `OUTPUT inserted.*` /

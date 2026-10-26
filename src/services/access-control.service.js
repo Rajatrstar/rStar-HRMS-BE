@@ -38,15 +38,15 @@ import { getCached, cacheAccess } from '../utils/access-cache.js';
  * which would be ambiguous the moment two of these tables meet in a join. Only
  * the table names come from the models.
  *
- * The scope context deliberately does NOT filter DeletedAt - "no profile at
- * all" and "soft-deleted profile" are different situations and only one of
- * them is a lockout, so the guard needs to tell them apart.
+ * The scope context deliberately does NOT filter DeletedAt - a soft-deleted
+ * employee must come back so the guard can answer "deactivated" rather than
+ * "unknown", which are different answers to the caller.
  */
 const RESOLVE_SQL = `
 WITH Denied AS (
     SELECT ep.PermissionId
       FROM ${EmployeePermission.table} AS ep
-     WHERE ep.EmployeeId = @employeeId
+     WHERE ep.EmployeeDetailId = @employeeDetailId
        AND ep.Effect = 'DENY'
        AND ep.DeletedAt IS NULL
        AND (ep.ExpiresAt IS NULL OR ep.ExpiresAt > SYSUTCDATETIME())
@@ -55,7 +55,7 @@ Granted AS (
     /* 3 - the per-user GRANT override */
     SELECT ep.PermissionId AS PermissionId, ep.ScopeRank AS ScopeRank, 3 AS SourceRank
       FROM ${EmployeePermission.table} AS ep
-     WHERE ep.EmployeeId = @employeeId
+     WHERE ep.EmployeeDetailId = @employeeDetailId
        AND ep.Effect = 'GRANT'
        AND ep.DeletedAt IS NULL
        AND (ep.ExpiresAt IS NULL OR ep.ExpiresAt > SYSUTCDATETIME())
@@ -68,7 +68,7 @@ Granted AS (
                                          AND g.DeletedAt IS NULL AND g.IsActive = 1
       JOIN ${GroupPermission.table} AS gp ON gp.GroupId = g.GroupId
                                          AND gp.DeletedAt IS NULL
-     WHERE eg.EmployeeId = @employeeId
+     WHERE eg.EmployeeDetailId = @employeeDetailId
        AND eg.DeletedAt IS NULL
 
     UNION ALL
@@ -79,7 +79,7 @@ Granted AS (
                                         AND r.DeletedAt IS NULL AND r.IsActive = 1
       JOIN ${RolePermission.table} AS rp ON rp.RoleId = r.RoleId
                                         AND rp.DeletedAt IS NULL
-     WHERE er.EmployeeId = @employeeId
+     WHERE er.EmployeeDetailId = @employeeDetailId
        AND er.DeletedAt IS NULL
 )
 SELECT p.PermissionCode AS permissionCode,
@@ -92,15 +92,12 @@ SELECT p.PermissionCode AS permissionCode,
  WHERE NOT EXISTS (SELECT 1 FROM Denied AS d WHERE d.PermissionId = g.PermissionId)
  GROUP BY p.PermissionCode;
 
-SELECT TOP (1)
-       d.EmployeeDetailId AS employeeDetailId,
-       d.DepartmentId     AS departmentId,
-       d.ManagerId        AS managerId,
-       d.IsActive         AS isActive,
-       d.DeletedAt        AS deletedAt
+SELECT d.DepartmentId AS departmentId,
+       d.ManagerId     AS managerId,
+       d.IsActive      AS isActive,
+       d.DeletedAt     AS deletedAt
   FROM ${EmployeeDetails.table} AS d
- WHERE d.EmployeeId = @employeeId
- ORDER BY CASE WHEN d.DeletedAt IS NULL THEN 0 ELSE 1 END;
+ WHERE d.EmployeeDetailId = @employeeDetailId;
 `;
 
 /** Rank back to its name, for the one place that has to go that way. */
@@ -110,19 +107,18 @@ const SCOPE_BY_RANK = Object.freeze(
 
 /**
  * @typedef {object} AccessContext
- * @property {number} employeeId            dbo.EmployeeLogin.EmployeeId
- * @property {number|null} employeeDetailId dbo.tblEmployeeDetails.EmployeeDetailId
+ * @property {number} employeeDetailId      dbo.tblEmployeeDetails.EmployeeDetailId
  * @property {number|null} departmentId
  * @property {number|null} managerId
- * @property {boolean} hasProfile           false when the login has no HR record
- * @property {boolean} active               false when the profile is inactive or soft-deleted
+ * @property {boolean} exists               false when no such employee row
+ * @property {boolean} active               false when the employee is inactive or soft-deleted
  * @property {ReadonlyMap<string, string>} permissions  code -> scope
  * @property {(code: string) => boolean} has
  * @property {(code: string) => string|null} scopeOf
  */
 
 /** Builds the frozen context the guards and services pass around. */
-function buildContext(employeeId, grantRows, contextRow) {
+function buildContext(employeeDetailId, grantRows, contextRow) {
   const permissions = new Map(
     // Lowercased: the database collation is case-insensitive, a JS Map is not,
     // so 'Employees.View' would pass the unique index and never match here.
@@ -132,17 +128,16 @@ function buildContext(employeeId, grantRows, contextRow) {
     ]),
   );
 
-  const hasProfile = Boolean(contextRow);
+  // The subject IS an employee row now, so this is a lookup that normally
+  // hits. It can still miss if a caller passes an id that was never valid.
+  const exists = Boolean(contextRow);
 
   return Object.freeze({
-    employeeId,
-    employeeDetailId: contextRow ? Number(contextRow.employeeDetailId) : null,
+    employeeDetailId,
     departmentId: contextRow?.departmentId == null ? null : Number(contextRow.departmentId),
     managerId: contextRow?.managerId == null ? null : Number(contextRow.managerId),
-    hasProfile,
-    // A login with no profile is not inactive - it is unknown, and the guards
-    // treat the two differently. Only an existing profile can be switched off.
-    active: hasProfile ? Boolean(contextRow.isActive) && contextRow.deletedAt === null : true,
+    exists,
+    active: exists ? Boolean(contextRow.isActive) && contextRow.deletedAt === null : false,
     permissions,
     has: (code) => permissions.has(String(code).toLowerCase()),
     scopeOf: (code) => permissions.get(String(code).toLowerCase()) ?? null,
@@ -150,26 +145,26 @@ function buildContext(employeeId, grantRows, contextRow) {
 }
 
 /** Goes to the database every time. Exported for the cache and for tests. */
-export async function resolveAccessUncached(employeeId) {
+export async function resolveAccessUncached(employeeDetailId) {
   const [grantRows = [], contextRows = []] = await querySets(
     RESOLVE_SQL,
-    EmployeeRole.params({ employeeId }),
+    EmployeeRole.params({ employeeDetailId }),
   );
-  return buildContext(employeeId, grantRows, contextRows[0] ?? null);
+  return buildContext(employeeDetailId, grantRows, contextRows[0] ?? null);
 }
 
 /**
  * The effective access of one employee, cached.
  *
- * @param {number} employeeId dbo.EmployeeLogin.EmployeeId
+ * @param {number} employeeDetailId dbo.tblEmployeeDetails.EmployeeDetailId
  * @returns {Promise<AccessContext>}
  */
-export function resolveAccess(employeeId) {
-  const cached = getCached(employeeId);
+export function resolveAccess(employeeDetailId) {
+  const cached = getCached(employeeDetailId);
   if (cached) return cached;
 
   // The promise goes into the cache before it settles, so a burst of
   // concurrent requests from one person produces one query rather than one
   // each - the same reason config/db.js caches poolPromise.
-  return cacheAccess(employeeId, resolveAccessUncached(employeeId));
+  return cacheAccess(employeeDetailId, resolveAccessUncached(employeeDetailId));
 }
