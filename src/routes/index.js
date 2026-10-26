@@ -8,11 +8,13 @@ import { Router } from 'express';
 import { ROUTE_GROUP } from '../enums/index.js';
 import healthRoutes from './health.routes.js';
 import authRoutes from './auth.routes.js';
+import organizationRoutes from './organization.routes.js';
 
 const router = Router();
 
 router.use(ROUTE_GROUP.HEALTH, healthRoutes);
 router.use(ROUTE_GROUP.AUTH, authRoutes);
+router.use(ROUTE_GROUP.ORGANIZATIONS, organizationRoutes);
 // router.use(ROUTE_GROUP.EMPLOYEES, employeeRoutes);
 
 export default router;

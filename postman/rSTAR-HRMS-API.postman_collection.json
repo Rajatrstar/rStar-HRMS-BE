@@ -3,7 +3,7 @@
 		"name": "rSTAR HRMS API",
 		"_postman_id": "b7a1f3c2-5d4e-4a6b-9c8d-0e1f2a3b4c5d",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"description": "HRMS backend API.\n\nRun the requests top to bottom. The bearer token is captured automatically:\nverify-otp stores it in the {{accessToken}} variable, and every request\ninherits the collection-level Bearer auth that reads it. Nothing is pasted.\n\nSet {{baseUrl}} in the Variables tab (or pick an environment) and go."
+		"description": "HRMS backend API, grouped into folders.\n\nHealth   - liveness and readiness, no auth\nAuth     - login, OTP, refresh, password reset\nAdmin    - Organization and Locations (permission-guarded)\n\nORDER MATTERS the first time through: run Auth top to bottom to capture the token, then Admin > Organization before Admin > Locations, because the location requests read the {{organizationId}} that `create organization` stores.\n\nNo bearer token is ever pasted. verify-otp stores it in {{accessToken}} and every request inherits the collection-level Bearer auth that reads it.\n\nSet {{baseUrl}} in the Variables tab, or pick an environment, and go."
 	},
 	"auth": {
 		"type": "bearer",
@@ -65,619 +65,1289 @@
 			"key": "resetOtp",
 			"value": "",
 			"type": "string"
+		},
+		{
+			"key": "organizationId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "locationId",
+			"value": "",
+			"type": "string"
 		}
 	],
 	"item": [
 		{
-			"name": "1. health",
-			"event": [
+			"name": "Health",
+			"description": "No auth. Readiness answers 503 when the database is unreachable, which is a real answer rather than a transport failure.",
+			"item": [
 				{
-					"listen": "test",
-					"script": {
-						"type": "text/javascript",
-						"exec": [
-							"// Every endpoint answers in the same envelope - see 'Response contract'",
-							"// in the README. Asserting it here means a regression shows up on any",
-							"// request, not just the one somebody remembered to check.",
-							"pm.test('envelope is well formed', () => {",
-							"  const body = pm.response.json();",
-							"  pm.expect(body).to.have.property('success');",
-							"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
-							"  pm.expect(body).to.have.property('message');",
-							"  pm.expect(body).to.have.property('data');",
-							"  pm.expect(body.success).to.eql(pm.response.code < 400);",
-							"});",
-							"",
-							"pm.test('up', () => pm.response.to.have.status(200));"
-						]
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"auth": {
-					"type": "noauth"
-				},
-				"header": [],
-				"url": {
-					"raw": "{{baseUrl}}/health",
-					"host": [
-						"{{baseUrl}}"
-					],
-					"path": [
-						"health"
-					]
-				},
-				"description": "Liveness. No auth."
-			}
-		},
-		{
-			"name": "2. health/ready",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"type": "text/javascript",
-						"exec": [
-							"// Every endpoint answers in the same envelope - see 'Response contract'",
-							"// in the README. Asserting it here means a regression shows up on any",
-							"// request, not just the one somebody remembered to check.",
-							"pm.test('envelope is well formed', () => {",
-							"  const body = pm.response.json();",
-							"  pm.expect(body).to.have.property('success');",
-							"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
-							"  pm.expect(body).to.have.property('message');",
-							"  pm.expect(body).to.have.property('data');",
-							"  pm.expect(body.success).to.eql(pm.response.code < 400);",
-							"});",
-							"",
-							"// 200 when the database answers, 503 when it does not. Both are a",
-							"// valid reply from a working process, so neither is a failure here.",
-							"pm.test('reports a readiness verdict', () => {",
-							"  pm.expect(pm.response.code).to.be.oneOf([200, 503]);",
-							"});"
-						]
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"auth": {
-					"type": "noauth"
-				},
-				"url": {
-					"raw": "{{baseUrl}}/health/ready",
-					"host": [
-						"{{baseUrl}}"
-					],
-					"path": [
-						"health",
-						"ready"
-					]
-				},
-				"description": "Readiness: 200 when the database is reachable, 503 when it is not. A load balancer reads the status code; the degraded reply puts the detail in `details` rather than `data`."
-			}
-		},
-		{
-			"name": "3. login",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"type": "text/javascript",
-						"exec": [
-							"// Every endpoint answers in the same envelope - see 'Response contract'",
-							"// in the README. Asserting it here means a regression shows up on any",
-							"// request, not just the one somebody remembered to check.",
-							"pm.test('envelope is well formed', () => {",
-							"  const body = pm.response.json();",
-							"  pm.expect(body).to.have.property('success');",
-							"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
-							"  pm.expect(body).to.have.property('message');",
-							"  pm.expect(body).to.have.property('data');",
-							"  pm.expect(body.success).to.eql(pm.response.code < 400);",
-							"});",
-							"",
-							"pm.test('password accepted', () => pm.response.to.have.status(200));",
-							"",
-							"// `data` is NOT a safe name here: the Postman sandbox predeclares it for",
-							"// the current data-file row, so `const data = ...` is a redeclaration and",
-							"// the whole script dies with a SyntaxError before a single test runs.",
-							"const payload = pm.response.json().data;",
-							"",
-							"// The OTP comes back only when the server has OTP_IN_RESPONSE=true",
-							"// (development only). Otherwise read it from the server log and set",
-							"// the `otp` variable yourself.",
-							"if (payload.otp) {",
-							"  pm.collectionVariables.set('otp', payload.otp);",
-							"  console.log('OTP captured:', payload.otp);",
-							"} else {",
-							"  console.warn('No OTP in response - set OTP_IN_RESPONSE=true or fill {{otp}} by hand.');",
-							"}"
-						]
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"auth": {
-					"type": "noauth"
-				},
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"email\": \"{{loginEmail}}\",\n  \"password\": \"{{loginPassword}}\"\n}",
-					"options": {
-						"raw": {
-							"language": "json"
+					"name": "1. health",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('up', () => pm.response.to.have.status(200));"
+								]
+							}
 						}
-					}
-				},
-				"url": {
-					"raw": "{{baseUrl}}/auth/login",
-					"host": [
-						"{{baseUrl}}"
 					],
-					"path": [
-						"auth",
-						"login"
-					]
+					"request": {
+						"method": "GET",
+						"auth": {
+							"type": "noauth"
+						},
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/health",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"health"
+							]
+						},
+						"description": "Liveness. No auth."
+					}
 				},
-				"description": "Step 1: checks email + password, then issues an OTP."
-			}
-		},
-		{
-			"name": "4. resend-otp",
-			"event": [
 				{
-					"listen": "test",
-					"script": {
-						"type": "text/javascript",
-						"exec": [
-							"// Every endpoint answers in the same envelope - see 'Response contract'",
-							"// in the README. Asserting it here means a regression shows up on any",
-							"// request, not just the one somebody remembered to check.",
-							"pm.test('envelope is well formed', () => {",
-							"  const body = pm.response.json();",
-							"  pm.expect(body).to.have.property('success');",
-							"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
-							"  pm.expect(body).to.have.property('message');",
-							"  pm.expect(body).to.have.property('data');",
-							"  pm.expect(body.success).to.eql(pm.response.code < 400);",
-							"});",
-							"",
-							"pm.test('a fresh OTP was issued', () => pm.response.to.have.status(200));",
-							"",
-							"// `data` is NOT a safe name here: the Postman sandbox predeclares it for",
-							"// the current data-file row, so `const data = ...` is a redeclaration and",
-							"// the whole script dies with a SyntaxError before a single test runs.",
-							"const payload = pm.response.json().data;",
-							"",
-							"// The resent code REPLACES the one login issued, so the variable has to",
-							"// move with it or verify-otp will submit a code the server has forgotten.",
-							"if (payload.otp) {",
-							"  pm.collectionVariables.set('otp', payload.otp);",
-							"  console.log('OTP replaced with:', payload.otp);",
-							"} else {",
-							"  console.warn('No OTP in response - the otp variable is now STALE. Read',",
-							"               'the new code from the server log before running verify-otp.');",
-							"}"
-						]
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"auth": {
-					"type": "noauth"
-				},
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"email\": \"{{loginEmail}}\"\n}",
-					"options": {
-						"raw": {
-							"language": "json"
+					"name": "2. health/ready",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"// 200 when the database answers, 503 when it does not. Both are a",
+									"// valid reply from a working process, so neither is a failure here.",
+									"pm.test('reports a readiness verdict', () => {",
+									"  pm.expect(pm.response.code).to.be.oneOf([200, 503]);",
+									"});"
+								]
+							}
 						}
-					}
-				},
-				"url": {
-					"raw": "{{baseUrl}}/auth/resend-otp",
-					"host": [
-						"{{baseUrl}}"
 					],
-					"path": [
-						"auth",
-						"resend-otp"
-					]
-				},
-				"description": "Issues a fresh OTP for a login already in progress, replacing the one from step 3. Only valid between login and verify-otp - once verify-otp succeeds the code is cleared and this answers 401."
-			}
-		},
-		{
-			"name": "5. verify-otp",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"type": "text/javascript",
-						"exec": [
-							"// Every endpoint answers in the same envelope - see 'Response contract'",
-							"// in the README. Asserting it here means a regression shows up on any",
-							"// request, not just the one somebody remembered to check.",
-							"pm.test('envelope is well formed', () => {",
-							"  const body = pm.response.json();",
-							"  pm.expect(body).to.have.property('success');",
-							"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
-							"  pm.expect(body).to.have.property('message');",
-							"  pm.expect(body).to.have.property('data');",
-							"  pm.expect(body.success).to.eql(pm.response.code < 400);",
-							"});",
-							"",
-							"pm.test('login completes', () => pm.response.to.have.status(200));",
-							"",
-							"// `data` is NOT a safe name here: the Postman sandbox predeclares it for",
-							"// the current data-file row, so `const data = ...` is a redeclaration and",
-							"// the whole script dies with a SyntaxError before a single test runs.",
-							"const payload = pm.response.json().data;",
-							"",
-							"// This is what removes the copy-paste.",
-							"pm.collectionVariables.set('accessToken', payload.accessToken);",
-							"pm.collectionVariables.set('refreshToken', payload.refreshToken);",
-							"pm.collectionVariables.set('otp', '');",
-							"",
-							"pm.test('tokens stored', () => {",
-							"  pm.expect(payload.accessToken).to.be.a('string').and.not.empty;",
-							"  pm.expect(payload.refreshToken).to.be.a('string').and.not.empty;",
-							"});"
-						]
+					"request": {
+						"method": "GET",
+						"auth": {
+							"type": "noauth"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/health/ready",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"health",
+								"ready"
+							]
+						},
+						"description": "Readiness: 200 when the database is reachable, 503 when it is not. A load balancer reads the status code; the degraded reply puts the detail in `details` rather than `data`."
 					}
 				}
-			],
-			"request": {
-				"method": "POST",
-				"auth": {
-					"type": "noauth"
-				},
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"email\": \"{{loginEmail}}\",\n  \"otp\": \"{{otp}}\"\n}",
-					"options": {
-						"raw": {
-							"language": "json"
+			]
+		},
+		{
+			"name": "Auth",
+			"description": "Login is two steps: the password is checked first, then a one-time code.\n\nRun these top to bottom once per session. `verify-otp` captures {{accessToken}} and {{refreshToken}}, and every other folder inherits the collection Bearer auth that reads them - nothing is ever pasted.\n\nforgot-password / reset-password really do change a password. They are last for that reason.",
+			"item": [
+				{
+					"name": "1. login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('password accepted', () => pm.response.to.have.status(200));",
+									"",
+									"// `data` is NOT a safe name here: the Postman sandbox predeclares it for",
+									"// the current data-file row, so `const data = ...` is a redeclaration and",
+									"// the whole script dies with a SyntaxError before a single test runs.",
+									"const payload = pm.response.json().data;",
+									"",
+									"// The OTP comes back only when the server has OTP_IN_RESPONSE=true",
+									"// (development only). Otherwise read it from the server log and set",
+									"// the `otp` variable yourself.",
+									"if (payload.otp) {",
+									"  pm.collectionVariables.set('otp', payload.otp);",
+									"  console.log('OTP captured:', payload.otp);",
+									"} else {",
+									"  console.warn('No OTP in response - set OTP_IN_RESPONSE=true or fill {{otp}} by hand.');",
+									"}"
+								]
+							}
 						}
-					}
-				},
-				"url": {
-					"raw": "{{baseUrl}}/auth/verify-otp",
-					"host": [
-						"{{baseUrl}}"
 					],
-					"path": [
-						"auth",
-						"verify-otp"
-					]
+					"request": {
+						"method": "POST",
+						"auth": {
+							"type": "noauth"
+						},
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{loginEmail}}\",\n  \"password\": \"{{loginPassword}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						},
+						"description": "Step 1: checks email + password, then issues an OTP."
+					}
 				},
-				"description": "Step 2: checks the OTP and returns the token pair. Stores both tokens."
-			}
-		},
-		{
-			"name": "6. me (protected)",
-			"event": [
 				{
-					"listen": "test",
-					"script": {
-						"type": "text/javascript",
-						"exec": [
-							"// Every endpoint answers in the same envelope - see 'Response contract'",
-							"// in the README. Asserting it here means a regression shows up on any",
-							"// request, not just the one somebody remembered to check.",
-							"pm.test('envelope is well formed', () => {",
-							"  const body = pm.response.json();",
-							"  pm.expect(body).to.have.property('success');",
-							"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
-							"  pm.expect(body).to.have.property('message');",
-							"  pm.expect(body).to.have.property('data');",
-							"  pm.expect(body.success).to.eql(pm.response.code < 400);",
-							"});",
-							"",
-							"pm.test('middleware accepts the captured token', () => pm.response.to.have.status(200));",
-							"pm.test('returns the account', () => {",
-							"  // pm.variables resolves through the whole scope chain, so an environment",
-							"  // that overrides loginEmail is compared against what was actually sent.",
-							"  // pm.collectionVariables would read the collection default and fail.",
-							"  pm.expect(pm.response.json().data.email).to.eql(pm.variables.get('loginEmail'));",
-							"});"
-						]
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "{{baseUrl}}/auth/me",
-					"host": [
-						"{{baseUrl}}"
-					],
-					"path": [
-						"auth",
-						"me"
-					]
-				},
-				"description": "Sends no Authorization header of its own - it inherits the collection Bearer auth, so a 200 proves the middleware accepted the captured token."
-			}
-		},
-		{
-			"name": "7. me without token (should fail)",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"type": "text/javascript",
-						"exec": [
-							"// Every endpoint answers in the same envelope - see 'Response contract'",
-							"// in the README. Asserting it here means a regression shows up on any",
-							"// request, not just the one somebody remembered to check.",
-							"pm.test('envelope is well formed', () => {",
-							"  const body = pm.response.json();",
-							"  pm.expect(body).to.have.property('success');",
-							"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
-							"  pm.expect(body).to.have.property('message');",
-							"  pm.expect(body).to.have.property('data');",
-							"  pm.expect(body.success).to.eql(pm.response.code < 400);",
-							"});",
-							"",
-							"pm.test('rejected with 401', () => pm.response.to.have.status(401));"
-						]
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"auth": {
-					"type": "noauth"
-				},
-				"header": [],
-				"url": {
-					"raw": "{{baseUrl}}/auth/me",
-					"host": [
-						"{{baseUrl}}"
-					],
-					"path": [
-						"auth",
-						"me"
-					]
-				},
-				"description": "Auth explicitly off: proves the middleware really does reject an anonymous caller."
-			}
-		},
-		{
-			"name": "8. refresh",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"type": "text/javascript",
-						"exec": [
-							"// Every endpoint answers in the same envelope - see 'Response contract'",
-							"// in the README. Asserting it here means a regression shows up on any",
-							"// request, not just the one somebody remembered to check.",
-							"pm.test('envelope is well formed', () => {",
-							"  const body = pm.response.json();",
-							"  pm.expect(body).to.have.property('success');",
-							"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
-							"  pm.expect(body).to.have.property('message');",
-							"  pm.expect(body).to.have.property('data');",
-							"  pm.expect(body.success).to.eql(pm.response.code < 400);",
-							"});",
-							"",
-							"pm.test('refreshed', () => pm.response.to.have.status(200));",
-							"// `data` is NOT a safe name here: the Postman sandbox predeclares it for",
-							"// the current data-file row, so `const data = ...` is a redeclaration and",
-							"// the whole script dies with a SyntaxError before a single test runs.",
-							"const payload = pm.response.json().data;",
-							"pm.collectionVariables.set('accessToken', payload.accessToken);",
-							"pm.collectionVariables.set('refreshToken', payload.refreshToken);"
-						]
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"auth": {
-					"type": "noauth"
-				},
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
-					"options": {
-						"raw": {
-							"language": "json"
+					"name": "2. resend-otp",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('a fresh OTP was issued', () => pm.response.to.have.status(200));",
+									"",
+									"// `data` is NOT a safe name here: the Postman sandbox predeclares it for",
+									"// the current data-file row, so `const data = ...` is a redeclaration and",
+									"// the whole script dies with a SyntaxError before a single test runs.",
+									"const payload = pm.response.json().data;",
+									"",
+									"// The resent code REPLACES the one login issued, so the variable has to",
+									"// move with it or verify-otp will submit a code the server has forgotten.",
+									"if (payload.otp) {",
+									"  pm.collectionVariables.set('otp', payload.otp);",
+									"  console.log('OTP replaced with:', payload.otp);",
+									"} else {",
+									"  console.warn('No OTP in response - the otp variable is now STALE. Read',",
+									"               'the new code from the server log before running verify-otp.');",
+									"}"
+								]
+							}
 						}
+					],
+					"request": {
+						"method": "POST",
+						"auth": {
+							"type": "noauth"
+						},
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{loginEmail}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/resend-otp",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"resend-otp"
+							]
+						},
+						"description": "Issues a fresh OTP for a login already in progress, replacing the one from step 3. Only valid between login and verify-otp - once verify-otp succeeds the code is cleared and this answers 401."
 					}
 				},
-				"url": {
-					"raw": "{{baseUrl}}/auth/refresh",
-					"host": [
-						"{{baseUrl}}"
-					],
-					"path": [
-						"auth",
-						"refresh"
-					]
-				},
-				"description": "Exchanges the refresh token for a new pair and stores them."
-			}
-		},
-		{
-			"name": "9. forgot-password",
-			"event": [
 				{
-					"listen": "test",
-					"script": {
-						"type": "text/javascript",
-						"exec": [
-							"// Every endpoint answers in the same envelope - see 'Response contract'",
-							"// in the README. Asserting it here means a regression shows up on any",
-							"// request, not just the one somebody remembered to check.",
-							"pm.test('envelope is well formed', () => {",
-							"  const body = pm.response.json();",
-							"  pm.expect(body).to.have.property('success');",
-							"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
-							"  pm.expect(body).to.have.property('message');",
-							"  pm.expect(body).to.have.property('data');",
-							"  pm.expect(body.success).to.eql(pm.response.code < 400);",
-							"});",
-							"",
-							"pm.test('employee verified', () => pm.response.to.have.status(200));",
-							"pm.test('says the code was sent', () => {",
-							"  pm.expect(pm.response.json().message).to.include('OTP has been sent');",
-							"});",
-							"",
-							"// `data` is NOT a safe name here: the Postman sandbox predeclares it for",
-							"// the current data-file row, so `const data = ...` is a redeclaration and",
-							"// the whole script dies with a SyntaxError before a single test runs.",
-							"const payload = pm.response.json().data;",
-							"",
-							"// Kept apart from the login otp on purpose: the login flow and the reset",
-							"// flow each hold a code, and sharing one variable makes them clobber",
-							"// each other.",
-							"if (payload.otp) {",
-							"  pm.collectionVariables.set('resetOtp', payload.otp);",
-							"  console.log('Reset OTP captured:', payload.otp);",
-							"} else {",
-							"  console.warn('No OTP in response - set OTP_IN_RESPONSE=true, or read the',",
-							"               'code from the server log and fill resetOtp by hand.');",
-							"}"
-						]
+					"name": "3. verify-otp",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('login completes', () => pm.response.to.have.status(200));",
+									"",
+									"// `data` is NOT a safe name here: the Postman sandbox predeclares it for",
+									"// the current data-file row, so `const data = ...` is a redeclaration and",
+									"// the whole script dies with a SyntaxError before a single test runs.",
+									"const payload = pm.response.json().data;",
+									"",
+									"// This is what removes the copy-paste.",
+									"pm.collectionVariables.set('accessToken', payload.accessToken);",
+									"pm.collectionVariables.set('refreshToken', payload.refreshToken);",
+									"pm.collectionVariables.set('otp', '');",
+									"",
+									"pm.test('tokens stored', () => {",
+									"  pm.expect(payload.accessToken).to.be.a('string').and.not.empty;",
+									"  pm.expect(payload.refreshToken).to.be.a('string').and.not.empty;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"auth": {
+							"type": "noauth"
+						},
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{loginEmail}}\",\n  \"otp\": \"{{otp}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/verify-otp",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"verify-otp"
+							]
+						},
+						"description": "Step 2: checks the OTP and returns the token pair. Stores both tokens."
+					}
+				},
+				{
+					"name": "4. me (protected)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('middleware accepts the captured token', () => pm.response.to.have.status(200));",
+									"pm.test('returns the account', () => {",
+									"  // pm.variables resolves through the whole scope chain, so an environment",
+									"  // that overrides loginEmail is compared against what was actually sent.",
+									"  // pm.collectionVariables would read the collection default and fail.",
+									"  pm.expect(pm.response.json().data.email).to.eql(pm.variables.get('loginEmail'));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/auth/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"me"
+							]
+						},
+						"description": "Sends no Authorization header of its own - it inherits the collection Bearer auth, so a 200 proves the middleware accepted the captured token."
+					}
+				},
+				{
+					"name": "5. me without token (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('rejected with 401', () => pm.response.to.have.status(401));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"auth": {
+							"type": "noauth"
+						},
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/auth/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"me"
+							]
+						},
+						"description": "Auth explicitly off: proves the middleware really does reject an anonymous caller."
+					}
+				},
+				{
+					"name": "6. refresh",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('refreshed', () => pm.response.to.have.status(200));",
+									"// `data` is NOT a safe name here: the Postman sandbox predeclares it for",
+									"// the current data-file row, so `const data = ...` is a redeclaration and",
+									"// the whole script dies with a SyntaxError before a single test runs.",
+									"const payload = pm.response.json().data;",
+									"pm.collectionVariables.set('accessToken', payload.accessToken);",
+									"pm.collectionVariables.set('refreshToken', payload.refreshToken);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"auth": {
+							"type": "noauth"
+						},
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/refresh",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"refresh"
+							]
+						},
+						"description": "Exchanges the refresh token for a new pair and stores them."
+					}
+				},
+				{
+					"name": "7. forgot-password",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('employee verified', () => pm.response.to.have.status(200));",
+									"pm.test('says the code was sent', () => {",
+									"  pm.expect(pm.response.json().message).to.include('OTP has been sent');",
+									"});",
+									"",
+									"// `data` is NOT a safe name here: the Postman sandbox predeclares it for",
+									"// the current data-file row, so `const data = ...` is a redeclaration and",
+									"// the whole script dies with a SyntaxError before a single test runs.",
+									"const payload = pm.response.json().data;",
+									"",
+									"// Kept apart from the login otp on purpose: the login flow and the reset",
+									"// flow each hold a code, and sharing one variable makes them clobber",
+									"// each other.",
+									"if (payload.otp) {",
+									"  pm.collectionVariables.set('resetOtp', payload.otp);",
+									"  console.log('Reset OTP captured:', payload.otp);",
+									"} else {",
+									"  console.warn('No OTP in response - set OTP_IN_RESPONSE=true, or read the',",
+									"               'code from the server log and fill resetOtp by hand.');",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"auth": {
+							"type": "noauth"
+						},
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{forgotEmail}}\",\n  \"dateOfBirth\": \"{{forgotDateOfBirth}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/forgot-password",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"forgot-password"
+							]
+						},
+						"description": "Step 1 of the forgot-password flow. Matches work email + date of birth against dbo.tblEmployeeDetails (active, not soft-deleted) and emails a reset code to the work address on file. 401 when neither matches."
+					}
+				},
+				{
+					"name": "8. reset-password",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('password updated', () => pm.response.to.have.status(200));",
+									"pm.test('server confirms the write', () => {",
+									"  pm.expect(pm.response.json().data.passwordUpdated).to.eql(true);",
+									"});",
+									"",
+									"// The account this flow resets is forgotEmail. If that is also the",
+									"// account the collection logs in with, the old password just stopped",
+									"// working - carry the new one forward so a second run still gets past",
+									"// step 3.",
+									"if (pm.collectionVariables.get('forgotEmail') === pm.collectionVariables.get('loginEmail')) {",
+									"  pm.collectionVariables.set('loginPassword', pm.collectionVariables.get('newPassword'));",
+									"  console.log('loginPassword updated to match the new password.');",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"auth": {
+							"type": "noauth"
+						},
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{forgotEmail}}\",\n  \"otp\": \"{{resetOtp}}\",\n  \"newPassword\": \"{{newPassword}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/reset-password",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"reset-password"
+							]
+						},
+						"description": "Step 2 of the forgot-password flow. Exchanges the emailed code for a new password: the hash is written to dbo.EmployeeLogin, ModifiedAt is stamped and the code is cleared, so it cannot be used twice.\n\nThis really does change the password. newPassword is a fixed value, so re-running the collection sets it to the same thing and stays repeatable."
 					}
 				}
-			],
-			"request": {
-				"method": "POST",
-				"auth": {
-					"type": "noauth"
-				},
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"email\": \"{{forgotEmail}}\",\n  \"dateOfBirth\": \"{{forgotDateOfBirth}}\"\n}",
-					"options": {
-						"raw": {
-							"language": "json"
-						}
-					}
-				},
-				"url": {
-					"raw": "{{baseUrl}}/auth/forgot-password",
-					"host": [
-						"{{baseUrl}}"
-					],
-					"path": [
-						"auth",
-						"forgot-password"
-					]
-				},
-				"description": "Step 1 of the forgot-password flow. Matches work email + date of birth against dbo.tblEmployeeDetails (active, not soft-deleted) and emails a reset code to the work address on file. 401 when neither matches."
-			}
+			]
 		},
 		{
-			"name": "10. reset-password",
-			"event": [
+			"name": "Admin",
+			"description": "Organisation setup and, as they are built, roles, groups and user access. Everything in here is permission-guarded and today only Super Admin and HR Admin hold any of it.\n\nA 403 names the exact code it wanted in `details.requiredPermission` - grant that rather than guessing at a role.",
+			"item": [
 				{
-					"listen": "test",
-					"script": {
-						"type": "text/javascript",
-						"exec": [
-							"// Every endpoint answers in the same envelope - see 'Response contract'",
-							"// in the README. Asserting it here means a regression shows up on any",
-							"// request, not just the one somebody remembered to check.",
-							"pm.test('envelope is well formed', () => {",
-							"  const body = pm.response.json();",
-							"  pm.expect(body).to.have.property('success');",
-							"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
-							"  pm.expect(body).to.have.property('message');",
-							"  pm.expect(body).to.have.property('data');",
-							"  pm.expect(body.success).to.eql(pm.response.code < 400);",
-							"});",
-							"",
-							"pm.test('password updated', () => pm.response.to.have.status(200));",
-							"pm.test('server confirms the write', () => {",
-							"  pm.expect(pm.response.json().data.passwordUpdated).to.eql(true);",
-							"});",
-							"",
-							"// The account this flow resets is forgotEmail. If that is also the",
-							"// account the collection logs in with, the old password just stopped",
-							"// working - carry the new one forward so a second run still gets past",
-							"// step 3.",
-							"if (pm.collectionVariables.get('forgotEmail') === pm.collectionVariables.get('loginEmail')) {",
-							"  pm.collectionVariables.set('loginPassword', pm.collectionVariables.get('newPassword'));",
-							"  console.log('loginPassword updated to match the new password.');",
-							"}"
-						]
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"auth": {
-					"type": "noauth"
-				},
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"email\": \"{{forgotEmail}}\",\n  \"otp\": \"{{resetOtp}}\",\n  \"newPassword\": \"{{newPassword}}\"\n}",
-					"options": {
-						"raw": {
-							"language": "json"
+					"name": "Organization",
+					"description": "The company profile - the \"Basic details\" screen.\n\nRun `create organization` first: it stores the new id in {{organizationId}}, which every later request here and in Locations reads.\n\nThere is no delete endpoint. Removing the organisation this HRMS belongs to is a decommission, not an operation. Both updates are a FULL REPLACE - a field left out of the body is set to NULL.",
+					"item": [
+						{
+							"name": "1. create organization",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('created', () => pm.response.to.have.status(201));",
+											"",
+											"const payload = pm.response.json().data;",
+											"pm.test('id comes back as a number, not a string', () => {",
+											"  // BIGINT arrives from the driver as a string; the service converts it,",
+											"  // so `organizationId === 1` is true for a client. This guards that.",
+											"  pm.expect(payload.organizationId).to.be.a('number');",
+											"});",
+											"pm.collectionVariables.set('organizationId', payload.organizationId);"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"organizationName\": \"rSTAR Technologies LLC\",\n  \"website\": \"https://rstartec.com/\",\n  \"organizationType\": \"Information Technology\",\n  \"contactPerson\": \"Shakun Arora\",\n  \"contactNumber\": \"9999299385\",\n  \"contactEmail\": \"shakun.arora@rstartec.com\",\n  \"addressLine1\": \"770 Pasquinelli Drive\",\n  \"addressLine2\": \"Unit 424\",\n  \"city\": \"Westmont\",\n  \"state\": \"Illinois\",\n  \"country\": \"United States\",\n  \"postalCode\": \"60559\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/organizations",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations"
+									]
+								},
+								"description": "Super Admin / HR Admin only - requires organization.create."
+							}
+						},
+						{
+							"name": "2. list organizations",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('ok', () => pm.response.to.have.status(200));",
+											"pm.test('meta carries the total', () => {",
+											"  pm.expect(pm.response.json().meta.total).to.be.a('number');",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/organizations",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations"
+									]
+								},
+								"description": "Requires organization.view."
+							}
+						},
+						{
+							"name": "3. organization types",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('ok', () => pm.response.to.have.status(200));",
+											"pm.test('serves the dropdown list', () => {",
+											"  pm.expect(pm.response.json().data).to.include('Information Technology');",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/organizations/types",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"types"
+									]
+								},
+								"description": "The \"Type of organization\" dropdown. Served rather than hard-coded in the client, so the list and the validator cannot disagree."
+							}
+						},
+						{
+							"name": "4. get organization",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('ok', () => pm.response.to.have.status(200));",
+											"pm.test('is the one just created', () => {",
+											"  pm.expect(pm.response.json().data.organizationId)",
+											"    .to.eql(Number(pm.collectionVariables.get('organizationId')));",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/organizations/{{organizationId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"{{organizationId}}"
+									]
+								},
+								"description": "Requires organization.view."
+							}
+						},
+						{
+							"name": "5. update organization",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('ok', () => pm.response.to.have.status(200));",
+											"pm.test('change applied', () => {",
+											"  pm.expect(pm.response.json().data.contactPerson).to.eql('Shakun Arora');",
+											"});",
+											"pm.test('a field left out of the body becomes null', () => {",
+											"  // PUT is a full replace here: the settings screen posts the whole form",
+											"  // back, and a PATCH that keeps old values is how a cleared field",
+											"  // reappears after a reload. logoUrl is not in the body below.",
+											"  pm.expect(pm.response.json().data.logoUrl).to.eql(null);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"organizationName\": \"rSTAR Technologies LLC\",\n  \"website\": \"https://rstartec.com/\",\n  \"organizationType\": \"Information Technology\",\n  \"contactPerson\": \"Shakun Arora\",\n  \"contactNumber\": \"9999299385\",\n  \"contactEmail\": \"shakun.arora@rstartec.com\",\n  \"addressLine1\": \"770 Pasquinelli Drive\",\n  \"addressLine2\": \"Unit 424\",\n  \"city\": \"Westmont\",\n  \"state\": \"Illinois\",\n  \"country\": \"United States\",\n  \"postalCode\": \"60559\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/organizations/{{organizationId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"{{organizationId}}"
+									]
+								},
+								"description": "Full replace - requires organization.update. Any field omitted from the body is set to NULL."
+							}
+						},
+						{
+							"name": "6. organizations without token (should fail)",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('rejected', () => pm.response.to.have.status(401));"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"auth": {
+									"type": "noauth"
+								},
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/organizations",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations"
+									]
+								},
+								"description": "Sends no bearer token. Proves the router mounts authenticate in front of every organisation endpoint."
+							}
 						}
-					}
-				},
-				"url": {
-					"raw": "{{baseUrl}}/auth/reset-password",
-					"host": [
-						"{{baseUrl}}"
-					],
-					"path": [
-						"auth",
-						"reset-password"
 					]
 				},
-				"description": "Step 2 of the forgot-password flow. Exchanges the emailed code for a new password: the hash is written to dbo.EmployeeLogin, ModifiedAt is stamped and the code is cleared, so it cannot be used twice.\n\nThis really does change the password. newPassword is a fixed value, so re-running the collection sets it to the same thing and stays repeatable."
-			}
+				{
+					"name": "Locations",
+					"description": "The location master behind the locations grid. Every request needs an `organization-location.*` permission, and reads {{organizationId}} - so run the Organization folder first.\n\nCreate, update and delete are Super Admin / HR Admin only today. Delete is a soft delete and answers 409 LOCATION_IN_USE while any employee is still assigned to the location.",
+					"item": [
+						{
+							"name": "1. create location (India)",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('created', () => pm.response.to.have.status(201));",
+											"pm.collectionVariables.set('locationId', pm.response.json().data.locationId);"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"locationName\": \"India\",\n  \"locationCode\": \"IN\",\n  \"email\": \"india.office@rstartec.com\",\n  \"addressLine1\": \"CM2/1801 Plot No. GH-01/A\",\n  \"addressLine2\": \"Sector-74\",\n  \"city\": \"Noida\",\n  \"state\": \"Uttar Pradesh\",\n  \"country\": \"INDIA\",\n  \"timeZone\": \"Asia/Kolkata\",\n  \"description\": \"Delivery centre\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/organizations/{{organizationId}}/locations",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"{{organizationId}}",
+										"locations"
+									]
+								},
+								"description": "Requires organization-location.create."
+							}
+						},
+						{
+							"name": "2. create location (US)",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('created', () => pm.response.to.have.status(201));"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"locationName\": \"US\",\n  \"locationCode\": \"US\",\n  \"addressLine1\": \"770 Pasquinelli Drive Unit 424\",\n  \"city\": \"Westmont\",\n  \"state\": \"Illinois\",\n  \"country\": \"UNITED STATES\",\n  \"postalCode\": \"60559\",\n  \"timeZone\": \"America/Chicago\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/organizations/{{organizationId}}/locations",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"{{organizationId}}",
+										"locations"
+									]
+								},
+								"description": "Requires organization-location.create."
+							}
+						},
+						{
+							"name": "3. duplicate location name (should fail)",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('rejected as a conflict', () => pm.response.to.have.status(409));",
+											"pm.test('says which rule was broken', () => {",
+											"  pm.expect(pm.response.json().details.code).to.eql('NAME_ALREADY_EXISTS');",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"locationName\": \"India\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/organizations/{{organizationId}}/locations",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"{{organizationId}}",
+										"locations"
+									]
+								},
+								"description": "One organisation may not have two locations of the same name. Enforced by a filtered unique index, so it holds under concurrency too."
+							}
+						},
+						{
+							"name": "4. list locations",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('ok', () => pm.response.to.have.status(200));",
+											"pm.test('every row carries its headcount', () => {",
+											"  // The 'Associated users' column on the grid. Live employees whose",
+											"  // WorkLocationId is this location - 0 when nobody is assigned.",
+											"  pm.response.json().data.forEach((row) => {",
+											"    pm.expect(row.associatedUsers).to.be.a('number');",
+											"  });",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/organizations/{{organizationId}}/locations",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"{{organizationId}}",
+										"locations"
+									]
+								},
+								"description": "Requires organization-location.view."
+							}
+						},
+						{
+							"name": "5. update location",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('ok', () => pm.response.to.have.status(200));",
+											"pm.test('rename applied', () => {",
+											"  pm.expect(pm.response.json().data.locationName).to.eql('India (Noida)');",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"locationName\": \"India (Noida)\",\n  \"locationCode\": \"IN\",\n  \"email\": \"india.office@rstartec.com\",\n  \"addressLine1\": \"CM2/1801 Plot No. GH-01/A\",\n  \"addressLine2\": \"Sector-74\",\n  \"city\": \"Noida\",\n  \"state\": \"Uttar Pradesh\",\n  \"country\": \"INDIA\",\n  \"timeZone\": \"Asia/Kolkata\",\n  \"description\": \"Delivery centre\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/organizations/{{organizationId}}/locations/{{locationId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"{{organizationId}}",
+										"locations",
+										"{{locationId}}"
+									]
+								},
+								"description": "Full replace - requires organization-location.update."
+							}
+						},
+						{
+							"name": "6. delete location",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('ok', () => pm.response.to.have.status(200));",
+											"pm.test('returns what was deleted', () => {",
+											"  // 200 with the row's identity, not 204: the toast says 'India deleted',",
+											"  // and a 204 would make the client fetch the name it just lost.",
+											"  pm.expect(pm.response.json().data.locationName).to.be.a('string');",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/organizations/{{organizationId}}/locations/{{locationId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"{{organizationId}}",
+										"locations",
+										"{{locationId}}"
+									]
+								},
+								"description": "Soft delete - requires organization-location.delete. Answers 409 LOCATION_IN_USE while any employee is still assigned to it."
+							}
+						}
+					]
+				}
+			]
 		}
 	],
 	"event": [

@@ -13,6 +13,7 @@ import { env, isProduction } from './config/env.js';
 import apiRouter from './routes/index.js';
 import { notFoundHandler } from './middlewares/not-found.middleware.js';
 import { errorHandler } from './middlewares/error.middleware.js';
+import { apiLimiter } from './middlewares/rate-limit.middleware.js';
 
 export function createApp() {
   const app = express();
@@ -32,8 +33,10 @@ export function createApp() {
   app.use(express.urlencoded({ extended: true }));
   app.use(morgan(isProduction ? 'combined' : 'dev'));
 
-  // The whole API hangs off one prefix, defined once in the enums.
-  app.use(API_PREFIX, apiRouter);
+  // The whole API hangs off one prefix, defined once in the enums. The global
+  // limiter sits in front of it - after the body parser, because the
+  // per-account limiters downstream key on req.body.email.
+  app.use(API_PREFIX, apiLimiter, apiRouter);
 
   // Order matters: unmatched route first, then the error handler last.
   app.use(notFoundHandler);

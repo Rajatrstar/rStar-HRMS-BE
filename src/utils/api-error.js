@@ -29,16 +29,26 @@ export class ApiError extends Error {
     return new ApiError(HTTP_STATUS.UNAUTHORIZED, message);
   }
 
-  static forbidden(message) {
-    return new ApiError(HTTP_STATUS.FORBIDDEN, message);
+  // These three take `details` because an access-control failure is far more
+  // actionable with the permission code attached than without it. Note the
+  // deliberate asymmetry at the call sites: a 403 names what was required, a
+  // 404 says nothing - attaching the reason there would undo the whole point
+  // of answering 404 for a row outside the caller's scope.
+  static forbidden(message, details) {
+    return new ApiError(HTTP_STATUS.FORBIDDEN, message, details);
   }
 
-  static notFound(message) {
-    return new ApiError(HTTP_STATUS.NOT_FOUND, message);
+  static notFound(message, details) {
+    return new ApiError(HTTP_STATUS.NOT_FOUND, message, details);
   }
 
-  static conflict(message) {
-    return new ApiError(HTTP_STATUS.CONFLICT, message);
+  static conflict(message, details) {
+    return new ApiError(HTTP_STATUS.CONFLICT, message, details);
+  }
+
+  /** The body parsed and the fields are well formed, but the combination is not. */
+  static unprocessable(message, details) {
+    return new ApiError(HTTP_STATUS.UNPROCESSABLE_ENTITY, message, details);
   }
 
   static internal(message) {

@@ -9,6 +9,11 @@
  *
  * Returns the cleaned values, or throws a 400 ApiError listing every bad field
  * at once — a client should not have to resubmit to discover the second error.
+ *
+ * A field that is absent is simply missing from the result, never `undefined`
+ * with a key. That is what lets a PUT handler tell "the client left this out"
+ * apart from "the client sent an empty string", and decide for itself which
+ * one means NULL.
  */
 import { ApiError } from '../utils/api-error.js';
 import { MESSAGES } from '../enums/index.js';
@@ -35,18 +40,61 @@ function label(field) {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
-export function validateBody(body, schema) {
+/**
+ * The engine behind validateBody and validateParams.
+ *
+ * @param {Record<string, unknown>} source
+ * @param {Record<string, object>} schema
+ */
+function validate(source, schema) {
   const errors = {};
   const values = {};
 
   for (const [field, rule] of Object.entries(schema)) {
-    let value = body?.[field];
+    let value = source?.[field];
 
     // Trimming a password would silently change what the user typed.
     if (typeof value === 'string' && rule.trim !== false) value = value.trim();
 
     if (value === undefined || value === null || value === '') {
       if (rule.required) errors[field] = `${label(field)} is required`;
+      continue;
+    }
+
+    // Numbers and booleans are checked before the "must be text" guard below,
+    // which exists for the string rules and would otherwise reject them.
+    if (rule.integer) {
+      // A path parameter always arrives as a string, a JSON body may not.
+      const parsed = typeof value === 'number' ? value : Number(value);
+      const min = rule.min ?? 1;
+
+      if (!Number.isInteger(parsed) || parsed < min) {
+        errors[field] = `${label(field)} must be a whole number of at least ${min}`;
+        continue;
+      }
+      // Number.MAX_SAFE_INTEGER, not the column's BIGINT range: beyond this a
+      // JS number stops being able to tell two ids apart, so an id that large
+      // would match the wrong row rather than fail.
+      if (parsed > Number.MAX_SAFE_INTEGER) {
+        errors[field] = `${label(field)} is out of range`;
+        continue;
+      }
+
+      values[field] = parsed;
+      continue;
+    }
+
+    if (rule.boolean) {
+      if (typeof value === 'boolean') {
+        values[field] = value;
+        continue;
+      }
+      // A query string has no booleans, only "true" and "false".
+      if (value === 'true' || value === 'false') {
+        values[field] = value === 'true';
+        continue;
+      }
+      errors[field] = `${label(field)} must be true or false`;
       continue;
     }
 
@@ -80,6 +128,21 @@ export function validateBody(body, schema) {
       continue;
     }
 
+    // http(s) only. A javascript: or data: URL in a field that ends up in an
+    // <img src> or an <a href> is the whole stored-XSS story in one line.
+    if (rule.url && !/^https?:\/\/[^\s]+$/i.test(value)) {
+      errors[field] = `${label(field)} must be a URL starting with http:// or https://`;
+      continue;
+    }
+
+    // Case-sensitive on purpose: these lists come from an enum the client is
+    // served, so "information technology" is a client bug worth surfacing
+    // rather than quietly correcting into a value nobody chose.
+    if (rule.oneOf && !rule.oneOf.includes(value)) {
+      errors[field] = `${label(field)} must be one of: ${rule.oneOf.join(', ')}`;
+      continue;
+    }
+
     values[field] = rule.lowercase ? value.toLowerCase() : value;
   }
 
@@ -88,4 +151,24 @@ export function validateBody(body, schema) {
   }
 
   return values;
+}
+
+/** Validates and cleans a request body. */
+export function validateBody(body, schema) {
+  return validate(body, schema);
+}
+
+/**
+ * The same, for `req.params` — and for `req.query`, which has the same shape.
+ *
+ *   const { organizationId } = validateParams(req.params, {
+ *     organizationId: { required: true, integer: true },
+ *   });
+ *
+ * Worth doing rather than passing `req.params.id` straight into a query: the
+ * parameter is typed as BigInt on the way to SQL Server, and "abc" would
+ * otherwise reach the driver and come back as a 500 instead of a 400.
+ */
+export function validateParams(params, schema) {
+  return validate(params, schema);
 }

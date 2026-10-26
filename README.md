@@ -25,10 +25,32 @@ npm run dev              # http://localhost:5000/api/v1
 | `npm run db:migrate` | Applies new files in `db/migrations`, once each            |
 | `npm run db:seed`    | Creates or resets a login — defaults to `admin@rstartec.com` / `admin` |
 | `npm run db:seed:employees` | Gives every login an `tblEmployeeDetails` profile, if it has none |
+| `npm run db:seed:permissions` | Syncs the permission catalog and the five master roles |
+| `npm run db:create:admin` | Creates a login **+** profile **+** role — a usable administrator |
 | `npm run db:verify`  | Checks every model in `src/models` against the live schema |
 | `npm run mail:test`  | Sends one real email to prove the SMTP settings work       |
 
 Seed a different account with `npm run db:seed -- someone@rstartec.com theirPassword`.
+
+**An administrator is three rows, not one**, and missing the third is silent — the
+account logs in and then holds zero permissions, so every endpoint answers `403`
+with nothing to explain it. `db:seed` writes the login, `db:seed:employees` writes
+the profile, and **nothing** writes the role. That is what `db:create:admin` is for:
+
+```bash
+EMAIL=someone@rstartec.com FIRST_NAME=Super LAST_NAME=Admin npm run db:create:admin
+```
+
+It creates all three in one transaction, generates and prints a password when it
+makes a new login, and is idempotent — re-running adds only what is missing and
+never touches an existing password unless you ask:
+
+```bash
+EMAIL=someone@rstartec.com PASSWORD='NewPass@123' RESET_PASSWORD=1 npm run db:create:admin
+EMAIL=hr@rstartec.com ROLE=HR_ADMIN npm run db:create:admin   # any code from tblRole
+```
+
+Until the admin API exists this is the only way to assign a role.
 
 Both load `.env` through Node's own `--env-file-if-exists`, so there is no `dotenv` dependency.
 
@@ -49,6 +71,28 @@ server. Type `rs` + Enter in the terminal to force a restart.
 | POST   | `/api/v1/auth/reset-password`  | —  | Exchange that code for a new password          |
 | POST   | `/api/v1/auth/refresh`    | —      | Exchange a refresh token for a new pair       |
 | GET    | `/api/v1/auth/me`         | Bearer | The signed-in account                         |
+
+Organisation setup. Every one of these needs a bearer token **and** the permission
+named beside it — today only Super Admin and HR Admin hold any of them:
+
+| Method | Path                                                       | Permission                     |
+| ------ | ---------------------------------------------------------- | ------------------------------ |
+| GET    | `/api/v1/organizations`                                     | `organization.view`            |
+| GET    | `/api/v1/organizations/types`                               | `organization.view`            |
+| POST   | `/api/v1/organizations`                                     | `organization.create`          |
+| GET    | `/api/v1/organizations/:organizationId`                     | `organization.view`            |
+| PUT    | `/api/v1/organizations/:organizationId`                     | `organization.update`          |
+| GET    | `/api/v1/organizations/:organizationId/locations`           | `organization-location.view`   |
+| POST   | `/api/v1/organizations/:organizationId/locations`           | `organization-location.create` |
+| GET    | `/api/v1/organizations/:organizationId/locations/:locationId` | `organization-location.view`   |
+| PUT    | `/api/v1/organizations/:organizationId/locations/:locationId` | `organization-location.update` |
+| DELETE | `/api/v1/organizations/:organizationId/locations/:locationId` | `organization-location.delete` |
+
+There is deliberately no `DELETE /organizations/:id`: removing the organisation this
+HRMS belongs to is a decommission, not an operation an endpoint should offer. Both
+`PUT`s are a **full replace** — a field left out of the body is set to `NULL`.
+Deleting a location is a soft delete and answers `409 LOCATION_IN_USE` while any
+employee is still assigned to it.
 
 Every response uses the same envelope:
 
@@ -92,14 +136,32 @@ a new login starts.
 ## Postman
 
 `postman/rSTAR-HRMS-API.postman_collection.json` — import that one file into
-Postman and run the requests top to bottom.
+Postman. It is grouped into folders, one per area:
+
+```
+Health                    liveness, readiness. No auth
+Auth                      login, OTP, refresh, password reset
+Admin
+  ├─ Organization         the company profile
+  └─ Locations            the location master
+```
+
+Requests are numbered **within** their folder, in the order they depend on each
+other. First time through: run **Auth** top to bottom to capture the token, then
+**Admin › Organization** before **Admin › Locations** — `create organization`
+stores `{{organizationId}}`, and every location request reads it. After that any
+request can be run on its own.
+
+Each folder carries a description explaining what is in it and what it needs, so
+the rules live next to the requests instead of only here.
 
 **No bearer token is ever pasted.** Collection auth is set once to
-`Bearer {{accessToken}}`; the test script on `verify-otp` writes the token into
-that variable and every request inherits it. Request 4 (`me`) sends no
+`Bearer {{accessToken}}`; the test script on `Auth › 3. verify-otp` writes the
+token into that variable and every request inherits it. `Auth › 4. me` sends no
 Authorization header of its own, so it passing is the proof the middleware
-accepted a token nobody copied. Request 5 is the same endpoint with auth
-switched off, expecting `401`.
+accepted a token nobody copied. `Auth › 5.` is the same endpoint with auth
+switched off, expecting `401`, and `Admin › Organization › 6.` does the same for
+the organisation routes.
 
 Import the matching environment too:
 
@@ -108,15 +170,19 @@ postman/Local.postman_environment.json      baseUrl + the seeded login
 postman/Staging.postman_environment.json    placeholders, password left empty
 ```
 
-Ten requests, in run order: health, health/ready, login, resend-otp, verify-otp,
-me, me-without-token, refresh, forgot-password, reset-password. Every one also
-asserts the response envelope, so a change to the reply shape fails the run
-rather than slipping through.
+Twenty-two requests. Every one asserts the response envelope, so a change to the
+reply shape fails the run rather than slipping through.
 
 `resend-otp` sits between login and verify-otp deliberately — it replaces the
 live code, and after verify-otp succeeds there is no OTP left to resend.
 
-**`10. reset-password` really changes a password.** It resets `{{forgotEmail}}`
+Everything under **Admin** is permission-guarded, and today only Super Admin and
+HR Admin hold any of those permissions. A `403` names the exact code it wanted in
+`details.requiredPermission` — grant that code rather than guessing at a role.
+`Admin › Locations › 3.` deliberately expects a `409`: one organisation may not
+have two locations of the same name.
+
+**`Auth › 8. reset-password` really changes a password.** It resets `{{forgotEmail}}`
 (not `{{loginEmail}}`) to `{{newPassword}}`, a fixed value, so repeated runs are
 idempotent. The employee needs a matching `WorkEmail` **and** `DateOfBirth` in
 `dbo.tblEmployeeDetails` — `npm run db:seed:employees` sets both.
@@ -140,7 +206,13 @@ Headless:
 
 ```bash
 postman collection run postman/rSTAR-HRMS-API.postman_collection.json   -e postman/Local.postman_environment.json
+
+# One folder at a time, now that the collection has them:
+postman collection run postman/rSTAR-HRMS-API.postman_collection.json   -e postman/Local.postman_environment.json --folder Auth
 ```
+
+A folder that depends on an earlier one still needs that one to have run in the
+same session — `Admin` on its own has no `{{accessToken}}` to inherit.
 
 The same flow in plain curl:
 
@@ -179,6 +251,55 @@ Two things that bite:
 With `OTP_IN_RESPONSE=false`, the collection cannot complete a login unattended
 by design — run `login`, take the OTP from the server console, put it in the
 `otp` variable, then run `verify-otp` onwards.
+
+### Rate limiting and the login rush
+
+Four limiters, all configurable from `.env` (see `RATE_LIMIT_*` there):
+
+| Tier | Keyed on | Default | Counts |
+| ---- | -------- | ------- | ------ |
+| `apiLimiter` | IP | 300 / 15 min | everything except `/health*` |
+| `authLimiter` | IP | 300 / 15 min | every `/auth` request |
+| `credentialLimiter` | **email** | 5 / 15 min | **failed** attempts only |
+| `otpSendLimiter` | **email** | 3 / 15 min | **successful** requests only |
+
+The per-account tiers are the real defence. An IP limit is sidestepped with a
+proxy pool; keying on the submitted email means every attacker, from however
+many addresses, shares five guesses per window against any one account — which
+is what makes a six-digit OTP unguessable inside its ten-minute life.
+
+The counting split follows what abuse looks like. Guessing is abusive when it
+**fails**, so `credentialLimiter` ignores successes and nobody logging in
+normally is ever throttled. Requesting an OTP is abusive when it **succeeds** —
+each one costs an email — so `otpSendLimiter` ignores failures, and wrong
+passwords cannot exhaust a real user's OTP budget.
+
+**Why `authLimiter` is 300 and not 20.** An office behind one NAT address is a
+single IP to this server. At 20, a simulated 10 AM rush of 70 home workers and
+30 office staff locked out **every one of the 30**: the burst of logins spent
+the shared budget, so their `verify-otp` calls were refused — 20 people holding
+an OTP they could not use. Raising the IP tier fixes that without touching the
+per-account limits that actually stop attacks.
+
+**Capacity.** 100 simultaneous logins, measured end to end:
+
+| | before | after |
+| --- | --- | --- |
+| wall clock, 100 people | 45 s | **7.9 s** |
+| median login | 34 s | **3.3 s** |
+| office staff locked out | 30 / 30 | **0** |
+
+Three things got it there: the `authLimiter` default above, `@node-rs/bcrypt`
+in place of `bcryptjs` (see `src/utils/password.js` — the win is the thread
+pool, not per-hash speed), and a larger `MAIL_BATCH_SIZE` with a ten-minute
+`OTP_EXPIRY_MINUTES` so the last code in a queued burst still arrives usable.
+
+Counters live in process memory. One instance is fine; behind a load balancer
+each keeps its own tally and the effective limit multiplies, so that is the
+point to move to a shared store (`rate-limit-redis`). A restart also clears
+them — an attacker's spent budget comes back, which is an argument for moving
+account lockout into a column on `EmployeeLogin` rather than leaving it to the
+limiter alone.
 
 ### What the auth code deliberately does
 
@@ -289,6 +410,20 @@ service never touches `req` or `res`.
 
 `helpers/` vs `utils/`: a helper knows about this app (binding SQL parameters,
 shaping a response); a util would work in any project (an error class, a logger).
+
+## Access control
+
+Roles, groups, per-user overrides and row-level scope. Two documents:
+
+| Doc | For |
+| --- | --- |
+| [docs/ACCESS-CONTROL.md](docs/ACCESS-CONTROL.md) | Backend: how it decides, and how to change it |
+| [docs/ACCESS-CONTROL-FRONTEND.md](docs/ACCESS-CONTROL-FRONTEND.md) | Frontend: the contract, the screens, the UI patterns |
+
+The short version: `src/enums/permission.enum.js` is the catalog and the source
+of truth, `npm run db:seed:permissions` syncs it into the database, and a route
+is guarded with `requirePermission(PERMISSION.SOMETHING)` from
+`src/middlewares/permission.middleware.js`.
 
 ## Response contract
 

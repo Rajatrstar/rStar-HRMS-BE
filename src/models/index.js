@@ -8,4 +8,6 @@
 export * from './define-model.js';
 export * from './employee-login.model.js';
 export * from './employee-details.model.js';
+export * from './organization.model.js';
 export * from './email-outbox.model.js';
+export * from './access-control.model.js';

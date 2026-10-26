@@ -4,3 +4,7 @@ export * from './http-status.enum.js';
 export * from './messages.enum.js';
 export * from './email-template.enum.js';
 export * from './employee.enum.js';
+export * from './organization.enum.js';
+export * from './permission.enum.js';
+export * from './role.enum.js';
+export * from './error-code.enum.js';

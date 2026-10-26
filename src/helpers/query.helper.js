@@ -29,6 +29,21 @@ function bind(request, params) {
 }
 
 /**
+ * Runs a batch of statements and returns every recordset, in order.
+ *
+ * `query()` below returns only the first and silently drops the rest, which is
+ * a trap when one round trip deliberately answers two questions - the access
+ * resolver asks for a permission set and the scope context together.
+ *
+ * @returns {Promise<any[][]>}
+ */
+export async function querySets(statement, params = {}) {
+  const pool = await getPool();
+  const result = await bind(pool.request(), params).query(statement);
+  return result.recordsets ?? [];
+}
+
+/**
  * Runs a statement and returns all rows.
  * @returns {Promise<any[]>}
  */
@@ -95,7 +110,15 @@ export async function withTransaction(work) {
     await transaction.commit();
     return outcome;
   } catch (error) {
-    await transaction.rollback();
+    // Roll back, but never let the rollback's own failure replace the error
+    // that caused it. SQL Server aborts a transaction on many errors, so the
+    // rollback then throws "Transaction has been aborted" - and that message,
+    // reported on its own, says nothing about the statement that failed.
+    try {
+      await transaction.rollback();
+    } catch (rollbackError) {
+      error.rollbackError = rollbackError;
+    }
     throw error;
   }
 }

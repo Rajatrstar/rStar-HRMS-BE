@@ -13,6 +13,7 @@ export const API_PREFIX = '/api/v1';
 export const ROUTE_GROUP = Object.freeze({
   HEALTH: '/health',
   AUTH: '/auth',
+  ORGANIZATIONS: '/organizations',
   // EMPLOYEES: '/employees',
 });
 
@@ -33,6 +34,25 @@ export const ROUTES = Object.freeze({
     RESET_PASSWORD: '/reset-password',
     REFRESH: '/refresh',
     ME: '/me',
+  }),
+  /**
+   * Locations are nested under their organisation rather than mounted as a
+   * group of their own, because a location only means anything as part of
+   * one: the id in the path is what makes "rename this location" unambiguous
+   * when two organisations both have a "Head Office".
+   */
+  ORGANIZATIONS: Object.freeze({
+    LIST: '/',
+    CREATE: '/',
+    TYPES: '/types',
+    DETAIL: '/:organizationId',
+    UPDATE: '/:organizationId',
+
+    LOCATION_LIST: '/:organizationId/locations',
+    LOCATION_CREATE: '/:organizationId/locations',
+    LOCATION_DETAIL: '/:organizationId/locations/:locationId',
+    LOCATION_UPDATE: '/:organizationId/locations/:locationId',
+    LOCATION_DELETE: '/:organizationId/locations/:locationId',
   }),
   // EMPLOYEES: Object.freeze({
   //   LIST: '/',

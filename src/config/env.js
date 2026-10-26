@@ -59,7 +59,9 @@ export const env = Object.freeze({
 
   BCRYPT_SALT_ROUNDS: toInt('BCRYPT_SALT_ROUNDS', 12),
   OTP_LENGTH: toInt('OTP_LENGTH', 6),
-  OTP_EXPIRY_MINUTES: toInt('OTP_EXPIRY_MINUTES', 5),
+  // 10 rather than 5: a burst of logins queues a burst of mail, and the last
+  // person in the queue must still have a usable code when theirs arrives.
+  OTP_EXPIRY_MINUTES: toInt('OTP_EXPIRY_MINUTES', 10),
 
   // Returns the OTP in the login response so a client (Postman, a test script)
   // can complete the two-step login without a human reading the server log.
@@ -79,8 +81,37 @@ export const env = Object.freeze({
   MAIL_FROM_NAME: optional('MAIL_FROM_NAME', 'rSTAR HRMS'),
   MAIL_FROM_ADDRESS: optional('MAIL_FROM_ADDRESS', ''),
 
+  // Rate limiting. Off switch included because an integration test suite that
+  // fires hundreds of requests in a second would otherwise throttle itself.
+  RATE_LIMIT_ENABLED: toBool('RATE_LIMIT_ENABLED', true),
+  RATE_LIMIT_WINDOW_MINUTES: toInt('RATE_LIMIT_WINDOW_MINUTES', 15),
+  // Per IP, across the whole API.
+  RATE_LIMIT_MAX: toInt('RATE_LIMIT_MAX', 300),
+  // Per IP, on /auth only. Generous on purpose: a whole office behind one NAT
+  // address shares this bucket, and 20 locked every one of them out of a 10 AM
+  // login rush. The real brute-force defence is the per-account tier below,
+  // which an attacker cannot escape by changing IP - this tier only stops
+  // crude floods.
+  RATE_LIMIT_AUTH_MAX: toInt('RATE_LIMIT_AUTH_MAX', 300),
+  // Per ACCOUNT, on the endpoints that check a credential. Keyed by email, so
+  // rotating IPs does not buy an attacker more guesses at one account.
+  RATE_LIMIT_CREDENTIAL_MAX: toInt('RATE_LIMIT_CREDENTIAL_MAX', 5),
+  // Per ACCOUNT, on the endpoints that SEND an email. Caps mail cost and stops
+  // the API being used to flood somebody's inbox.
+  RATE_LIMIT_OTP_SEND_MAX: toInt('RATE_LIMIT_OTP_SEND_MAX', 3),
+
+  // Access control. Resolving a permission set is a handful of index seeks,
+  // but it would otherwise happen on every authenticated request forever.
+  // The off switch is how you bisect "permissions bug or cache bug".
+  ACCESS_CONTROL_CACHE_ENABLED: toBool('ACCESS_CONTROL_CACHE_ENABLED', true),
+  ACCESS_CONTROL_CACHE_TTL_SECONDS: toInt('ACCESS_CONTROL_CACHE_TTL_SECONDS', 60),
+  ACCESS_CONTROL_CACHE_MAX_ENTRIES: toInt('ACCESS_CONTROL_CACHE_MAX_ENTRIES', 1000),
+  // How often each instance checks whether another one changed a role. A
+  // per-request check would be the round trip the cache exists to remove.
+  ACCESS_CONTROL_STAMP_POLL_SECONDS: toInt('ACCESS_CONTROL_STAMP_POLL_SECONDS', 5),
+
   MAIL_POLL_SECONDS: toInt('MAIL_POLL_SECONDS', 15),
-  MAIL_BATCH_SIZE: toInt('MAIL_BATCH_SIZE', 10),
+  MAIL_BATCH_SIZE: toInt('MAIL_BATCH_SIZE', 25),
   MAIL_MAX_ATTEMPTS: toInt('MAIL_MAX_ATTEMPTS', 5),
 });
 
