@@ -3,6 +3,7 @@
  * No SQL and no business rules live here.
  */
 import * as authService from '../services/auth.service.js';
+import * as userAccessService from '../services/user-access.service.js';
 import { sendSuccess } from '../helpers/response.helper.js';
 import { validateBody } from '../helpers/validation.helper.js';
 import { HTTP_STATUS, MESSAGES } from '../enums/index.js';
@@ -95,7 +96,16 @@ export async function refresh(req, res) {
 /** GET /api/v1/auth/me — requires a valid access token. */
 export async function me(req, res) {
   // req.employee is attached by authenticate().
-  const data = await authService.getProfile(req.employee.employeeDetailId);
+  const { employeeDetailId } = req.employee;
+  const [profile, acl] = await Promise.all([
+    authService.getProfile(employeeDetailId),
+    userAccessService.getMyPermissions(employeeDetailId),
+  ]);
+
+  // The client compares this with the `version` of its cached
+  // /access/my-permissions payload and refetches when they differ - which is
+  // how an admin's change reaches an open session without a logout.
+  const data = { ...profile, permissionsVersion: acl.version };
 
   return sendSuccess(res, { statusCode: HTTP_STATUS.OK, message: MESSAGES.PROFILE_FETCHED, data });
 }

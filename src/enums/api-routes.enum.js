@@ -14,6 +14,12 @@ export const ROUTE_GROUP = Object.freeze({
   HEALTH: '/health',
   AUTH: '/auth',
   ORGANIZATIONS: '/organizations',
+  // Access control administration. Four groups rather than one, because they
+  // are four screens with four different permission families guarding them.
+  PERMISSIONS: '/permissions',
+  ROLES: '/roles',
+  GROUPS: '/groups',
+  ACCESS: '/access',
   // EMPLOYEES: '/employees',
 });
 
@@ -53,6 +59,52 @@ export const ROUTES = Object.freeze({
     LOCATION_DETAIL: '/:organizationId/locations/:locationId',
     LOCATION_UPDATE: '/:organizationId/locations/:locationId',
     LOCATION_DELETE: '/:organizationId/locations/:locationId',
+  }),
+  /** Read-only. Permissions are code artefacts; there is no create. */
+  PERMISSIONS: Object.freeze({
+    CATALOG: '/catalog',
+  }),
+  ROLES: Object.freeze({
+    LIST: '/',
+    CREATE: '/',
+    DETAIL: '/:roleId',
+    UPDATE: '/:roleId',
+    DELETE: '/:roleId',
+    PERMISSIONS: '/:roleId/permissions',
+    PERMISSIONS_REPLACE: '/:roleId/permissions',
+  }),
+  /**
+   * Membership is add/remove, not a full replace like a role's permissions:
+   * a group can hold hundreds of people and the screen is a picker, not a grid.
+   */
+  GROUPS: Object.freeze({
+    LIST: '/',
+    CREATE: '/',
+    DETAIL: '/:groupId',
+    UPDATE: '/:groupId',
+    DELETE: '/:groupId',
+    PERMISSIONS: '/:groupId/permissions',
+    PERMISSIONS_REPLACE: '/:groupId/permissions',
+    MEMBERS: '/:groupId/members',
+    MEMBERS_ADD: '/:groupId/members',
+    MEMBER_REMOVE: '/:groupId/members/:employeeDetailId',
+  }),
+  /**
+   * One person's access. The id in the path is an EmployeeDetailId - the
+   * subject every grant keys on - never a login id.
+   */
+  ACCESS: Object.freeze({
+    MY_PERMISSIONS: '/my-permissions',
+    USER: '/users/:employeeDetailId',
+    USER_ROLES: '/users/:employeeDetailId/roles',
+    USER_ROLES_REPLACE: '/users/:employeeDetailId/roles',
+    USER_GROUPS: '/users/:employeeDetailId/groups',
+    USER_GROUPS_REPLACE: '/users/:employeeDetailId/groups',
+    USER_OVERRIDES: '/users/:employeeDetailId/overrides',
+    USER_OVERRIDE_CREATE: '/users/:employeeDetailId/overrides',
+    USER_OVERRIDE_UPDATE: '/users/:employeeDetailId/overrides/:overrideId',
+    USER_OVERRIDE_DELETE: '/users/:employeeDetailId/overrides/:overrideId',
+    USER_EFFECTIVE: '/users/:employeeDetailId/effective-permissions',
   }),
   // EMPLOYEES: Object.freeze({
   //   LIST: '/',

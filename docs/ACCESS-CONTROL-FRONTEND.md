@@ -148,7 +148,7 @@ permission.
   "statusCode": 200,
   "message": "Permissions fetched",
   "data": {
-    "employeeId": 12,
+    "employeeDetailId": 12,
     "email": "anmol.ghai@rstartec.com",
 
     "roles":  [ { "roleId": 4, "code": "MANAGER",  "name": "Manager" },
@@ -194,7 +194,7 @@ permission.
 export type Scope = 'OWN' | 'TEAM' | 'DEPARTMENT' | 'ALL';
 
 export interface MyPermissions {
-  employeeId: number;
+  employeeDetailId: number;
   email: string;
   roles:  Array<{ roleId: number;  code: string; name: string }>;
   groups: Array<{ groupId: number; code: string; name: string }>;
@@ -258,7 +258,7 @@ permission really is gone, the button disappears on re-render and you show the
 error body already explains it.
 
 Storage: keep it in **one** store (React context / Pinia / NgRx). Mirror to
-`sessionStorage` keyed `acl:<employeeId>:<version>` so F5 does not flash an empty
+`sessionStorage` keyed `acl:<employeeDetailId>:<version>` so F5 does not flash an empty
 menu. **Never `localStorage`** — it survives logout on a shared machine.
 
 ---
@@ -416,14 +416,14 @@ API answers `409` with `details.userCount`; show that, do not retry.
 
 ```
 GET    /api/v1/roles?page=1&pageSize=20&search=
-POST   /api/v1/roles                      { code, name, description? }
-PATCH  /api/v1/roles/:roleId              { name?, description?, isActive? }
+POST   /api/v1/roles                      { roleCode, roleName, description? }
+PATCH  /api/v1/roles/:roleId              { roleName?, description?, isActive? }   description: null clears it
 DELETE /api/v1/roles/:roleId
 ```
 
 ```jsonc
 // RoleSummary
-{ "roleId": 3, "code": "HR_EXECUTIVE", "name": "HR Executive",
+{ "roleId": 3, "roleCode": "HR_EXECUTIVE", "roleName": "HR Executive",
   "description": "Day-to-day employee record maintenance",
   "isSystem": true, "isActive": true,
   "permissionCount": 18, "userCount": 7,
@@ -450,7 +450,7 @@ the state I want", so a full replace means no diffing on your side and no lost
 update when two cells change.
 
 Send `expectedModifiedAt` from the role you loaded. If someone else saved
-meanwhile the API answers `409 ROLE_MODIFIED_ELSEWHERE`; show "This role was
+meanwhile the API answers `409 MODIFIED_ELSEWHERE`; show "This role was
 changed by someone else. Reload and reapply."
 
 **There is no "create permission" button.** The catalog is read-only, by design —
@@ -471,7 +471,7 @@ PUT /api/v1/roles/:roleId/permissions
     { "code": "employees", "name": "Employees", "sortOrder": 10,
       "permissions": [
         { "permissionId": 11, "code": "employees.view", "module": "employees",
-          "action": "view", "name": "View employees",
+          "action": "view",
           "description": "See employee records", "isScoped": true,
           "defaultScope": "OWN", "sortOrder": 10 }
       ] }
@@ -503,21 +503,21 @@ remove one — use a per-user DENY for that."*
 
 ```
 GET    /api/v1/groups
-POST   /api/v1/groups                            { code, name, description? }
+POST   /api/v1/groups                            { groupCode, groupName, description? }
 GET    /api/v1/groups/:groupId
-PATCH  /api/v1/groups/:groupId
+PATCH  /api/v1/groups/:groupId                   { groupName?, description?, isActive? }
 DELETE /api/v1/groups/:groupId
 GET    /api/v1/groups/:groupId/permissions
 PUT    /api/v1/groups/:groupId/permissions       { permissions: [...] }
 GET    /api/v1/groups/:groupId/members?search=
 POST   /api/v1/groups/:groupId/members           { employeeIds: [12, 13] }
-DELETE /api/v1/groups/:groupId/members/:employeeId
+DELETE /api/v1/groups/:groupId/members/:employeeDetailId
 ```
 
 Membership is add/remove rather than full-replace because a group can hold
 hundreds of people and the UI is a picker, not a grid.
 
-### 6.4 User access and overrides — `/admin/users/:employeeId/access`
+### 6.4 User access and overrides — `/admin/users/:employeeDetailId/access`
 
 **Needs** `user-access.view` to open. Four panels on one page.
 
@@ -551,7 +551,7 @@ chain**, so an admin can answer "why can this person approve leave?" without
 guessing.
 
 ```jsonc
-{ "employeeId": 12,
+{ "employeeDetailId": 12,
   "permissions": [
     { "code": "leave.approve", "effectiveScope": "TEAM", "granted": true,
       "sources": [ { "type": "ROLE",  "name": "Manager", "scope": "TEAM" } ] },
@@ -574,17 +574,17 @@ saving. The API answers `409 SELF_LOCKOUT_BLOCKED` if the change would remove
 their own administrative access.
 
 ```
-GET    /api/v1/access/users/:employeeId
-GET    /api/v1/access/users/:employeeId/roles
-PUT    /api/v1/access/users/:employeeId/roles        { roleIds: [1, 4] }
-GET    /api/v1/access/users/:employeeId/groups
-PUT    /api/v1/access/users/:employeeId/groups       { groupIds: [2] }
-GET    /api/v1/access/users/:employeeId/overrides
-POST   /api/v1/access/users/:employeeId/overrides
+GET    /api/v1/access/users/:employeeDetailId
+GET    /api/v1/access/users/:employeeDetailId/roles
+PUT    /api/v1/access/users/:employeeDetailId/roles        { roleIds: [1, 4] }
+GET    /api/v1/access/users/:employeeDetailId/groups
+PUT    /api/v1/access/users/:employeeDetailId/groups       { groupIds: [2] }
+GET    /api/v1/access/users/:employeeDetailId/overrides
+POST   /api/v1/access/users/:employeeDetailId/overrides
        { permissionId, effect, scope?, reason, expiresAt? }
-PATCH  /api/v1/access/users/:employeeId/overrides/:overrideId
-DELETE /api/v1/access/users/:employeeId/overrides/:overrideId
-GET    /api/v1/access/users/:employeeId/effective-permissions
+PATCH  /api/v1/access/users/:employeeDetailId/overrides/:overrideId
+DELETE /api/v1/access/users/:employeeDetailId/overrides/:overrideId
+GET    /api/v1/access/users/:employeeDetailId/effective-permissions
 ```
 
 ### 6.5 `/no-access`
@@ -603,7 +603,7 @@ Every response — success or failure — uses the same envelope:
 { "success": false, "statusCode": 403,
   "message": "You do not have permission to perform this action",
   "data": null,
-  "details": { "code": "PERMISSION_DENIED", "required": ["employees.update"] } }
+  "details": { "code": "PERMISSION_DENIED", "requiredPermission": "employees.update", "mode": "all" } }
 ```
 
 | Status | What it means | What to do |
@@ -612,7 +612,7 @@ Every response — success or failure — uses the same envelope:
 | **401** | Not authenticated, or token expired | Try the refresh token **once**. On failure, clear the store and go to login |
 | **403** | Authenticated, but not allowed | Toast `message`. **Refetch `/my-permissions`.** Re-render. Never retry the call |
 | **404** | Not found — **or outside your scope** | "Record not found". The ambiguity is deliberate; do not try to distinguish |
-| **409** | Conflict | Show `message`. For `ROLE_MODIFIED_ELSEWHERE` offer reload; for `*_IN_USE` show the count from `details` |
+| **409** | Conflict | Show `message`. For `MODIFIED_ELSEWHERE` offer reload; for `*_IN_USE` show the count from `details` |
 | **422** | Semantically invalid payload | A bug in your request. Show `message`, log `details` |
 | **429** | Rate limited | Back off; `details.retryAfterSeconds` tells you how long |
 

@@ -75,6 +75,34 @@
 			"key": "locationId",
 			"value": "",
 			"type": "string"
+		},
+		{
+			"key": "targetEmployeeDetailId",
+			"value": ""
+		},
+		{
+			"key": "employeesViewPermissionId",
+			"value": ""
+		},
+		{
+			"key": "reportPayrollPermissionId",
+			"value": ""
+		},
+		{
+			"key": "employeeRoleId",
+			"value": ""
+		},
+		{
+			"key": "overrideId",
+			"value": ""
+		},
+		{
+			"key": "groupCode",
+			"value": ""
+		},
+		{
+			"key": "groupId",
+			"value": ""
 		}
 	],
 	"item": [
@@ -703,7 +731,7 @@
 		},
 		{
 			"name": "Admin",
-			"description": "Organisation setup and, as they are built, roles, groups and user access. Everything in here is permission-guarded and today only Super Admin and HR Admin hold any of it.\n\nA 403 names the exact code it wanted in `details.requiredPermission` - grant that rather than guessing at a role.",
+			"description": "Organisation setup, and access control: roles, groups and user access. Everything in here is permission-guarded and today only Super Admin and HR Admin hold any of it.\n\nA 403 names the exact code it wanted in `details.requiredPermission` - grant that rather than guessing at a role.",
 			"item": [
 				{
 					"name": "Organization",
@@ -1343,6 +1371,666 @@
 									]
 								},
 								"description": "Soft delete - requires organization-location.delete. Answers 409 LOCATION_IN_USE while any employee is still assigned to it."
+							}
+						}
+					]
+				},
+				{
+					"name": "Access control",
+					"description": "Roles (RBAC), per-user overrides and groups, end to end.\n\nNeeds a Super Admin token (overrides are user-access.override, Super Admin only by default) and {{targetEmployeeDetailId}} set to a plain employee - not yourself.\n\nSteps 5-13 clean up after themselves, so the folder can be re-run. Step 4 is a full replace of the target's roles and is not undone.",
+					"item": [
+						{
+							"name": "1. my-permissions",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('status 200', () => pm.response.to.have.status(200));",
+											"",
+											"const d = pm.response.json().data;",
+											"pm.test('permissions is a code -> scope map', () => pm.expect(d.permissions).to.be.an('object'));",
+											"pm.test('version present', () => pm.expect(d.version).to.be.a('string').with.lengthOf(16));"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/access/my-permissions",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"access",
+										"my-permissions"
+									]
+								},
+								"description": "Any signed-in employee. The ACL payload the frontend hydrates from."
+							}
+						},
+						{
+							"name": "2. permission catalog",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('status 200', () => pm.response.to.have.status(200));",
+											"",
+											"const d = pm.response.json().data;",
+											"const all = d.modules.flatMap((m) => m.permissions);",
+											"const find = (code) => all.find((p) => p.code === code);",
+											"pm.test('catalog has the two permissions this folder uses', () => {",
+											"  pm.expect(find('employees.view')).to.be.an('object');",
+											"  pm.expect(find('report.payroll')).to.be.an('object');",
+											"});",
+											"pm.collectionVariables.set('employeesViewPermissionId', find('employees.view').permissionId);",
+											"pm.collectionVariables.set('reportPayrollPermissionId', find('report.payroll').permissionId);",
+											"pm.test('four scopes served', () => pm.expect(d.scopes.map((s) => s.value)).to.eql(['OWN', 'TEAM', 'DEPARTMENT', 'ALL']));"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/permissions/catalog",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"permissions",
+										"catalog"
+									]
+								},
+								"description": "Stores the ids of employees.view and report.payroll for the steps below."
+							}
+						},
+						{
+							"name": "3. list roles",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('status 200', () => pm.response.to.have.status(200));",
+											"",
+											"const rows = pm.response.json().data;",
+											"const employee = rows.find((r) => r.roleCode === 'EMPLOYEE');",
+											"pm.test('EMPLOYEE role exists (run db:seed:permissions if not)', () => pm.expect(employee).to.be.an('object'));",
+											"pm.collectionVariables.set('employeeRoleId', employee.roleId);",
+											"pm.test('paginated', () => pm.expect(pm.response.json().meta).to.include.keys('page', 'pageSize', 'total'));"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/roles?page=1&pageSize=20",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"roles"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "pageSize",
+											"value": "20"
+										}
+									]
+								},
+								"description": "Stores the EMPLOYEE role id."
+							}
+						},
+						{
+							"name": "4. RBAC - give the target the EMPLOYEE role",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('status 200', () => pm.response.to.have.status(200));",
+											"",
+											"pm.test('holds EMPLOYEE', () => pm.expect(pm.response.json().data.roles.map((r) => r.roleCode)).to.include('EMPLOYEE'));"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"roleIds\": [\n    {{employeeRoleId}}\n  ]\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/access/users/{{targetEmployeeDetailId}}/roles",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"access",
+										"users",
+										"{{targetEmployeeDetailId}}",
+										"roles"
+									]
+								},
+								"description": "FULL REPLACE of the target's roles. Set {{targetEmployeeDetailId}} to a plain employee (e.g. one from db:seed:employees), never to yourself - pointing it at your own admin account answers 409 SELF_LOCKOUT_BLOCKED, which is the guard working."
+							}
+						},
+						{
+							"name": "5. custom permission - GRANT employees.view at ALL",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('status 201', () => pm.response.to.have.status(201));",
+											"",
+											"const d = pm.response.json().data;",
+											"pm.collectionVariables.set('overrideId', d.overrideId);",
+											"pm.test('GRANT at ALL', () => { pm.expect(d.effect).to.eql('GRANT'); pm.expect(d.scope).to.eql('ALL'); });"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"permissionId\": {{employeesViewPermissionId}},\n  \"effect\": \"GRANT\",\n  \"scope\": \"ALL\",\n  \"reason\": \"Needs the full employee list for the onboarding audit\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/access/users/{{targetEmployeeDetailId}}/overrides",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"access",
+										"users",
+										"{{targetEmployeeDetailId}}",
+										"overrides"
+									]
+								},
+								"description": "The \"Rahul\" case: one employee may see every employee. His role is untouched and he gets nothing else HR Admin has. There is no employees.view_all - it is employees.view at scope ALL."
+							}
+						},
+						{
+							"name": "6. DENY with a scope (should fail)",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('status 422', () => pm.response.to.have.status(422));",
+											"",
+											"pm.test('SCOPE_NOT_SUPPORTED', () => pm.expect(pm.response.json().details.code).to.eql('SCOPE_NOT_SUPPORTED'));"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"permissionId\": {{reportPayrollPermissionId}},\n  \"effect\": \"DENY\",\n  \"scope\": \"OWN\",\n  \"reason\": \"test\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/access/users/{{targetEmployeeDetailId}}/overrides",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"access",
+										"users",
+										"{{targetEmployeeDetailId}}",
+										"overrides"
+									]
+								},
+								"description": "A DENY is absolute and takes no scope: 422 SCOPE_NOT_SUPPORTED."
+							}
+						},
+						{
+							"name": "7. group - create Finance",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"pm.collectionVariables.set('groupCode', 'FINANCE_' + Date.now());"
+										]
+									}
+								},
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('status 201', () => pm.response.to.have.status(201));",
+											"",
+											"const d = pm.response.json().data;",
+											"pm.test('id is a number', () => pm.expect(d.groupId).to.be.a('number'));",
+											"pm.collectionVariables.set('groupId', d.groupId);"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"groupCode\": \"{{groupCode}}\",\n  \"groupName\": \"Finance {{groupCode}}\",\n  \"description\": \"Sees payroll reports\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/groups",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"groups"
+									]
+								},
+								"description": "A fresh code each run, so the folder can be re-run."
+							}
+						},
+						{
+							"name": "8. group - grant report.payroll at ALL",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('status 200', () => pm.response.to.have.status(200));",
+											"",
+											"pm.test('one permission added', () => pm.expect(pm.response.json().data.changes.added).to.eql(1));"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"permissions\": [\n    {\n      \"permissionId\": {{reportPayrollPermissionId}},\n      \"scope\": \"ALL\"\n    }\n  ]\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/groups/{{groupId}}/permissions",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"groups",
+										"{{groupId}}",
+										"permissions"
+									]
+								},
+								"description": "Full replace of the group's permissions."
+							}
+						},
+						{
+							"name": "9. group - add the target as a member",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('status 200', () => pm.response.to.have.status(200));"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"employeeIds\": [\n    {{targetEmployeeDetailId}}\n  ]\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/groups/{{groupId}}/members",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"groups",
+										"{{groupId}}",
+										"members"
+									]
+								},
+								"description": "Ten Finance people would be ten ids here, and one grant."
+							}
+						},
+						{
+							"name": "10. effective permissions - where each comes from",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('status 200', () => pm.response.to.have.status(200));",
+											"",
+											"const perms = pm.response.json().data.permissions;",
+											"const get = (code) => perms.find((p) => p.code === code);",
+											"pm.test('employees.view reaches ALL through the override', () => {",
+											"  pm.expect(get('employees.view').effectiveScope).to.eql('ALL');",
+											"  pm.expect(get('employees.view').sources.map((s) => s.type)).to.include('OVERRIDE');",
+											"});",
+											"pm.test('report.payroll comes from the group', () => {",
+											"  pm.expect(get('report.payroll').granted).to.eql(true);",
+											"  pm.expect(get('report.payroll').sources.map((s) => s.type)).to.include('GROUP');",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/access/users/{{targetEmployeeDetailId}}/effective-permissions",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"access",
+										"users",
+										"{{targetEmployeeDetailId}}",
+										"effective-permissions"
+									]
+								},
+								"description": "All three layers, with the source behind every answer."
+							}
+						},
+						{
+							"name": "11. remove the override",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('status 200', () => pm.response.to.have.status(200));"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/access/users/{{targetEmployeeDetailId}}/overrides/{{overrideId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"access",
+										"users",
+										"{{targetEmployeeDetailId}}",
+										"overrides",
+										"{{overrideId}}"
+									]
+								}
+							}
+						},
+						{
+							"name": "12. remove the target from the group",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('status 200', () => pm.response.to.have.status(200));"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/groups/{{groupId}}/members/{{targetEmployeeDetailId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"groups",
+										"{{groupId}}",
+										"members",
+										"{{targetEmployeeDetailId}}"
+									]
+								}
+							}
+						},
+						{
+							"name": "13. delete the group",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('status 200', () => pm.response.to.have.status(200));"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/groups/{{groupId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"groups",
+										"{{groupId}}"
+									]
+								},
+								"description": "Succeeds only because step 12 emptied it - a group with members answers 409 GROUP_IN_USE."
 							}
 						}
 					]

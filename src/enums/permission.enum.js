@@ -48,6 +48,17 @@ export const PERMISSION_SCOPE_RANK = Object.freeze({
   [PERMISSION_SCOPE.ALL]: 4,
 });
 
+/** The scopes in rank order, for validators and the catalog's dropdown. */
+export const PERMISSION_SCOPES = Object.freeze(Object.values(PERMISSION_SCOPE));
+
+/** What the matrix screen's scope dropdown shows. Served, never hard-coded. */
+export const PERMISSION_SCOPE_META = Object.freeze({
+  [PERMISSION_SCOPE.OWN]: { name: 'Own record only' },
+  [PERMISSION_SCOPE.TEAM]: { name: 'Self and direct reports' },
+  [PERMISSION_SCOPE.DEPARTMENT]: { name: 'Whole department' },
+  [PERMISSION_SCOPE.ALL]: { name: 'Entire organisation' },
+});
+
 /** Whether a per-user override adds a permission or takes it away. */
 export const OVERRIDE_EFFECT = Object.freeze({
   GRANT: 'GRANT',
@@ -304,6 +315,21 @@ export const PERMISSION_CATALOG = Object.freeze([
   entry(PERMISSION.USER_ACCESS_ASSIGN_ROLE, 'Assign roles to a person'),
   entry(PERMISSION.USER_ACCESS_MANAGE_GROUP, 'Put a person in a group'),
   entry(PERMISSION.USER_ACCESS_OVERRIDE, 'Grant or deny a permission for one person'),
+]);
+
+/**
+ * The modules whose permissions administer access itself.
+ *
+ * The self-lockout guard watches these: a change that would take any of them
+ * away from the very admin making it is refused. Losing payroll.view by editing
+ * your own role is a mistake you can see and undo; losing roles.assign-permission
+ * is one nobody but another admin can undo.
+ */
+export const ACCESS_ADMIN_MODULES = Object.freeze([
+  PERMISSION_MODULE.ROLES,
+  PERMISSION_MODULE.PERMISSIONS,
+  PERMISSION_MODULE.GROUPS,
+  PERMISSION_MODULE.USER_ACCESS,
 ]);
 
 /** Catalog rows by code, for the seed and the resolver's sanity checks. */

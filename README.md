@@ -54,7 +54,8 @@ EMAIL=someone@rstartec.com PASSWORD='NewPass@123' RESET_PASSWORD=1 npm run db:cr
 EMAIL=hr@rstartec.com ROLE=HR_ADMIN npm run db:create:admin   # any code from tblRole
 ```
 
-Until the admin API exists this is the only way to assign a role.
+That bootstraps the **first** administrator. Every role, group and override
+after that goes through the access-control API below.
 
 Both load `.env` through Node's own `--env-file-if-exists`, so there is no `dotenv` dependency.
 
@@ -74,7 +75,7 @@ server. Type `rs` + Enter in the terminal to force a restart.
 | POST   | `/api/v1/auth/forgot-password` | —  | Check work email + date of birth, email a reset code |
 | POST   | `/api/v1/auth/reset-password`  | —  | Exchange that code for a new password          |
 | POST   | `/api/v1/auth/refresh`    | —      | Exchange a refresh token for a new pair       |
-| GET    | `/api/v1/auth/me`         | Bearer | The signed-in account                         |
+| GET    | `/api/v1/auth/me`         | Bearer | The signed-in account, plus `permissionsVersion` |
 
 Organisation setup. Every one of these needs a bearer token **and** the permission
 named beside it — today only Super Admin and HR Admin hold any of them:
@@ -97,6 +98,56 @@ HRMS belongs to is a decommission, not an operation an endpoint should offer. Bo
 `PUT`s are a **full replace** — a field left out of the body is set to `NULL`.
 Deleting a location is a soft delete and answers `409 LOCATION_IN_USE` while any
 employee is still assigned to it.
+
+Access control administration — three layers, one resolver:
+
+| Layer | Example | How |
+| ----- | ------- | --- |
+| **Role** (RBAC) | Rahul is an Employee | `PUT /access/users/:id/roles` |
+| **Override** (one person) | Rahul alone may also see every employee | `POST /access/users/:id/overrides` — `GRANT employees.view` at `ALL` |
+| **Group** (many people) | The Finance team sees payroll reports | `POST /groups`, `PUT /groups/:id/permissions`, `POST /groups/:id/members` |
+
+There is no `employees.view_all` permission: "view all" is `employees.view` at
+scope `ALL`. One code, four reaches (`OWN` / `TEAM` / `DEPARTMENT` / `ALL`).
+
+| Method | Path | Permission |
+| ------ | ---- | ---------- |
+| GET | `/api/v1/access/my-permissions` | any signed-in employee |
+| GET | `/api/v1/permissions/catalog` | `permissions.view` |
+| GET | `/api/v1/roles` · `/roles/:roleId` · `/roles/:roleId/permissions` | `roles.view` |
+| POST | `/api/v1/roles` | `roles.create` |
+| PATCH | `/api/v1/roles/:roleId` | `roles.update` |
+| DELETE | `/api/v1/roles/:roleId` | `roles.delete` |
+| PUT | `/api/v1/roles/:roleId/permissions` | `roles.assign-permission` |
+| GET | `/api/v1/groups` · `/groups/:groupId` · `/permissions` · `/members` | `groups.view` |
+| POST | `/api/v1/groups` | `groups.create` |
+| PATCH | `/api/v1/groups/:groupId` | `groups.update` |
+| DELETE | `/api/v1/groups/:groupId` | `groups.delete` |
+| PUT | `/api/v1/groups/:groupId/permissions` | `groups.assign-permission` |
+| POST / DELETE | `/api/v1/groups/:groupId/members[/:employeeDetailId]` | `groups.manage-member` |
+| GET | `/api/v1/access/users/:employeeDetailId[/roles\|/groups\|/overrides\|/effective-permissions]` | `user-access.view` |
+| PUT | `/api/v1/access/users/:employeeDetailId/roles` | `user-access.assign-role` |
+| PUT | `/api/v1/access/users/:employeeDetailId/groups` | `user-access.manage-group` |
+| POST / PATCH / DELETE | `/api/v1/access/users/:employeeDetailId/overrides[/:overrideId]` | `user-access.override` |
+
+Holding the route's permission is necessary, not sufficient. Every write also
+refuses, whatever the route guard said:
+
+- **`403 ESCALATION_BLOCKED`** — granting, removing or rescoping anything you do
+  not hold yourself at least as widely. Putting someone in a group or role (or
+  taking them out) counts as granting everything it carries.
+- **`409 SELF_LOCKOUT_BLOCKED`** — a change that would strip your own
+  `roles.*`, `groups.*`, `permissions.*` or `user-access.*` permissions. Checked
+  by re-running the real resolver inside the transaction, before commit.
+- **`409 LAST_SUPER_ADMIN`** — removing the last active Super Admin.
+- **`403 ROLE_IS_PROTECTED`** — renaming, deactivating or deleting one of the five
+  system roles, or editing Super Admin's permissions (the seed re-syncs them).
+- **`409 MODIFIED_ELSEWHERE`** — a matrix save whose `expectedModifiedAt` is stale.
+
+Every write bumps `dbo.tblAccessControlStamp` and clears this instance's cache;
+`src/workers/access-stamp.worker.js` clears every other instance's within
+`ACCESS_CONTROL_STAMP_POLL_SECONDS`. The full contract, with payloads, is in
+[docs/ACCESS-CONTROL-FRONTEND.md](docs/ACCESS-CONTROL-FRONTEND.md).
 
 Every response uses the same envelope:
 
@@ -147,7 +198,8 @@ Health                    liveness, readiness. No auth
 Auth                      login, OTP, refresh, password reset
 Admin
   ├─ Organization         the company profile
-  └─ Locations            the location master
+  ├─ Locations            the location master
+  └─ Access control       roles, overrides, groups - set {{targetEmployeeDetailId}} first
 ```
 
 Requests are numbered **within** their folder, in the order they depend on each
@@ -174,7 +226,7 @@ postman/Local.postman_environment.json      baseUrl + the seeded login
 postman/Staging.postman_environment.json    placeholders, password left empty
 ```
 
-Twenty-two requests. Every one asserts the response envelope, so a change to the
+Thirty-five requests. Every one asserts the response envelope, so a change to the
 reply shape fails the run rather than slipping through.
 
 `resend-otp` sits between login and verify-otp deliberately — it replaces the

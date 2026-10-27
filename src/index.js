@@ -12,6 +12,7 @@ import { API_PREFIX } from './enums/index.js';
 import { logger } from './utils/logger.js';
 import { assertTemplatesExist } from './utils/template.js';
 import { startEmailWorker, stopEmailWorker } from './workers/email-outbox.worker.js';
+import { startAccessStampWorker, stopAccessStampWorker } from './workers/access-stamp.worker.js';
 
 async function start() {
   // Connect before listening so a bad connection string fails loudly at boot
@@ -23,6 +24,7 @@ async function start() {
   logger.debug(`${assertTemplatesExist()} email template(s) loaded`);
 
   startEmailWorker();
+  startAccessStampWorker();
 
   const app = createApp();
   const server = app.listen(env.PORT, () => {
@@ -35,6 +37,7 @@ async function start() {
     // Stop accepting connections, then release the pool.
     server.close(async () => {
       stopEmailWorker();
+      stopAccessStampWorker();
       await closePool();
       logger.info('Shutdown complete');
       process.exit(0);

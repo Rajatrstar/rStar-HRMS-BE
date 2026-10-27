@@ -45,6 +45,14 @@ export const ERROR_CODE = Object.freeze({
   /** Deleting a location that employees are still assigned to. */
   LOCATION_IN_USE: 'LOCATION_IN_USE',
   UNKNOWN_PERMISSION_IDS: 'UNKNOWN_PERMISSION_IDS',
+  UNKNOWN_ROLE_IDS: 'UNKNOWN_ROLE_IDS',
+  UNKNOWN_GROUP_IDS: 'UNKNOWN_GROUP_IDS',
+  UNKNOWN_EMPLOYEE_IDS: 'UNKNOWN_EMPLOYEE_IDS',
+  DUPLICATE_PERMISSION_IDS: 'DUPLICATE_PERMISSION_IDS',
+  /** One live override per (employee, permission) - edit it instead. */
+  OVERRIDE_ALREADY_EXISTS: 'OVERRIDE_ALREADY_EXISTS',
   SCOPE_REQUIRED: 'SCOPE_REQUIRED',
   SCOPE_NOT_SUPPORTED: 'SCOPE_NOT_SUPPORTED',
+  /** An override expiry that has already passed. */
+  EXPIRY_IN_PAST: 'EXPIRY_IN_PAST',
 });

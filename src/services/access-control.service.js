@@ -144,6 +144,26 @@ function buildContext(employeeDetailId, grantRows, contextRow) {
   });
 }
 
+/**
+ * The effective permission map (code -> scope) as seen from INSIDE a
+ * transaction, through its `run` callback.
+ *
+ * This is how an admin write checks its own consequences before committing:
+ * apply the change, re-resolve the actor through the same transaction - which
+ * sees the uncommitted rows - and roll back if the answer is unacceptable.
+ * Asking "what would this change do" any other way means re-implementing the
+ * resolver's precedence rules in JS, where they would drift from this SQL.
+ *
+ * `run` returns only the first recordset, which is the grant set - exactly the
+ * half wanted here.
+ *
+ * @returns {Promise<Map<string, string>>}
+ */
+export async function resolvePermissionsWith(run, employeeDetailId) {
+  const grantRows = await run(RESOLVE_SQL, EmployeeRole.params({ employeeDetailId }));
+  return buildContext(employeeDetailId, grantRows, null).permissions;
+}
+
 /** Goes to the database every time. Exported for the cache and for tests. */
 export async function resolveAccessUncached(employeeDetailId) {
   const [grantRows = [], contextRows = []] = await querySets(

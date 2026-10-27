@@ -336,15 +336,18 @@ onboarding mistake; the admin UI warns about it.
 - The Organization module — the first module behind the permission guard
 - Postman coverage (folder-grouped) and `scripts/api-flow.sh`
 
+- The admin API — `/permissions/catalog`, `/roles`, `/groups`,
+  `/access/my-permissions` and `/access/users/:employeeDetailId/...`. The rules
+  every write obeys (escalation, self-lockout, stamp bump, cache clear) live
+  once, in `src/services/access-write.service.js` → `withAccessWrite()`
+- The stamp poller (`src/workers/access-stamp.worker.js`), so a second
+  instance picks up a grant change within `ACCESS_CONTROL_STAMP_POLL_SECONDS`
+
 **Not built yet**
 
-- The admin API: roles, groups, catalog, `/access/my-permissions`. Until it
-  exists, assigning a role means `scripts/create-admin.js` or SQL
 - The boot-time route audit
 - The Employees module — the first real consumer of row scope through an
   endpoint. The scope helper itself is tested directly
-- The stamp poller worker (`src/workers/access-stamp.worker.js`), so a second
-  instance only picks up a grant change when its 60 s TTL expires
 
 ---
 
