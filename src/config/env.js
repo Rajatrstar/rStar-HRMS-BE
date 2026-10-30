@@ -91,6 +91,16 @@ export const env = Object.freeze({
   // password still fails on the first attempt.
   DB_CONNECT_RETRIES: toInt('DB_CONNECT_RETRIES', IS_AZURE_SQL ? 5 : 1),
 
+  // Bring the schema up to date at startup, the way the Python service next
+  // door calls create_all() from its lifespan: point the app at an empty
+  // database and it builds itself. On by default because the alternative -
+  // a server that starts happily and 500s on the first query because nobody
+  // ran the migration step - is the worse failure.
+  //
+  // Turn it off where something else owns the schema: a CI deploy stage, a
+  // DBA, or a read-only replica.
+  DB_AUTO_MIGRATE: toBool('DB_AUTO_MIGRATE', true),
+
   // Separate secrets, so a leaked access secret cannot be used to mint refresh
   // tokens. Both are required: a default would silently ship to production.
   JWT_ACCESS_SECRET: required('JWT_ACCESS_SECRET'),

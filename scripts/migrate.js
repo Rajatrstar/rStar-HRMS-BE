@@ -1,76 +1,42 @@
 /**
  * Applies every .sql file in db/migrations, in filename order, once.
  *
- * Deliberately tiny: applied filenames are recorded in dbo._Migrations, so
- * re-running is safe and only new files execute. Each file runs inside a
- * transaction, so a failure half way through leaves nothing behind.
- *
  *   npm run db:migrate
+ *
+ * The work itself lives in src/config/schema-sync.js, because the server runs
+ * the same thing at startup when DB_AUTO_MIGRATE is on. This script exists for
+ * the times you want to apply the schema without starting an API: a deploy
+ * step, a fresh Azure database, or checking what a new migration does.
  */
-import { readdir, readFile } from 'node:fs/promises';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { getPool, closePool, sql } from '../src/config/db.js';
+import { getPool, closePool } from '../src/config/db.js';
+import { syncSchema, isPermissionError } from '../src/config/schema-sync.js';
 import { logger } from '../src/utils/logger.js';
-
-const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'db', 'migrations');
-
-async function ensureHistoryTable(pool) {
-  await pool.request().query(`
-    IF OBJECT_ID('dbo._Migrations', 'U') IS NULL
-      CREATE TABLE dbo._Migrations (
-        Name       NVARCHAR(255) NOT NULL CONSTRAINT PK__Migrations PRIMARY KEY,
-        AppliedAt  DATETIME2(3)  NOT NULL CONSTRAINT DF__Migrations_AppliedAt DEFAULT SYSUTCDATETIME()
-      );
-  `);
-}
-
-async function appliedMigrations(pool) {
-  const result = await pool.request().query('SELECT Name FROM dbo._Migrations');
-  return new Set(result.recordset.map((row) => row.Name));
-}
+import { env } from '../src/config/env.js';
 
 async function run() {
-  const pool = await getPool();
-  await ensureHistoryTable(pool);
+  await getPool();
+  const { applied, total } = await syncSchema();
 
-  const applied = await appliedMigrations(pool);
-  const files = (await readdir(MIGRATIONS_DIR)).filter((f) => f.endsWith('.sql')).sort();
+  logger.info(
+    applied.length === 0
+      ? `Database already up to date (${total} migration(s))`
+      : `Applied ${applied.length} of ${total} migration(s)`,
+  );
 
-  let count = 0;
-  for (const file of files) {
-    if (applied.has(file)) {
-      logger.debug(`skip ${file} (already applied)`);
-      continue;
-    }
-
-    const statement = await readFile(join(MIGRATIONS_DIR, file), 'utf8');
-    const transaction = new sql.Transaction(pool);
-    await transaction.begin();
-
-    try {
-      // GO is a sqlcmd batch separator, not SQL — the driver cannot parse it.
-      for (const batch of statement.split(/^\s*GO\s*$/gim)) {
-        if (batch.trim()) await new sql.Request(transaction).batch(batch);
-      }
-      await new sql.Request(transaction)
-        .input('name', sql.NVarChar(255), file)
-        .query('INSERT INTO dbo._Migrations (Name) VALUES (@name)');
-      await transaction.commit();
-      logger.info(`applied ${file}`);
-      count += 1;
-    } catch (error) {
-      await transaction.rollback();
-      throw new Error(`Migration ${file} failed: ${error.message}`, { cause: error });
-    }
-  }
-
-  logger.info(count === 0 ? 'Database already up to date' : `Applied ${count} migration(s)`);
   await closePool();
 }
 
 run().catch(async (error) => {
-  logger.error('Migration failed', error);
+  if (isPermissionError(error.cause ?? error)) {
+    logger.error(
+      `${env.DB_USER} can connect to ${env.DB_NAME} but is not allowed to create tables.\n` +
+        '  Grant it once, as the server administrator:\n' +
+        `      ALTER ROLE db_ddladmin ADD MEMBER [${env.DB_USER}];\n` +
+        '  or see db/azure/002_grant_schema_rights.sql.',
+    );
+  } else {
+    logger.error('Migration failed', error);
+  }
   await closePool();
   process.exit(1);
 });

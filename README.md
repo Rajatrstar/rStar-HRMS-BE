@@ -12,9 +12,8 @@ Node.js + Express 5 REST API on SQL Server. Plain JavaScript (ESM), no build ste
 ```bash
 npm install
 cp .env.example .env     # then fill in DB_PASSWORD and the two JWT secrets
-npm run db:migrate       # creates the tables
-npm run db:seed          # creates admin@rstartec.com / admin
-npm run dev              # http://localhost:5000/api/v1
+npm run dev              # builds the schema, then http://localhost:5000/api/v1
+npm run db:create:admin  # an administrator who can sign in
 ```
 
 | Script               | Does                                                      |
@@ -22,7 +21,7 @@ npm run dev              # http://localhost:5000/api/v1
 | `npm run dev`        | Starts under **nodemon**, reloads on file change (`nodemon.json`) |
 | `npm run dev:node`   | Same, using Node's built-in `--watch` instead of nodemon   |
 | `npm start`          | Starts once, no watcher                                    |
-| `npm run db:migrate` | Applies new files in `db/migrations`, once each            |
+| `npm run db:migrate` | Applies new files in `db/migrations`, once each — the server also does this at startup |
 | `npm run db:seed`    | Creates an employee **and** their login — defaults to `admin@rstartec.com` / `admin`. No role |
 | `npm run db:seed:employees` | Creates a couple of sample employees. They have no login and cannot sign in |
 | `npm run db:seed:access` | Syncs the module catalog and the Administrator group |
@@ -63,6 +62,52 @@ Both load `.env` through Node's own `--env-file-if-exists`, so there is no `dote
 nodemon watches `src/` and `.env` for `.js`/`.json`/`.sql` changes; `postman/`, `scripts/`
 and `db/migrations/` are ignored so editing a collection or a migration does not bounce the
 server. Type `rs` + Enter in the terminal to force a restart.
+
+## The database builds itself
+
+Point the API at an empty database and start it. On boot it applies every file
+in `db/migrations` that has not run yet, then seeds the module catalog, and
+only then listens:
+
+```
+Connected to Azure SQL sql-azure-server-dev.database.windows.net:1433/rstar-hrms-sql
+applied 001_employee_details.sql
+...
+applied 008_group_access_control.sql
+Schema synced: 8 migration(s) applied
+  modules: 9 added, 0 refreshed
+  group "Administrator" created (GroupId 1)
+API listening on http://localhost:5000/api/v1 [development]
+```
+
+The next boot prints nothing: applied filenames live in `dbo._Migrations`, so
+each file runs exactly once, and the catalog is re-seeded only when a migration
+ran or the table is empty. Add a migration, restart, and it lands.
+
+This is the same idea as `Base.metadata.create_all()` in the Python service,
+with one difference worth knowing. `create_all` only ever CREATEs: it adds
+tables that are missing and is blind to a **column** that changed, so a model
+edit silently does nothing against a database that already has the table. Here
+the unit is a migration file, so altering a shipped table is a thing you can
+ship. The cost is that you write the ALTER yourself.
+
+Three things to know:
+
+- **It is on by default** (`DB_AUTO_MIGRATE=true`). Turn it off where something
+  else owns the schema — a CI deploy stage, a DBA, a read replica. `npm run
+  db:migrate` still does the same work by hand.
+- **A failure stops the server.** The Python service logs and carries on,
+  which suits it — it still answers in mock mode. This one has nothing useful
+  to answer with: every endpoint reads a table, so starting would mean serving
+  500s from behind a health check that says everything is fine.
+- **The login needs to be allowed to create tables.** An application login is
+  usually `db_datareader` + `db_datawriter`, which is right for serving
+  traffic and one statement short of creating a table. On Azure, see
+  [Connecting to Azure SQL](#connecting-to-azure-sql).
+
+Seeding people is deliberately **not** part of this. Tables and the module
+catalog are owned by the code; accounts are not, and a server that invented an
+administrator with a known password on first boot would be a back door.
 
 ## Endpoints
 
@@ -897,19 +942,47 @@ over to another server and still work without repairing orphaned users.
 
 ### First deploy
 
+Put the Azure host in `.env` and start the server — it applies the schema
+itself (see [The database builds itself](#the-database-builds-itself)). Then
+create somebody who can sign in:
+
 ```bash
-cp .env .env.deploy        # then set DB_USER/DB_PASSWORD to hrms_deploy
-node --env-file=.env.deploy scripts/migrate.js
-npm run db:seed:access
+npm run dev
 npm run db:create:admin
 npm run db:verify
 ```
 
-`.env.deploy` is git-ignored. Keeping the deployment credentials in their own
-file rather than in `.env` is what stops the running API ever holding them.
-
 Every migration in `db/migrations` runs on Azure SQL unchanged — nothing in
 them uses a feature the service lacks.
+
+**The application login has to be allowed to create them.** A login with
+`db_datareader` + `db_datawriter` connects, reads and writes perfectly well
+and then stops here:
+
+```
+AppUser can connect to rstar-hrms-sql but may not create tables, and the schema
+is not there yet (0 table(s)).
+  Grant it once, as the server administrator:  ALTER ROLE db_ddladmin ADD MEMBER [AppUser];
+```
+
+Run `db/azure/002_grant_schema_rights.sql` once, signed in as the Azure SQL
+server administrator. `db_ddladmin` covers creating, altering and dropping
+objects in that one database; it does not let the login grant permissions to
+anyone else or touch another database, which `db_owner` would.
+
+If you would rather not grant it, set `DB_AUTO_MIGRATE=false` and apply the
+schema as the administrator instead:
+
+```bash
+cp .env .env.deploy        # then set DB_USER/DB_PASSWORD to the administrator
+node --env-file=.env.deploy scripts/migrate.js
+node --env-file=.env.deploy scripts/seed-access.js
+```
+
+`.env.deploy` is git-ignored. Keeping the deployment credentials in their own
+file rather than in `.env` is what stops the running API ever holding them.
+The trade is that every future migration becomes a deploy step somebody has to
+remember.
 
 ### When it will not connect
 
