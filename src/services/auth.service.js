@@ -15,13 +15,24 @@ import { generateOtp, otpExpiryDate, otpMatches } from '../utils/otp.js';
 import { issueTokens, verifyToken, TOKEN_TYPE } from '../utils/jwt.js';
 import { ApiError } from '../utils/api-error.js';
 import { logger } from '../utils/logger.js';
-import { MESSAGES, EMAIL_TEMPLATE } from '../enums/index.js';
+import { MESSAGES, EMAIL_TEMPLATE, ERROR_CODE } from '../enums/index.js';
 import { env, exposeOtpInResponse } from '../config/env.js';
 import { EmployeeLogin, EmployeeDetails, EMPLOYEE_PUBLIC_PROPS } from '../models/index.js';
+import { revokeSession, isSessionRevoked } from './session.service.js';
 
 /** The columns safe to return to a client. HashPassword and Otp are not among them. */
 const PUBLIC_COLUMNS = EmployeeLogin.select(EMPLOYEE_PUBLIC_PROPS);
 
+/**
+ * The credential row, joined to the person behind it.
+ *
+ * The join is not decoration. A login's right to exist comes from the
+ * employee it points at, and exiting somebody - POST /employees/:id/deactivate
+ * - sets IsActive = 0 on that employee without touching this table. Without
+ * these two columns, an exited employee would keep signing in: the resolver
+ * would refuse them at every guarded endpoint, but /auth/me and the token
+ * itself would work, which is a strange half-access nobody intended.
+ */
 function findByEmail(email) {
   return queryOne(
     `SELECT ${EmployeeLogin.select([
@@ -32,11 +43,32 @@ function findByEmail(email) {
       'hashPassword',
       'otp',
       'otpExpiresTime',
-    ])}
-       FROM ${EmployeeLogin.table}
-      WHERE Email = @email`,
+    ])
+      .split(', ')
+      .map((column) => `l.${column}`)
+      .join(', ')},
+            d.IsActive  AS employeeIsActive,
+            d.DeletedAt AS employeeDeletedAt
+       FROM ${EmployeeLogin.table} AS l
+       JOIN ${EmployeeDetails.table} AS d
+         ON d.EmployeeDetailId = l.EmployeeDetailId
+      WHERE l.Email = @email`,
     EmployeeLogin.params({ email }),
   );
+}
+
+/**
+ * Refuses an account whose employee has been exited or soft-deleted.
+ *
+ * Called AFTER the password or the OTP has been checked, never before. The
+ * message names the real reason, which is only safe once the caller has
+ * already proved who they are - saying it to an unauthenticated request
+ * would turn the endpoint into a way of discovering who has left.
+ */
+function assertEmployeeUsable(account) {
+  if (account.employeeDeletedAt !== null || !account.employeeIsActive) {
+    throw ApiError.forbidden(MESSAGES.ACCOUNT_INACTIVE, { code: ERROR_CODE.ACCOUNT_INACTIVE });
+  }
 }
 
 /**
@@ -58,6 +90,10 @@ export async function login(email, password) {
   if (!passwordOk) {
     throw ApiError.unauthorized(MESSAGES.INVALID_CREDENTIALS);
   }
+
+  // Only now, with the password proved, is it safe to say why this account
+  // cannot be used.
+  assertEmployeeUsable(account);
 
   // Issuing a new OTP replaces any previous one, so an old code stops working
   // the moment a new login starts.
@@ -89,6 +125,10 @@ export async function verifyOtp(email, otp) {
   if (!otpMatches(otp, account.otp)) {
     throw ApiError.unauthorized(MESSAGES.OTP_INVALID);
   }
+
+  // Re-checked here as well as in login(): the two steps are separate
+  // requests, and an exit can land between them.
+  assertEmployeeUsable(account);
 
   // One shot: clear the code and stamp the login in the same statement.
   await mutate(
@@ -340,13 +380,38 @@ function clearOtp(employeeId) {
  *
  * The account is re-read rather than trusted from the token, so a deleted
  * account cannot keep refreshing its way into the system.
+ *
+ * Two things about the session:
+ *
+ *   - a refresh token from a logged-out session is refused. Without this,
+ *     logout would kill the access token and the refresh token would quietly
+ *     mint a replacement, which is the whole hole left open.
+ *   - the new pair stays in the SAME session. A fresh id each time would
+ *     leave the just-exchanged refresh token outside any later revocation,
+ *     so logging out would miss a token the client may still hold.
  */
 export async function refresh(refreshToken) {
-  const { employeeDetailId } = verifyToken(refreshToken, TOKEN_TYPE.REFRESH);
+  const { employeeDetailId, sessionId } = verifyToken(refreshToken, TOKEN_TYPE.REFRESH);
 
+  if (await isSessionRevoked(sessionId)) {
+    throw ApiError.unauthorized(MESSAGES.TOKEN_INVALID);
+  }
+
+  /*
+    Joined to the employee for the same reason findByEmail is, and it matters
+    most here: a refresh token lives for days, so without this an employee
+    exited on Monday could keep minting access tokens until Friday.
+  */
   const account = await queryOne(
-    `SELECT ${EmployeeLogin.select(['employeeId', 'employeeDetailId', 'email'])}
-       FROM ${EmployeeLogin.table} WHERE EmployeeDetailId = @employeeDetailId`,
+    `SELECT l.EmployeeId        AS employeeId,
+            l.EmployeeDetailId  AS employeeDetailId,
+            l.Email             AS email,
+            d.IsActive          AS employeeIsActive,
+            d.DeletedAt         AS employeeDeletedAt
+       FROM ${EmployeeLogin.table} AS l
+       JOIN ${EmployeeDetails.table} AS d
+         ON d.EmployeeDetailId = l.EmployeeDetailId
+      WHERE l.EmployeeDetailId = @employeeDetailId`,
     EmployeeLogin.params({ employeeDetailId }),
   );
 
@@ -354,19 +419,55 @@ export async function refresh(refreshToken) {
     throw ApiError.unauthorized(MESSAGES.TOKEN_INVALID);
   }
 
+  // The refresh token itself is valid; the person behind it is not.
+  assertEmployeeUsable(account);
+
   const resolved = Number(account.employeeDetailId);
 
   return {
-    ...issueTokens({ employeeDetailId: resolved, email: account.email }),
+    ...issueTokens({ employeeDetailId: resolved, email: account.email, sessionId }),
     employee: { employeeDetailId: resolved, email: account.email },
   };
 }
 
+/**
+ * Ends the session the access token belongs to.
+ *
+ * Revoking the SESSION, not the token, is what makes the refresh token die
+ * with it: the pair shares one id, so the client cannot log out and then
+ * refresh its way back in. There is nothing for the caller to pass - the
+ * token already says which session to end.
+ *
+ * Repeating it is not an error. A client that retries, or has two tabs, gets
+ * the same answer as the first call.
+ */
+export async function logout({ employeeDetailId, sessionId }) {
+  const { alreadyRevoked } = await revokeSession({ sessionId, employeeDetailId });
+
+  return { employeeDetailId, alreadyRevoked };
+}
+
 /** The signed-in account, for GET /auth/me. */
 export async function getProfile(employeeDetailId) {
+  /*
+    Joined to the employee, and checked, because this endpoint is the one
+    exception to the usual protection. Every other authenticated route goes
+    through requirePermission, whose resolver already refuses an inactive or
+    deleted person. /auth/me does not - it needs no permission - so without
+    this an exited employee would keep reading their profile until their
+    access token expired. Fifteen minutes of a ghost account is not a crisis,
+    but it is not nothing either, and the fix is one join.
+  */
   const account = await queryOne(
-    `SELECT ${PUBLIC_COLUMNS} FROM ${EmployeeLogin.table}
-      WHERE EmployeeDetailId = @employeeDetailId`,
+    `SELECT ${PUBLIC_COLUMNS.split(', ')
+      .map((column) => `l.${column}`)
+      .join(', ')},
+            d.IsActive  AS employeeIsActive,
+            d.DeletedAt AS employeeDeletedAt
+       FROM ${EmployeeLogin.table} AS l
+       JOIN ${EmployeeDetails.table} AS d
+         ON d.EmployeeDetailId = l.EmployeeDetailId
+      WHERE l.EmployeeDetailId = @employeeDetailId`,
     EmployeeLogin.params({ employeeDetailId }),
   );
 
@@ -374,7 +475,12 @@ export async function getProfile(employeeDetailId) {
     throw ApiError.notFound(MESSAGES.ACCOUNT_NOT_FOUND);
   }
 
-  return { ...account, employeeDetailId: Number(account.employeeDetailId) };
+  assertEmployeeUsable(account);
+
+  // The two standing columns are the check's business, not the client's.
+  const { employeeIsActive, employeeDeletedAt, ...profile } = account;
+
+  return { ...profile, employeeDetailId: Number(account.employeeDetailId) };
 }
 
 /** Used by the seed script and, later, by employee onboarding. */

@@ -37,5 +37,10 @@ router.post(ROUTES.AUTH.REFRESH, authController.refresh);
 
 // Everything below needs a valid access token.
 router.get(ROUTES.AUTH.ME, authenticate, authController.me);
+// Authenticated on purpose. Logout revokes the session the token names, so
+// there has to BE a valid token to name one - an unauthenticated logout could
+// only take a session id from the body, and that is an invitation to end
+// somebody else's.
+router.post(ROUTES.AUTH.LOGOUT, authenticate, authController.logout);
 
 export default router;

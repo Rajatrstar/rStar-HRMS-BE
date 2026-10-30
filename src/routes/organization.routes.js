@@ -1,20 +1,21 @@
 /**
  * Organisation routes: path (from the enum) -> guard -> controller method.
  *
- * ACCESS, stated once: today only Super Admin and HR Admin hold any of these
- * permissions - see ROLE_PERMISSION_DEFAULTS in src/enums/role.enum.js.
+ * ACCESS: each endpoint names the MODULE it belongs to and the ACTION it
+ * performs - nothing more. WHICH GROUPS hold that action is data, not code:
+ * it is set on the Add/Edit Group screen and changed without a deploy.
  *
- * That is a GRANT, not a role check. Nothing in this file names a role, and
- * nothing should: widening access to a Finance lead later is then a row in
- * tblRolePermission or a group grant through the admin API, with no deploy. A
- * `if (role === 'HR_ADMIN')` here would make the same change a code change,
- * and would be invisible to the permission matrix screen.
+ * Nothing in this file names a group, and nothing should. A
+ * `if (group === 'HR Admin')` here would turn "let Finance see locations"
+ * into a code change, and would be invisible to the rights matrix that the
+ * administrator believes is the whole truth.
  */
 import { Router } from 'express';
-import { ROUTES, PERMISSION } from '../enums/index.js';
+import { ROUTES } from '../enums/index.js';
+import { MODULE, ACTION } from '../enums/module.enum.js';
 import * as organizationController from '../controllers/organization.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
-import { requirePermission } from '../middlewares/permission.middleware.js';
+import { requireAccess } from '../middlewares/permission.middleware.js';
 
 const router = Router();
 
@@ -29,7 +30,7 @@ router.use(authenticate);
 
 router.get(
   ROUTES.ORGANIZATIONS.LIST,
-  requirePermission(PERMISSION.ORGANIZATION_VIEW),
+  requireAccess(MODULE.ORGANIZATIONS, ACTION.VIEW),
   organizationController.list,
 );
 
@@ -37,25 +38,25 @@ router.get(
 // the request dies in the validator with "must be a whole number".
 router.get(
   ROUTES.ORGANIZATIONS.TYPES,
-  requirePermission(PERMISSION.ORGANIZATION_VIEW),
+  requireAccess(MODULE.ORGANIZATIONS, ACTION.VIEW),
   organizationController.types,
 );
 
 router.post(
   ROUTES.ORGANIZATIONS.CREATE,
-  requirePermission(PERMISSION.ORGANIZATION_CREATE),
+  requireAccess(MODULE.ORGANIZATIONS, ACTION.ADD),
   organizationController.create,
 );
 
 router.get(
   ROUTES.ORGANIZATIONS.DETAIL,
-  requirePermission(PERMISSION.ORGANIZATION_VIEW),
+  requireAccess(MODULE.ORGANIZATIONS, ACTION.VIEW),
   organizationController.detail,
 );
 
 router.put(
   ROUTES.ORGANIZATIONS.UPDATE,
-  requirePermission(PERMISSION.ORGANIZATION_UPDATE),
+  requireAccess(MODULE.ORGANIZATIONS, ACTION.EDIT),
   organizationController.update,
 );
 
@@ -63,31 +64,31 @@ router.put(
 
 router.get(
   ROUTES.ORGANIZATIONS.LOCATION_LIST,
-  requirePermission(PERMISSION.ORGANIZATION_LOCATION_VIEW),
+  requireAccess(MODULE.LOCATIONS, ACTION.VIEW),
   organizationController.listLocations,
 );
 
 router.post(
   ROUTES.ORGANIZATIONS.LOCATION_CREATE,
-  requirePermission(PERMISSION.ORGANIZATION_LOCATION_CREATE),
+  requireAccess(MODULE.LOCATIONS, ACTION.ADD),
   organizationController.createLocation,
 );
 
 router.get(
   ROUTES.ORGANIZATIONS.LOCATION_DETAIL,
-  requirePermission(PERMISSION.ORGANIZATION_LOCATION_VIEW),
+  requireAccess(MODULE.LOCATIONS, ACTION.VIEW),
   organizationController.locationDetail,
 );
 
 router.put(
   ROUTES.ORGANIZATIONS.LOCATION_UPDATE,
-  requirePermission(PERMISSION.ORGANIZATION_LOCATION_UPDATE),
+  requireAccess(MODULE.LOCATIONS, ACTION.EDIT),
   organizationController.updateLocation,
 );
 
 router.delete(
   ROUTES.ORGANIZATIONS.LOCATION_DELETE,
-  requirePermission(PERMISSION.ORGANIZATION_LOCATION_DELETE),
+  requireAccess(MODULE.LOCATIONS, ACTION.DELETE),
   organizationController.deleteLocation,
 );
 

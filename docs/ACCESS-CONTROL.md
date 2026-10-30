@@ -1,387 +1,205 @@
-# Access Control — Backend Reference
+# Access Control — the model
 
-What exists, how it decides, and how to change it.
+> Frontend developers want [ACCESS-CONTROL-FRONTEND.md](ACCESS-CONTROL-FRONTEND.md).
+> This file is the backend: the schema, the resolver, and why it is shaped
+> this way.
 
-For the client side see [ACCESS-CONTROL-FRONTEND.md](./ACCESS-CONTROL-FRONTEND.md).
-
----
-
-## 1. What this answers
-
-Two questions on every request:
-
-1. **May this person do this?** — a permission code like `employees.view`.
-2. **To whose records?** — a scope: `OWN`, `TEAM`, `DEPARTMENT` or `ALL`.
-
-Three sources grant, one removes:
+## The rule
 
 ```
-ROLES    the roles a person holds contribute their permissions
-GROUPS   the groups they belong to contribute theirs, on top
-GRANT    a per-user override adds one more
-DENY     a per-user override REMOVES one, whatever granted it
+employee ──belongs to──> GROUP ──holds rights on──> MODULE
+                                   View Add Edit Delete Print Mail
 ```
 
-Two rules settle it:
+One sentence, and it is the whole model. An employee has **one** group. A
+group has one row per module carrying six boolean flags. A right that is not
+in that row does not exist.
 
-- **DENY wins absolutely.** It removes the permission whatever granted it, and
-  it carries no scope — a DENY cannot narrow, only remove.
-- **Widest scope wins.** If two sources grant the same code, the effective
-  scope is the higher rank. `OWN=1 < TEAM=2 < DEPARTMENT=3 < ALL=4`.
+This is deliberately the model from the EHMS portal
+(`D:\projects\EHMS_Portal_GitLab`), where `tblgroup`, `tblmodule` and
+`tblaccessright` have carried the same six flags through ten years of screens
+coming and going, and the administrators here already know how to operate it.
 
-Those are two separate questions. Precedence decides allow/deny; scope is a
-union, not a precedence chain. An override GRANT at `OWN` does **not** shrink a
-role grant at `ALL`.
+## What it replaced, and why
 
-Proven behaviour, from a live run against the seeded roles:
+Migration `004` modelled access as a catalog of 64 permission codes granted
+through three independent channels — roles, groups and per-user GRANT/DENY
+rows — each carrying a row **scope** (`OWN < TEAM < DEPARTMENT < ALL`), with
+the widest grant winning and any DENY overriding everything.
 
-```
-baseline (no roles)              total= 0   view=-     approve=-     apply=-    payroll=-
-+ EMPLOYEE role                  total=16   view=OWN   approve=-     apply=OWN  payroll=-
-+ MANAGER role (union)           total=21   view=TEAM  approve=TEAM  apply=OWN  payroll=-
-+ group grant payroll.view       total=22   view=TEAM  approve=TEAM  apply=OWN  payroll=ALL
-+ DENY override on payroll.view  total=21   view=TEAM  approve=TEAM  apply=OWN  payroll=-
-  (that DENY now expired)        total=22   view=TEAM  approve=TEAM  apply=OWN  payroll=ALL
-```
+It was more expressive, and the expressiveness was the problem. "Why can this
+person see that record?" had three tables to check and an aggregate to reason
+about, and no single screen showed the truth. Migration `008` drops all nine
+tables.
 
-Note `leave.apply` staying at `OWN` while `leave.view` rises to `TEAM`: the
-Manager role grants neither self-service permission, so a manager needs the
-Employee role too. See §6.
+**What was genuinely lost:** row scope. A group either holds View on Employees
+or it does not, and holding it means seeing every employee. If per-team
+visibility is wanted again, it belongs as a `DataScope` column on
+`tblAccessRight` — read in one place by the resolver — not as a return to
+three grant channels.
 
----
+## Schema — `db/migrations/008_group_access_control.sql`
 
-## 2. Where everything lives
+### `dbo.tblModule`
 
-| File | Holds |
-| --- | --- |
-| `db/migrations/004_access_control.sql` | The nine tables |
-| `src/models/access-control.model.js` | All nine models, plus `*_PUBLIC_PROPS` |
-| `src/enums/permission.enum.js` | **The catalog — source of truth.** Codes, scopes, scope ranks |
-| `src/enums/role.enum.js` | The five master roles and their default grants |
-| `src/enums/error-code.enum.js` | Machine-readable `details.code` values |
-| `src/enums/messages.enum.js` | Every client-visible string |
-| `src/services/access-control.service.js` | The resolver — one SQL batch, one round trip |
-| `src/utils/access-cache.js` | The per-employee cache |
-| `src/helpers/access-scope.helper.js` | Scope → SQL `WHERE` clause |
-| `src/middlewares/permission.middleware.js` | `requirePermission` and friends |
-| `scripts/seed-permissions.js` | Syncs catalog + roles into the database |
+One row per screen. `ModuleId` is **not** an identity: the ids come from
+`MODULE` in `src/enums/module.enum.js` and are stored in `tblAccessRight`, so
+renumbering one would silently move every group's rights onto a different
+screen. New modules get new numbers; retired numbers are never reused.
 
-### The nine tables
+Carries the menu shape as well — `ParentModuleId`, `RoutePath`, `Icon`,
+`SortOrder`, `ShowInMenu` — so the menu and the page-rights lookup come from
+the same table and cannot disagree about what exists.
 
-| Table | Holds |
-| --- | --- |
-| `tblPermission` | The catalog. Written only by the seed |
-| `tblRole` | Five master roles (`IsSystem = 1`) plus any an admin creates |
-| `tblGroup` | A bundle of permissions several people share |
-| `tblRolePermission` | What a role may do, and at what scope |
-| `tblGroupPermission` | The same, for a group |
-| `tblEmployeeRole` | Which roles a login holds |
-| `tblEmployeeGroup` | Which groups a login belongs to |
-| `tblEmployeePermission` | Per-user GRANT / DENY overrides |
-| `tblAccessControlStamp` | One row. Bumped by every write, to invalidate caches |
+### `dbo.tblGroup`
 
-Everything is soft-deleted (`DeletedAt`), so "who gave Bob HR Admin, and when"
-stays answerable. Every read path must filter `WHERE DeletedAt IS NULL`.
+`GroupName` is unique among live rows (filtered index on `DeletedAt IS NULL`,
+so a deleted group's name is free again). `IsSystem` marks Administrator.
 
----
+### `dbo.tblAccessRight`
 
-## 3. How to make the common changes
+`(GroupId, ModuleId)` unique, six `BIT NOT NULL DEFAULT 0` flags.
 
-### 3.1 Add a permission
+The .NET table has these nullable; here they are not. A nullable bit gives
+three states for a two-state question, and the absence of a row already means
+"no access" — so `NULL` was a second way to say the same thing, and every read
+site had to write `isnull(CanAdd, 0)`.
 
-1. Add the code to `PERMISSION` in `src/enums/permission.enum.js`.
-2. Add its entry to `PERMISSION_CATALOG` in the same file — pass `SCOPED` as the
-   third argument if it addresses somebody's rows.
-3. Decide which roles get it by default: edit `ROLE_PERMISSION_DEFAULTS` in
-   `src/enums/role.enum.js`.
-4. `npm run db:seed:permissions`
+`ON DELETE CASCADE` from the group: deleting a group takes its rights with it.
 
-Point 3 only affects roles the seed **creates**. An existing role is left alone
-unless you pass `--reset-roles` (see §3.4). Super Admin is the exception and
-always picks the new permission up.
+### `dbo.tblEmployeeDetails.GroupId`
 
-### 3.2 Add a role
+A single nullable column, as `tblManagingUser.GroupId` is in the .NET portal.
 
-Two ways, and the right one depends on whether it is a *product* role or a
-*customer* role.
+**One group, not many.** Two would mean deciding what "Add from one group and
+Delete from the other, on the same module" resolves to — and the entire value
+of this model is that there is one place to look.
 
-- **A role this product ships with** — add it to `ROLE` and `ROLE_META`, give it
-  a block in `ROLE_PERMISSION_DEFAULTS`, run the seed. It is created with
-  `IsSystem = 1`, so it cannot be renamed or deleted afterwards.
-- **A role this customer wants** — create it through the admin API. It gets
-  `IsSystem = 0` and is fully editable and deletable. No code change, no deploy.
+`NULL` is meaningful: no group, no access to anything. That is the correct
+default for a new joiner.
 
-### 3.3 Change what a role may do
+## The system group
 
-Through the admin API (`PUT /roles/:roleId/permissions`), not the enum. The
-whole point of storing permissions as rows is that this does not need a
-deploy — and the seed deliberately will not overwrite your change.
+`Administrator` is seeded with `IsSystem = 1` and **its rights are not stored
+as rows at all** — `resolveAccess()` returns all-true for every module when
+the group is the system group.
 
-### 3.4 Reset a role back to its defaults
+Two reasons:
 
-```bash
-npm run db:seed:permissions -- --reset-roles
-```
+1. **It cannot go stale.** Stored rows would be a snapshot of the modules that
+   existed on the day it was seeded, so adding a module next month would
+   silently lock administrators out of it until somebody re-ran the seed.
+2. **It is the way back in.** A mistake on the rights screen can otherwise
+   remove everyone's access to the rights screen, with no way to fix it
+   through the API. The group API refuses to rename, strip or delete the
+   system group for exactly this reason (`409 GROUP_IS_SYSTEM`).
 
-This **overwrites** every non-Super-Admin role's grants with
-`ROLE_PERMISSION_DEFAULTS`, discarding edits made through the API. It is for a
-development database that has drifted; think twice on anything shared.
+## Resolving
 
-### 3.5 Add a scope
+`src/services/access-control.service.js` — one query, two recordsets:
 
-`OWN`/`TEAM`/`DEPARTMENT`/`ALL` live in three places that must move together:
+1. every `tblAccessRight` row for the employee's group, joined to
+   `tblModule` (active only) and `tblGroup` (live and active only)
+2. the employee row itself, **without** filtering `DeletedAt` — a soft-deleted
+   employee must come back so the guard can answer "deactivated" rather than
+   "unknown"
 
-1. `PERMISSION_SCOPE` and `PERMISSION_SCOPE_RANK` in `permission.enum.js`
-2. The `CK_*_Scope` CHECK constraints and the `ScopeRank` **computed columns**
-   in a new migration
-3. The `switch` in `employeeScopeClause` in `access-scope.helper.js`
+An **inactive group yields no rights**. Deactivating a group is how an
+administrator switches off a whole category of user without unpicking who is
+in it, so it has to mean something at resolve time, not just on a list screen.
 
-The duplication is deliberate: a new scope should be a decision, not a typo
-that silently lands in a grant row.
-
-### 3.6 Guard a new endpoint
+The result is a frozen `AccessContext`:
 
 ```js
-import { requirePermission } from '../middlewares/permission.middleware.js';
-import { PERMISSION } from '../enums/index.js';
-
-router.get(ROUTES.EMPLOYEES.LIST,
-  authenticate,                                   // must come first
-  requirePermission(PERMISSION.EMPLOYEES_VIEW),
-  employeeController.list);
+access.can(MODULE.EMPLOYEES, ACTION.EDIT)   // one right
+access.canReach(MODULE.EMPLOYEES)           // any right — "show the menu entry"
+access.rightsFor(MODULE.EMPLOYEES)          // { canView, canAdd, ... }
+access.groupId / access.groupName / access.isSystemGroup
+access.exists / access.active
 ```
 
-Variants: `requireAnyPermission([a, b])`, `requireAllPermissions([a, b])`, and
-`requireAuthenticatedAccess()` for a route any signed-in employee may call.
+### Caching
 
-Use `requireAuthenticatedAccess()` rather than omitting a guard. "Open to
-everyone" should be a decision written in the route file, not an omission
-nobody notices — and the planned boot-time route audit (§7) treats a missing
-guard as a startup failure.
+Per employee, in `src/utils/access-cache.js`, with a TTL from
+`ACCESS_CONTROL_CACHE_TTL_SECONDS`. The promise is cached before it settles,
+so a burst of concurrent requests from one person produces one query.
 
-### 3.7 Filter rows by scope in a service
+Writes invalidate twice over: this instance clears immediately, and
+`tblAccessControlStamp` is bumped **inside the same transaction** so other
+instances notice within `ACCESS_CONTROL_STAMP_POLL_SECONDS`. A stamp that
+moved for a change that rolled back would invalidate every cache for nothing.
 
-The guard answers "may you at all". Which rows is the service's job:
+Changing a group's rights clears the whole cache rather than tracking down
+its members: the cache is keyed by employee, and a reverse index from group to
+member would exist only to avoid a handful of re-resolves.
+
+## Enforcing
+
+`src/middlewares/permission.middleware.js`:
 
 ```js
-import { employeeScopeClause } from '../helpers/access-scope.helper.js';
-
-export async function list(access, filters) {
-  const { clause, params } = employeeScopeClause('d', access, PERMISSION.EMPLOYEES_VIEW);
-  return query(
-    `SELECT ...
-       FROM ${EmployeeDetails.table} AS d
-      WHERE d.DeletedAt IS NULL AND ${clause}`,
-    { ...params },
-  );
-}
+router.delete(
+  ROUTES.EMPLOYEES.DELETE,
+  requireAccess(MODULE.EMPLOYEES, ACTION.DELETE),
+  employeeController.remove,
+);
 ```
 
-`access` is `req.access`, a frozen plain object with no reference to Express —
-so passing it in does not break the rule that services never see `req`/`res`.
+The guard rejects an inactive or deleted employee **before** checking rights —
+that is the only revocation that beats the access token's lifetime — then
+checks the one flag.
 
-**Add one clause builder per module, in that helper. Never inline the switch
-into a service**, or "OWN" will mean four different things within six months.
+`requireAuthenticatedAccess()` is for routes any signed-in employee may call
+(`/access/me`, `/access/menu`, `/access/page`). It is a guard, not an absence
+of one: it still rejects a deactivated account.
 
----
+Both validate their arguments at **wiring** time. A typo in an action name
+would otherwise read as `false` for everybody and look exactly like a
+permissions bug.
 
-## 4. The decisions, and why
+### The boot-time audit
 
-### Super Admin holds real rows. There is no code bypass.
+`src/utils/route-audit.js` walks the mounted router at startup and **refuses
+to start** if any route under `/api/v1` has no guard.
 
-No `if (isSuperAdmin) return next()` exists anywhere. The seed gives
-`SUPER_ADMIN` every live permission at `ALL` and re-syncs it on every run.
+This exists because the way access control gets weak is not malice — it is a
+new endpoint copied from the one above it with the middleware argument
+dropped. Nothing fails, the tests pass (the author is an administrator), and
+it ships open to every signed-in user.
 
-The bypass was rejected because the account used for most manual testing would
-then never execute the resolver — so resolver bugs would ship and be found in
-production by an HR Executive. It would also make DENY silently inapplicable to
-Super Admins, a security property nobody wrote down.
+Two exceptions, both written down rather than inferred: `PUBLIC_ROUTES` (health
+and the login endpoints) and `AUTHENTICATED_ONLY_ROUTES` (`/auth/me`,
+`/auth/logout` — which must keep working for somebody deactivated mid-session,
+or they would hold a live session they cannot end).
 
-The cost: a newly added permission returns 403 for Super Admin until the seed
-runs. That is loud, self-healing in one command, and fails in the safe
-direction.
+The audit also throws if it finds **zero** routes. The first version of it
+walked Express 5's router wrongly, found nothing, and cheerfully reported that
+all zero routes were guarded; a check that can pass vacuously is worse than no
+check.
 
-### DENY is absolute, never narrowing
+## Adding a module
 
-`Scope` is `NULL` on a DENY row, enforced by `CK_tblEmployeePermission_Scope`.
+1. Add the id to `MODULE` and an entry to `MODULE_CATALOG` in
+   `src/enums/module.enum.js` — a **new** number, never a reused one.
+2. `npm run db:seed:access`
+3. Guard the routes with `requireAccess(MODULE.NEW_THING, ACTION.VIEW)`.
 
-**Known limitation:** "Bob's Manager role gives TEAM, cap Bob at OWN" is not
-expressible. The fix for that case is to not give Bob the Manager role — model
-the reality rather than patching it with an exception.
+The Administrator group covers it immediately. Every other group starts with
+nothing on it, which is the safe default — an administrator grants it on the
+group screen. A module removed from the catalog is **deactivated**, not
+deleted, so its `tblAccessRight` rows survive and a later re-grant finds the
+old ticks intact.
 
-If it is genuinely needed later, add `Effect = 'LIMIT'` to the CHECK and clamp
-the aggregate in the resolver's final `SELECT`. One CHECK widening and one
-`CASE`; no table change.
+## Files
 
-### A GRANT and a DENY for the same pair cannot both exist
-
-`UQ_tblEmployeePermission_EmployeePermission` is a filtered unique index on
-`(EmployeeDetailId, PermissionId)`. Precedence therefore only ever fires *across*
-sources, never within one — there is no runtime conflict to arbitrate.
-
-### `tblPermission`'s unique index is deliberately NOT filtered
-
-Every other unique index in this schema is `WHERE DeletedAt IS NULL`. This one
-is not, because retiring a code and later re-adding it must resurrect the
-**same** `PermissionId` — role and group grants still point at it. A filtered
-index would let the seed insert a second row with the same code and silently
-orphan every existing grant.
-
-### Groups carry permissions, not roles
-
-A group holding roles would create a second inheritance axis and the diamond
-problem with it, for no capability a flat bundle does not already give.
-
-### Subjects are keyed on `tblEmployeeDetails.EmployeeDetailId`
-
-The person, not the credential. `dbo.EmployeeLogin` is a satellite: it carries
-a **NOT NULL** `EmployeeDetailId`, so a login cannot exist without an employee
-while an employee can exist with no way to sign in. The token carries that same
-id, so the resolver gets it for free.
-
-This was the other way round at first — grants keyed on the login id, with a
-nullable `EmployeeId` on the employee table. Two things came out of inverting
-it, and both are the reason it is worth the churn:
-
-- **Row scope stopped needing a translation.** `ManagerId` and `DepartmentId`
-  are `EmployeeDetailId`s. When the subject was a login id, every scoped query
-  had to convert first — and getting it wrong compiled, ran, returned rows,
-  and returned the *wrong people*.
-- **"Signed in with no profile" became unrepresentable** rather than handled.
-  The resolver's `hasProfile` flag and a branch in the guard both went away.
-
-### `ScopeRank` is a PERSISTED computed column
-
-So "widest wins" is a plain `MAX(ScopeRank)` with no `CASE` in the hot query,
-and the OWN/TEAM/DEPARTMENT/ALL ordering cannot drift between SQL and JS.
-
-**Never put it in an `INSERT` column list** — SQL Server rejects writes to a
-computed column.
-
----
-
-## 5. The cache
-
-An in-process `Map`, 60 s TTL, keyed by employee id.
-
-- It stores the **promise**, not the value. A hundred concurrent requests from
-  one person on a cold key produce one query, not a hundred — the same pattern
-  `config/db.js` uses for `poolPromise`.
-- A write invalidates **directly** on the instance that made it, so an admin
-  sees their own change immediately.
-- Other instances learn through `tblAccessControlStamp`: every write bumps
-  `Version` inside its own transaction, and a poller clears the cache when the
-  number moves. Polling rather than reading per request is the point — a
-  per-request read would be the round trip the cache exists to remove.
-
-| Variable | Default | |
-| --- | --- | --- |
-| `ACCESS_CONTROL_CACHE_ENABLED` | `true` | `false` makes every check hit the database |
-| `ACCESS_CONTROL_CACHE_TTL_SECONDS` | `60` | |
-| `ACCESS_CONTROL_CACHE_MAX_ENTRIES` | `1000` | Clears wholesale above this |
-| `ACCESS_CONTROL_STAMP_POLL_SECONDS` | `5` | |
-
-Turning the cache off is the fastest way to tell a permissions bug from a cache
-bug.
-
-**The cache is not the revocation gap — the access token is.** A fired
-employee's token stays valid for up to `JWT_ACCESS_EXPIRES_IN` (15 minutes) no
-matter what happens here. The mitigation that does exist: the guard rejects a
-profile that is `IsActive = 0` or soft-deleted, so deactivating somebody cuts
-them off within one cache TTL rather than one token lifetime.
-
----
-
-## 6. The seeded roles
-
-| Role | Grants | Notes |
-| --- | --- | --- |
-| `SUPER_ADMIN` | 56 | Every permission at `ALL`. Always re-synced |
-| `HR_ADMIN` | 50 | Full HR operations |
-| `HR_EXECUTIVE` | 21 | Record maintenance |
-| `EMPLOYEE` | 16 | Self-service, `OWN` |
-| `MANAGER` | 10 | `TEAM` visibility and approvals |
-
-Three deliberate calls in that matrix:
-
-**HR Admin can assign roles but not edit them.** `roles.assign-permission` is
-Super Admin only. Otherwise HR Admin could add `payroll.configure` to their own
-role — assign-role plus assign-permission is a wildcard with extra steps.
-
-**Overrides are Super Admin only.** An override bypasses the role model
-entirely, so it should be rare and attributable. `Reason` is required by the API.
-
-**Manager is additive and must be held alongside Employee.** The Manager role
-omits `leave.apply`, `payslip.view` and the rest of the self-service set —
-those come from Employee, and the widest-scope union then gives
-`leave.view: TEAM` with `leave.apply: OWN`. Assigning Manager **alone** leaves a
-manager unable to book their own leave. This is the single most likely
-onboarding mistake; the admin UI warns about it.
-
----
-
-## 7. Status
-
-**Built and verified**
-
-- Migrations `001`–`005`, applied from scratch on a rebuilt database
-- Models — `npm run db:verify` passes 14/14
-- Enums — 63 permissions across 17 modules, `PERMISSION` ↔ `PERMISSION_CATALOG`
-  in sync
-- Resolver, cache, scope helper, permission guard — subject is
-  `EmployeeDetailId` throughout
-- `scripts/seed-permissions.js` — five roles seeded, idempotent on re-run
-- `scripts/create-admin.js` — the only path that produces a usable
-  administrator (employee + login + role in one transaction)
-- The Organization module — the first module behind the permission guard
-- Postman coverage (folder-grouped) and `scripts/api-flow.sh`
-
-**Not built yet**
-
-- The admin API: roles, groups, catalog, `/access/my-permissions`. Until it
-  exists, assigning a role means `scripts/create-admin.js` or SQL
-- The boot-time route audit
-- The Employees module — the first real consumer of row scope through an
-  endpoint. The scope helper itself is tested directly
-- The stamp poller worker (`src/workers/access-stamp.worker.js`), so a second
-  instance only picks up a grant change when its 60 s TTL expires
-
----
-
-## 8. Gotchas
-
-**`EmployeeId` is not `EmployeeDetailId` — and you should never need both.**
-`EmployeeLogin.EmployeeId` (INT) identifies a password row. Everything else —
-`ManagerId`, grants, audit columns, the JWT subject, every scope clause — is
-`EmployeeDetailId` (BIGINT). Grants, audit columns, the JWT subject and
-every scope clause are all `EmployeeDetailId`. If you find yourself converting
-between them, something is wrong.
-
-> The seeded data keeps them deliberately out of step — login 1 is employee 3,
-> login 2 is employee 4 — so a stray `EmployeeId` shows up immediately instead
-> of passing because the numbers happened to match.
-
-**An employee may have no login**, which is normal: plenty of staff never sign
-in. There is no inverse case to worry about. `SCOPE_UNRESOLVED` still exists,
-but only for DEPARTMENT on an employee with no `DepartmentId` — `OWN` and
-`TEAM` key on a column that is always present.
-
-**`withTransaction`'s `run()` returns no `rowsAffected`.** Any write that needs
-to know whether it changed anything must use `OUTPUT inserted.*` /
-`OUTPUT deleted.*`. Forgetting this gives an endpoint that cheerfully reports
-success for a no-op.
-
-**No array / `IN` support in the query helper.** Generate `@p0..@pn` yourself,
-or pass a delimited string to `STRING_SPLIT` — which is only safe here because
-`CK_tblPermission_CodeShape` forbids a comma inside a code. Bind such a string
-as `NVarChar(MAX)`, not at the column width; the joined catalog is about 1 KB
-and binding it at `NVarChar(100)` truncates the list and retires everything
-past the cut.
-
-**`Model.select()` cannot be used across a join.** It emits unqualified column
-names, and every table here has `CreatedAt`/`DeletedAt`. Multi-table reads are
-hand-qualified SQL; only the table names come from the models.
-
-**Group membership has no department link.** "Finance" is a manually maintained
-list. Somebody who changes department stays in it. Not a bug today, but not a
-surprise later either.
+| File | What |
+|---|---|
+| `db/migrations/008_group_access_control.sql` | the schema, and the drop of 004 |
+| `src/enums/module.enum.js` | the module catalog and the six actions |
+| `src/models/access-control.model.js` | the three tables plus the stamp |
+| `src/services/access-control.service.js` | resolving, the menu, page rights |
+| `src/services/group.service.js` | group CRUD, the matrix, membership |
+| `src/middlewares/permission.middleware.js` | `requireAccess` |
+| `src/utils/route-audit.js` | the boot-time guarantee |
+| `src/controllers/access.controller.js`, `src/routes/access.routes.js` | the API |
+| `scripts/seed-access.js` | seeds the catalog and the Administrator group |

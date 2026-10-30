@@ -7,6 +7,10 @@
  *     password: { required: true, trim: false, maxLength: 72 },
  *   });
  *
+ * Rules: required, trim, lowercase, email, date, digits, url, oneOf,
+ * minLength, maxLength, integer, decimal, boolean. The last three convert as
+ * well as check, so a validated field is already the right JS type.
+ *
  * Returns the cleaned values, or throws a 400 ApiError listing every bad field
  * at once — a client should not have to resubmit to discover the second error.
  *
@@ -77,6 +81,19 @@ function validate(source, schema) {
       // would match the wrong row rather than fail.
       if (parsed > Number.MAX_SAFE_INTEGER) {
         errors[field] = `${label(field)} is out of range`;
+        continue;
+      }
+
+      values[field] = parsed;
+      continue;
+    }
+
+    if (rule.decimal) {
+      const parsed = typeof value === 'number' ? value : Number(value);
+      const max = rule.max ?? Number.MAX_SAFE_INTEGER;
+
+      if (!Number.isFinite(parsed) || parsed < (rule.min ?? 0) || parsed > max) {
+        errors[field] = `${label(field)} must be a number between ${rule.min ?? 0} and ${max}`;
         continue;
       }
 

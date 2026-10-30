@@ -3,93 +3,72 @@
  *
  *   router.get(ROUTES.EMPLOYEES.LIST,
  *     authenticate,
- *     requirePermission(PERMISSION.EMPLOYEES_VIEW),
+ *     requireAccess(MODULE.EMPLOYEES, ACTION.VIEW),
  *     employeeController.list);
  *
  * It runs after `authenticate`, which it depends on for
- * `req.employee.employeeId`, and before the controller. It answers only "may
- * this person do this at all" - which ROWS they may touch is the service's
- * job, through src/helpers/access-scope.helper.js and the scope this guard
- * attaches.
+ * `req.employee.employeeDetailId`, and before the controller.
  *
- * Built as a factory for the same reason buildLimiter is in
- * rate-limit.middleware.js: the shared behaviour - resolve, check, attach,
- * log, deny in the standard envelope - lives once, and the exported wrappers
- * read as declarations.
+ * THIS IS THE ENFORCEMENT POINT, and it is the reason hiding a button is not
+ * security. A frontend that never renders the Delete button is a courtesy to
+ * the user; this is what stops the DELETE request that was typed into curl,
+ * replayed from the network tab, or sent by a page that was open before the
+ * administrator took the right away. Every route under the API prefix carries
+ * one, and src/index.js refuses to boot if one is missing.
  */
 import { resolveAccess } from '../services/access-control.service.js';
 import { ApiError } from '../utils/api-error.js';
 import { logger } from '../utils/logger.js';
-import { MESSAGES, ERROR_CODE, PERMISSION_SCOPE_RANK } from '../enums/index.js';
-
-/** The widest of several scopes, or null when the list is empty. */
-function widestScope(scopes) {
-  let best = null;
-  for (const scope of scopes) {
-    if (scope && (best === null || PERMISSION_SCOPE_RANK[scope] > PERMISSION_SCOPE_RANK[best])) {
-      best = scope;
-    }
-  }
-  return best;
-}
+import { MESSAGES, ERROR_CODE } from '../enums/index.js';
+import { ACTION, ACTION_PROP, moduleName } from '../enums/module.enum.js';
 
 /**
  * @param {object} config
- * @param {string} config.name   what to call this guard in a log line
- * @param {string[]} config.codes from PERMISSION, never a literal
- * @param {'any'|'all'} config.mode
+ * @param {number|null} config.moduleId from MODULE, never a literal
+ * @param {string|null} config.action   from ACTION
  */
-function buildPermissionGuard({ name, codes, mode }) {
-  // Lowercased once, at wiring time rather than per request: the database
-  // collation is case-insensitive but the resolver's Map is not.
-  const wanted = codes.map((code) => String(code).toLowerCase());
+function buildGuard({ moduleId, action }) {
+  const label = moduleId === null ? 'authenticated' : `${moduleName(moduleId)}:${action}`;
 
   const guard = async (req, res, next) => {
     const access = await resolveAccess(req.employee.employeeDetailId);
 
     // An employee who has been switched off or soft-deleted is a leaver. This
     // is the only revocation that beats the access token's lifetime, so it is
-    // checked before permissions rather than after. `exists` is false only
-    // when the token names an employee the table has never had.
+    // checked before rights rather than after. `exists` is false only when the
+    // token names an employee the table has never had.
     if (!access.exists || !access.active) {
       throw ApiError.forbidden(MESSAGES.ACCOUNT_INACTIVE, {
         code: ERROR_CODE.ACCOUNT_INACTIVE,
       });
     }
 
-    const held = wanted.filter((code) => access.has(code));
-    // An empty list means "any signed-in employee". Spelt out rather than
-    // left to fall out of the mode check, where `held.length > 0` would deny
-    // everyone and the guard that is supposed to let people through would be
-    // the one that locks them out.
-    const satisfied =
-      wanted.length === 0 ? true : mode === 'all' ? held.length === wanted.length : held.length > 0;
+    // A null moduleId means "any signed-in employee" - /access/me and the
+    // menu, which every user needs before they can be shown anything at all.
+    if (moduleId !== null && !access.can(moduleId, action)) {
+      // An employee with no group reaches here for every guarded route. Said
+      // separately because it is a different fix: assign them a group, rather
+      // than hunting for a missing checkbox on a group they are not in.
+      const reason = access.groupId === null ? 'no group assigned' : `group ${access.groupName}`;
 
-    if (!satisfied) {
-      // Logged, because a role that is missing a permission looks to the user
-      // like a broken button and would otherwise leave no trace anywhere.
+      // Logged, because a group missing a right looks to the user like a
+      // broken button and would otherwise leave no trace anywhere.
       logger.warn(
-        `[permission:${name}] denied ${req.method} ${req.originalUrl} ` +
-          `for employee ${access.employeeDetailId}`,
+        `[access:${label}] denied ${req.method} ${req.originalUrl} ` +
+          `for employee ${access.employeeDetailId} (${reason})`,
       );
-      // `requiredPermission` is not a secret - it names a capability, not
-      // data, and it is exactly what a user quotes in a help-desk ticket and
-      // what a frontend developer needs to find the missing guard.
+
+      // The module and action are not secret - they name a capability, not
+      // data, and they are exactly what a user quotes in a help-desk ticket
+      // and what the administrator needs to find the right checkbox.
       throw ApiError.forbidden(MESSAGES.PERMISSION_DENIED, {
-        code: ERROR_CODE.PERMISSION_DENIED,
-        requiredPermission: codes.length === 1 ? codes[0] : codes,
-        mode,
+        code:
+          access.groupId === null ? ERROR_CODE.NO_GROUP_ASSIGNED : ERROR_CODE.PERMISSION_DENIED,
+        requiredAccess: { module: moduleName(moduleId), action },
       });
     }
 
-    req.access = Object.freeze({
-      ...access,
-      matchedCodes: Object.freeze(held),
-      // The widest scope among the codes that actually matched. For a single
-      // required permission that is simply its scope.
-      scope: widestScope(held.map((code) => access.scopeOf(code))),
-    });
-
+    req.access = access;
     next();
   };
 
@@ -97,36 +76,46 @@ function buildPermissionGuard({ name, codes, mode }) {
   // the server if any route under the API prefix has no guard. That is what
   // makes "every new module is covered" an assertion rather than a hope.
   guard.isPermissionGuard = true;
-  guard.requiredPermissions = Object.freeze([...codes]);
+  guard.requiredAccess = Object.freeze({ moduleId, action });
 
   return guard;
 }
 
-/** Passes when the caller holds this permission. */
-export function requirePermission(code) {
-  return buildPermissionGuard({ name: code, codes: [code], mode: 'all' });
+/**
+ * The guard. One module, one action.
+ *
+ *   requireAccess(MODULE.EMPLOYEES, ACTION.DELETE)
+ */
+export function requireAccess(moduleId, action) {
+  if (!Object.values(ACTION).includes(action)) {
+    // Thrown at wiring time, not request time: a typo here would otherwise
+    // read every right as false and deny everybody, which looks exactly like
+    // a permissions problem and would be debugged as one.
+    throw new Error(`Unknown action "${action}". Use one of ACTION.*.`);
+  }
+  if (!Number.isInteger(moduleId)) {
+    throw new Error(`Module must be a MODULE.* id, received ${JSON.stringify(moduleId)}.`);
+  }
+  return buildGuard({ moduleId, action });
 }
 
-/** Passes when the caller holds ANY of them. `req.access.scope` is the widest matched. */
-export function requireAnyPermission(codes) {
-  return buildPermissionGuard({ name: `any(${codes.join('|')})`, codes, mode: 'any' });
-}
-
-/** Passes only when the caller holds EVERY one. */
-export function requireAllPermissions(codes) {
-  return buildPermissionGuard({ name: `all(${codes.join('+')})`, codes, mode: 'all' });
-}
+/** Shorthand for the four common ones, so route files read as declarations. */
+export const requireView = (moduleId) => requireAccess(moduleId, ACTION.VIEW);
+export const requireAdd = (moduleId) => requireAccess(moduleId, ACTION.ADD);
+export const requireEdit = (moduleId) => requireAccess(moduleId, ACTION.EDIT);
+export const requireDelete = (moduleId) => requireAccess(moduleId, ACTION.DELETE);
 
 /**
- * For a route that any signed-in employee may call, such as
- * GET /access/my-permissions.
+ * For a route any signed-in employee may call: /access/me, /access/menu.
  *
  * It resolves and attaches `req.access` exactly as the others do, and still
- * rejects a deactivated profile - it just requires no particular permission.
- * Using this rather than omitting a guard is what keeps the route audit honest:
+ * rejects a deactivated profile - it just requires no particular right. Using
+ * this rather than omitting a guard is what keeps the route audit honest:
  * "open to everyone" becomes a decision written in the route file instead of
  * an omission nobody notices.
  */
 export function requireAuthenticatedAccess() {
-  return buildPermissionGuard({ name: 'authenticated', codes: [], mode: 'any' });
+  return buildGuard({ moduleId: null, action: null });
 }
+
+export { ACTION, ACTION_PROP };

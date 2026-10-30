@@ -92,6 +92,21 @@ export async function refresh(req, res) {
   return sendSuccess(res, { statusCode: HTTP_STATUS.OK, message: MESSAGES.TOKEN_REFRESHED, data });
 }
 
+/**
+ * POST /api/v1/auth/logout — requires a valid access token.
+ *
+ * No body. The token names the session to end, and the refresh token shares
+ * that session, so both stop working. Asking the client to also hand back its
+ * refresh token would add a field that changes nothing and a failure mode
+ * when it forgets.
+ */
+export async function logout(req, res) {
+  // req.employee is attached by authenticate() and carries the session id.
+  const data = await authService.logout(req.employee);
+
+  return sendSuccess(res, { statusCode: HTTP_STATUS.OK, message: MESSAGES.LOGOUT_SUCCESS, data });
+}
+
 /** GET /api/v1/auth/me — requires a valid access token. */
 export async function me(req, res) {
   // req.employee is attached by authenticate().

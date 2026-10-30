@@ -8,15 +8,15 @@
  * third is silent:
  *
  *   1. dbo.tblEmployeeDetails   the person. Created FIRST - the login points
- *                               at it, and TEAM and DEPARTMENT scopes resolve
- *                               against it. The permission guard rejects one
- *                               that is inactive or soft-deleted.
+ *                               at it, and the group hangs off it. The access
+ *                               guard rejects one that is inactive or
+ *                               soft-deleted.
  *   2. dbo.EmployeeLogin        credentials. Carries a NOT NULL
  *                               EmployeeDetailId, so it physically cannot be
  *                               written before step 1.
- *   3. dbo.tblEmployeeRole      the role. WITHOUT IT THE ACCOUNT CAN SIGN IN
- *                               AND HOLDS ZERO PERMISSIONS - every endpoint
- *                               answers 403 and nothing explains why.
+ *   3. tblEmployeeDetails.GroupId  the group. WITHOUT IT THE ACCOUNT CAN SIGN
+ *                               IN AND HOLDS NOTHING - every endpoint answers
+ *                               403 and nothing explains why.
  *
  * scripts/seed-employees.js writes only the first, and scripts/seed.js only
  * the first two. This is the one path that produces a usable administrator.
@@ -28,10 +28,10 @@
  *   EMAIL=someone@rstartec.com PASSWORD='NewPass@123' RESET_PASSWORD=1 \
  *     npm run db:create:admin
  *
- * Any role code from dbo.tblRole works, so it is equally the way to make an
- * HR Admin until the admin API exists:
+ * Any group name from dbo.tblGroup works, so it is equally the way to put
+ * somebody in a group the administrator created:
  *
- *   EMAIL=hr@rstartec.com ROLE=HR_ADMIN npm run db:create:admin
+ *   EMAIL=hr@rstartec.com GROUP="HR Team" npm run db:create:admin
  */
 import { randomBytes } from 'node:crypto';
 import { getPool, closePool } from '../src/config/db.js';
@@ -39,20 +39,18 @@ import { withTransaction } from '../src/helpers/query.helper.js';
 import {
   EmployeeLogin,
   EmployeeDetails,
-  Role,
-  EmployeeRole,
-  RolePermission,
+  Group,
   AccessControlStamp,
   GLOBAL_STAMP,
 } from '../src/models/index.js';
-import { ROLE, EMPLOYMENT_TYPE, EMPLOYMENT_STATUS } from '../src/enums/index.js';
+import { EMPLOYMENT_TYPE, EMPLOYMENT_STATUS } from '../src/enums/index.js';
 import { hashPassword } from '../src/utils/password.js';
 import { logger } from '../src/utils/logger.js';
 
 const EMAIL = (process.env.EMAIL ?? '').trim().toLowerCase();
 const FIRST_NAME = process.env.FIRST_NAME ?? 'Super';
 const LAST_NAME = process.env.LAST_NAME ?? 'Admin';
-const ROLE_CODE = process.env.ROLE ?? ROLE.SUPER_ADMIN;
+const GROUP_NAME = process.env.GROUP ?? 'Administrator';
 const RESET_PASSWORD = process.env.RESET_PASSWORD === '1';
 
 /**
@@ -177,40 +175,51 @@ async function run_() {
     }
 
     /* 3 - the role -------------------------------------------------------- */
-    const [role] = await run(
-      `SELECT ${Role.select(['roleId', 'roleCode'])}
-         FROM ${Role.table} WHERE RoleCode = @roleCode AND DeletedAt IS NULL`,
-      Role.params({ roleCode: ROLE_CODE }),
+    const [group] = await run(
+      `SELECT ${Group.select(['groupId', 'groupName', 'isSystem'])}
+         FROM ${Group.table}
+        WHERE GroupName = @groupName AND DeletedAt IS NULL`,
+      Group.params({ groupName: GROUP_NAME }),
     );
 
-    if (!role) {
+    if (!group) {
       // Thrown inside the transaction, so the employee and login roll back
       // too. Half an administrator is worse than none: it signs in and 403s.
       throw new Error(
-        `No live role with code "${ROLE_CODE}". Run npm run db:seed:permissions first.`,
+        `No live group named "${GROUP_NAME}". Run npm run db:seed:access first, ` +
+          'or set GROUP= to a group that exists.',
       );
     }
 
-    const assigned = await run(
-      `INSERT INTO ${EmployeeRole.table} (EmployeeDetailId, RoleId, CreatedBy, ModifiedBy)
-       OUTPUT inserted.EmployeeRoleId AS employeeRoleId
-       SELECT @employeeDetailId, @roleId, @employeeDetailId, @employeeDetailId
-        WHERE NOT EXISTS (
-              SELECT 1 FROM ${EmployeeRole.table}
-               WHERE EmployeeDetailId = @employeeDetailId
-                 AND RoleId = @roleId
-                 AND DeletedAt IS NULL
-        )`,
-      EmployeeRole.params({ employeeDetailId, roleId: role.roleId }),
+    // Read rather than assumed: the employee may already exist and already
+    // be in this group, and re-running must not report a change it did not
+    // make.
+    const [current] = await run(
+      `SELECT GroupId AS groupId FROM ${EmployeeDetails.table}
+        WHERE EmployeeDetailId = @employeeDetailId`,
+      EmployeeDetails.params({ employeeDetailId }),
     );
+    const alreadyIn = Number(current?.groupId) === Number(group.groupId);
+
+    if (!alreadyIn) {
+      await run(
+        `UPDATE ${EmployeeDetails.table}
+            SET GroupId = @groupId, ModifiedAt = SYSUTCDATETIME()
+          WHERE EmployeeDetailId = @employeeDetailId`,
+        {
+          ...EmployeeDetails.params({ employeeDetailId }),
+          groupId: Group.param('groupId', group.groupId),
+        },
+      );
+    }
 
     steps.push(
-      assigned.length > 0
-        ? `role ${ROLE_CODE} assigned`
-        : `role ${ROLE_CODE} already held - left alone`,
+      alreadyIn
+        ? `already in group "${GROUP_NAME}" - left alone`
+        : `put into group "${GROUP_NAME}" (GroupId ${group.groupId})`,
     );
 
-    /* Tell every instance its cached permission sets are stale. ----------- */
+    /* Tell every instance its cached access is stale. --------------------- */
     await run(
       `UPDATE ${AccessControlStamp.table}
           SET Version = Version + 1, ModifiedAt = SYSUTCDATETIME()
@@ -218,20 +227,13 @@ async function run_() {
       AccessControlStamp.params({ stampName: GLOBAL_STAMP }),
     );
 
-    const [{ permissionCount }] = await run(
-      `SELECT COUNT(DISTINCT rp.PermissionId) AS permissionCount
-         FROM ${EmployeeRole.table}  AS er
-         JOIN ${RolePermission.table} AS rp ON rp.RoleId = er.RoleId AND rp.DeletedAt IS NULL
-        WHERE er.EmployeeDetailId = @employeeDetailId AND er.DeletedAt IS NULL`,
-      EmployeeRole.params({ employeeDetailId }),
-    );
-
     return {
       employeeId: login.employeeId,
       employeeDetailId,
       employeeCode,
       steps,
-      permissionCount,
+      groupName: GROUP_NAME,
+      isSystemGroup: Boolean(group.isSystem),
       passwordApplied,
     };
   });
@@ -243,8 +245,12 @@ async function run_() {
   logger.info(`  EmployeeDetailId      ${outcome.employeeDetailId}   <- the subject of everything`);
   logger.info(`  EmployeeId (login)    ${outcome.employeeId}`);
   logger.info(`  EmployeeCode          ${outcome.employeeCode}`);
-  logger.info(`  Role                  ${ROLE_CODE}`);
-  logger.info(`  Effective permissions ${outcome.permissionCount}`);
+  logger.info(`  Group                 ${outcome.groupName}`);
+  logger.info(
+    outcome.isSystemGroup
+      ? '  Rights                every module, every action (system group)'
+      : '  Rights                whatever that group holds - see the group screen',
+  );
 
   if (outcome.passwordApplied && !process.env.PASSWORD) {
     logger.warn('');

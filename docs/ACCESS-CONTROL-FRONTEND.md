@@ -1,684 +1,513 @@
-# Access Control — Frontend Implementation Guide
+# Access Control — Frontend Guide
 
-Everything a frontend developer needs to build the permission-aware UI for
-rSTAR HRMS: the screens, the API contracts, and the patterns that keep them
-consistent.
+Everything the UI needs to render the right menu, the right buttons, and the
+right screens for the signed-in user.
 
-**Backend reference:** `src/middlewares/permission.middleware.js`,
-`src/enums/permission.enum.js`, `src/services/access-control.service.js`.
-Response envelope rules are in the main [README](../README.md#response-contract).
+The model is the one the EHMS portal has run on for years, moved onto an API:
+
+> **an employee belongs to a GROUP, and a group holds RIGHTS on MODULES.**
+
+There is nothing else. No roles, no per-user exceptions, no row-level scopes.
+If a user can do something, exactly one group gave it to them, and one screen
+changes it.
 
 ---
 
 ## 1. Read this first — the frontend is not the gate
 
-Every check in this document is **user experience only**. It hides a menu item,
-disables a button, and keeps a user out of a route they would only be bounced
-from. **It is not security.**
+Hiding a button is a **courtesy to the user**, not security. Every endpoint
+checks the same rights again on the server, and the server is the only thing
+that decides. A page that forgets to hide Delete is a cosmetic bug; the
+`DELETE` still comes back `403`.
 
-The backend re-checks every permission on every request, with no exception and
-no trust in anything the client sends.
+This matters for how you write the UI:
 
-Concretely:
-
-- If you **forget a guard**, a user sees a button, clicks it, and gets a `403`
-  with a clear message. Nothing leaks. It is a cosmetic bug.
-- If the **backend check were missing**, the data is gone. That is our problem,
-  not yours, and it is covered by a boot-time assertion that refuses to start
-  the server if any route is unguarded.
-
-Three things never to do:
-
-1. Never ask the backend to "trust the frontend check to save a round trip".
-2. Never decide **what to fetch** from a permission. Fetch it, and let the API
-   decide what comes back — the API already filters rows by scope.
-3. Never read a permission out of the JWT. The token carries no permissions, by
-   design, and anything you decode client-side is attacker-controlled anyway.
+- Never branch on a group **name**. `if (group === 'HR Admin')` is a rule that
+  lives in your bundle and that no administrator can change. Branch on the
+  **right** — `if (rights.canDelete)`.
+- Never cache rights across logins, and never put them in `localStorage` for
+  longer than the session. An administrator who revokes access expects it gone.
+- Always handle `403` as a real possibility on every call, even one the user
+  "shouldn't" have been able to make. Their rights can change mid-session.
 
 ---
 
-## 2. Core concepts
+## 2. The six rights
 
-### 2.1 Permission codes
+Every module carries the same six flags, and they always come back together:
 
-A permission code is `module.action`, lowercase:
+| Flag | Means | Typical binding |
+|---|---|---|
+| `canView` | may open the screen and read it | the menu entry, the route guard, read-only mode |
+| `canAdd` | may create new records | the **Create** / **Add New** button |
+| `canEdit` | may change existing records | the **Edit** button, enabled form fields, **Save** |
+| `canDelete` | may remove records | the **Delete** button, the row's bin icon |
+| `canPrint` | may export or print | the **Print** / **Export to Excel** button |
+| `canMail` | may email records out | the **Send** / **Share** button |
+
+`canPrint` and `canMail` are separate from `canView` on purpose. "May read
+this employee's record on screen" and "may walk out with a PDF of it" or "may
+email it outside the company" are different decisions for HR data, and the
+administrator is given them as different checkboxes.
+
+**A user with no group has every flag false, everywhere.** That is the default
+for a new joiner, and it is not an error state — show the shell, an empty menu,
+and a "your account has no access yet, contact your administrator" panel.
+
+---
+
+## 3. Modules
+
+A module is one screen. The ids are **fixed and permanent** — they are stored
+against each group's rights, so they never change.
+
+| Id | Code | Name | Route | Parent |
+|---|---|---|---|---|
+| 1 | `DASHBOARD` | Dashboard | `/dashboard` | — |
+| 10 | `EMPLOYEE_MANAGEMENT` | Employee Management | *(heading)* | — |
+| 11 | `EMPLOYEES` | Employees | `/employees` | 10 |
+| 20 | `ORGANIZATION_SETUP` | Organization Setup | *(heading)* | — |
+| 21 | `ORGANIZATIONS` | Organizations | `/organizations` | 20 |
+| 22 | `LOCATIONS` | Locations | `/locations` | 20 |
+| 30 | `ADMINISTRATION` | Administration | *(heading)* | — |
+| 31 | `GROUPS` | User Groups | `/administration/groups` | 30 |
+| 32 | `USER_ACCESS` | User Access | `/administration/user-access` | 30 |
+
+A row with no route is a **heading** — it groups children in the menu and is
+not navigable. Don't hard-code this table; read it from `GET /access/modules`
+so a module added next month appears without a frontend release.
+
+---
+
+## 4. Bootstrap sequence
+
+Straight after the OTP step of login succeeds and you hold an access token:
 
 ```
-employees.view        leave.approve        roles.assign-permission
+POST /auth/login          ->  OTP sent
+POST /auth/verify-otp     ->  accessToken + refreshToken
+GET  /access/me           ->  who they are, and the full rights map
+GET  /access/menu         ->  the navigation tree, already filtered
 ```
 
-The **module** segment is load-bearing — it is how the catalog groups, and how
-you build menus. You can always derive it client-side:
+Store the `/access/me` response in whatever your app uses for session state
+(a context, a store — not `localStorage`). Everything else reads from it.
 
 ```js
-const module = code.split('.')[0];   // 'employees'
+const session = {
+  employeeDetailId: 3,
+  group: { groupId: 1, groupName: 'Administrator' },
+  isSystemGroup: true,
+  rightsByModule: { EMPLOYEES: { canView: true, canAdd: true, ... }, ... },
+};
+
+// The only helper you need in most of the app.
+const can = (moduleCode, action) => Boolean(session.rightsByModule[moduleCode]?.[action]);
+
+can('EMPLOYEES', 'canDelete');   // -> true
 ```
 
-### 2.2 The four scopes
-
-A permission does not only answer *"can I do this?"* but *"to whose records?"*.
-
-| Scope | Rank | Means |
-| --- | --- | --- |
-| `OWN` | 1 | Only the user's own record |
-| `TEAM` | 2 | Themselves plus their **direct reports** (one level, not the whole tree) |
-| `DEPARTMENT` | 3 | Everyone in their department |
-| `ALL` | 4 | The whole organisation |
-
-```ts
-export const SCOPE_RANK = { OWN: 1, TEAM: 2, DEPARTMENT: 3, ALL: 4 } as const;
-```
-
-A Manager and an HR Admin both hold `employees.view`. The Manager holds it at
-`TEAM`, the HR Admin at `ALL`. Same code, different data.
-
-**You use scope to *label and explain*. The server uses it to *filter*.** When a
-Manager calls `GET /employees`, the response already contains only their team —
-you do not filter it again.
-
-### 2.3 Where permissions come from
-
-Three sources stack, then one rule removes:
-
-```
-1. ROLES    — the user's roles contribute their permissions
-2. GROUPS   — the user's groups contribute theirs, on top
-3. OVERRIDE GRANT — a per-user exception adds one more
-4. OVERRIDE DENY  — a per-user exception REMOVES one, whatever granted it
-```
-
-Two rules decide the outcome:
-
-- **DENY always wins.** It removes the permission entirely, no matter which role
-  or group granted it. A DENY is absolute — it cannot "narrow" a scope.
-- **Widest scope wins.** If a user holds `leave.view` at `OWN` from the Employee
-  role and at `TEAM` from the Manager role, the effective scope is `TEAM`.
-
-You need this in your head for the override preview screen (§6.4), where an
-admin asks *"why can this person approve leave?"*.
-
-### 2.4 The five master roles
-
-| Role | Code | In one sentence |
-| --- | --- | --- |
-| Super Admin | `SUPER_ADMIN` | Everything, including role and permission management |
-| HR Admin | `HR_ADMIN` | Full HR operations; can assign roles but not edit them |
-| HR Executive | `HR_EXECUTIVE` | Day-to-day employee record maintenance |
-| Manager | `MANAGER` | Team visibility and approvals, `TEAM` scope |
-| Employee | `EMPLOYEE` | Self-service only, `OWN` scope |
-
-> **Important for the user-access screen:** a manager must hold **both**
-> `MANAGER` and `EMPLOYEE`. The Manager role deliberately omits self-service
-> permissions like `leave.apply` — those come from Employee. Assigning `MANAGER`
-> alone leaves a manager unable to book their own leave. Show a warning in the
-> role picker when `MANAGER` is selected without `EMPLOYEE`.
+Refresh `/access/me` and `/access/menu` when the token is refreshed, and after
+the user's own group is changed. Rights changes take effect on the server
+immediately — there is no cache to wait out.
 
 ---
 
-## 3. Bootstrap sequence
+## 5. Menu binding
 
-```
-POST /api/v1/auth/login          -> OTP sent to the work email
-POST /api/v1/auth/verify-otp     -> { accessToken, refreshToken, tokenType, expiresIn }
-     store the tokens
-     ├── GET /api/v1/auth/me                     profile
-     └── GET /api/v1/access/my-permissions       the ACL payload   <- the one that matters
-     hydrate the access store
-     THEN render the app shell
-```
+`GET /access/menu` returns the tree **already filtered** to what this user may
+see. Render it as-is; do not filter it again.
 
-The last two calls run **in parallel**. Both must resolve before you render the
-shell — otherwise the menu flashes items the user cannot use, which looks like a
-bug and occasionally like a security hole to anyone watching. Show a splash or
-skeleton until then.
-
-On a hard page reload with a token already in storage, repeat from
-`GET /auth/me`.
-
----
-
-## 4. The `/access/my-permissions` contract
-
-`GET /api/v1/access/my-permissions` — requires only a valid access token, no
-permission.
-
-```jsonc
+```json
 {
   "success": true,
-  "statusCode": 200,
-  "message": "Permissions fetched",
+  "data": [
+    {
+      "moduleId": 10,
+      "moduleCode": "EMPLOYEE_MANAGEMENT",
+      "label": "Employee Management",
+      "path": null,
+      "icon": "users",
+      "rights": { "canView": true, "canAdd": true, "canEdit": true,
+                  "canDelete": false, "canPrint": false, "canMail": false },
+      "children": [
+        {
+          "moduleId": 11,
+          "moduleCode": "EMPLOYEES",
+          "label": "Employees",
+          "path": "/employees",
+          "icon": "user",
+          "rights": { "canView": true, "canAdd": true, "canEdit": true,
+                      "canDelete": false, "canPrint": false, "canMail": false }
+        }
+      ]
+    }
+  ]
+}
+```
+
+Rules the server already applies, so you don't have to:
+
+- A module the group holds **no** right on is absent.
+- A heading whose children are all hidden is absent too — no empty dropdowns.
+- Entries are sorted; render in the order given.
+
+```jsx
+{menu.map((section) =>
+  section.children.length > 0 ? (
+    <MenuGroup key={section.moduleCode} label={section.label} icon={section.icon}>
+      {section.children.map((item) => (
+        <MenuLink key={item.moduleCode} to={item.path}>{item.label}</MenuLink>
+      ))}
+    </MenuGroup>
+  ) : (
+    <MenuLink key={section.moduleCode} to={section.path}>{section.label}</MenuLink>
+  ),
+)}
+```
+
+---
+
+## 6. Page binding — what you asked for
+
+**When the user clicks a page, ask the API what they may do on it.** One call,
+with the path the router already knows:
+
+```
+GET /access/page?path=/employees
+```
+
+```json
+{
+  "success": true,
   "data": {
-    "employeeId": 12,
-    "email": "anmol.ghai@rstartec.com",
-
-    "roles":  [ { "roleId": 4, "code": "MANAGER",  "name": "Manager" },
-                { "roleId": 5, "code": "EMPLOYEE", "name": "Employee" } ],
-    "groups": [ { "groupId": 2, "code": "PAYROLL_REVIEWERS", "name": "Payroll Reviewers" } ],
-
-    "scopeContext": {
-      "employeeDetailId": 88,
-      "departmentId": 3,
-      "managerId": 41
-    },
-
-    "permissions": {
-      "profile.view": "OWN",
-      "profile.update": "OWN",
-      "employees.view": "TEAM",
-      "attendance.view": "TEAM",
-      "attendance.approve": "TEAM",
-      "leave.view": "TEAM",
-      "leave.approve": "TEAM",
-      "leave.apply": "OWN",
-      "payslip.view": "OWN",
-      "announcement.view": "ALL"
-    },
-
-    "modules": [
-      { "code": "employees",   "name": "Employees",    "sortOrder": 10, "maxScope": "TEAM" },
-      { "code": "attendance",  "name": "Attendance",   "sortOrder": 20, "maxScope": "TEAM" },
-      { "code": "leave",       "name": "Leave",        "sortOrder": 30, "maxScope": "TEAM" },
-      { "code": "payslip",     "name": "Payslips",     "sortOrder": 60, "maxScope": "OWN"  },
-      { "code": "announcement","name": "Announcements","sortOrder": 70, "maxScope": "ALL"  }
-    ],
-
-    "version": "7f3c91a2b85d4e60",
-    "generatedAt": "2026-10-19T09:12:03.221Z"
+    "moduleId": 11,
+    "moduleCode": "EMPLOYEES",
+    "moduleName": "Employees",
+    "path": "/employees",
+    "rights": {
+      "canView": true, "canAdd": true, "canEdit": true,
+      "canDelete": false, "canPrint": true, "canMail": false
+    }
   }
 }
 ```
 
-### 4.1 Types
+Then bind the screen to it:
 
-```ts
-export type Scope = 'OWN' | 'TEAM' | 'DEPARTMENT' | 'ALL';
+```jsx
+function EmployeesPage() {
+  const { rights, loading } = usePageRights('/employees');
 
-export interface MyPermissions {
-  employeeId: number;
-  email: string;
-  roles:  Array<{ roleId: number;  code: string; name: string }>;
-  groups: Array<{ groupId: number; code: string; name: string }>;
-  scopeContext: {
-    employeeDetailId: number | null;
-    departmentId: number | null;
-    managerId: number | null;
-  };
-  /** code -> effective scope. Presence of the key IS the permission. */
-  permissions: Record<string, Scope>;
-  modules: Array<{ code: string; name: string; sortOrder: number; maxScope: Scope }>;
-  version: string;
-  generatedAt: string;
+  if (loading) return <Spinner />;
+  if (!rights.canView) return <NoAccess />;
+
+  return (
+    <Page>
+      <Toolbar>
+        {rights.canAdd   && <Button onClick={create}>Add Employee</Button>}
+        {rights.canPrint && <Button onClick={exportXlsx}>Export</Button>}
+        {rights.canMail  && <Button onClick={share}>Email</Button>}
+      </Toolbar>
+
+      <Table
+        rows={employees}
+        actions={(row) => (
+          <>
+            {rights.canEdit   && <IconButton icon="pencil" onClick={() => edit(row)} />}
+            {rights.canDelete && <IconButton icon="trash"  onClick={() => remove(row)} />}
+          </>
+        )}
+      />
+    </Page>
+  );
 }
 ```
 
-### 4.2 Why this shape
+A reusable hook, so no screen hard-codes a module id:
 
-**`permissions` is a map, not an array.** One lookup answers both *"can I?"* and
-*"over what?"*. `can(code)` is `code in permissions` — O(1), no `.find()`, no Set
-rebuilt on every render. An array of codes would lose scope; an array of objects
-would force every consumer to build an index.
+```js
+export function usePageRights(path) {
+  const [state, setState] = useState({ loading: true, rights: NO_RIGHTS });
 
-**There is no separate `codes[]` array.** It would be the same data twice, and it
-drifts the moment someone filters one and not the other. `Object.keys(permissions)`
-is one line.
+  useEffect(() => {
+    let live = true;
+    api.get('/access/page', { params: { path } })
+      .then((res) => live && setState({ loading: false, rights: res.data.data.rights }))
+      // 404 = this path is not a module. 403 cannot happen here.
+      .catch(() => live && setState({ loading: false, rights: NO_RIGHTS }));
+    return () => { live = false; };
+  }, [path]);
 
-**`modules[]` is not a duplicate of the permissions.** The permission map already
-*is* the module tree — `code.split('.')[0]`. What you cannot derive is the
-**display name and sort order**, and that is all `modules[]` carries, one entry
-per module. It exists so menu building is `data.modules.map(...)` rather than a
-hardcoded label dictionary in the frontend that drifts from the backend catalog.
-`maxScope` is the widest scope the user holds anywhere in that module — useful
-for a subtitle like "Your team".
+  return state;
+}
 
-**Scope is a string, not a rank number.** Strings survive a log line and a bug
-report. Use `SCOPE_RANK` for the rare comparison.
+const NO_RIGHTS = {
+  canView: false, canAdd: false, canEdit: false,
+  canDelete: false, canPrint: false, canMail: false,
+};
+```
 
-**`scopeContext`** lets you decide locally whether a row is "mine" — to grey out
-an edit button on an already-fetched list without a second call. It is **not** a
-security boundary; it is just enough to avoid rendering a control that would 403.
+You can also ask by `?moduleCode=EMPLOYEES` or `?moduleId=11`. Path is usually
+the most convenient, because the page already knows its own URL.
 
-**`version`** is a stable hash of the whole access set. It changes the instant
-anything changes, and `GET /auth/me` returns the same value — see §4.3.
+> **Prefer the cached map for hot paths.** `/access/page` is a round trip. If
+> you already hold `rightsByModule` from `/access/me`, read it from there and
+> use `/access/page` for the initial load or when you want a fresh answer. Both
+> return the same thing.
 
-### 4.3 Caching and refresh
+### Read-only mode beats a hidden screen
 
-| When | Do |
-| --- | --- |
-| After `verify-otp` | Fetch, hydrate, then render |
-| Hard reload with a token | Fetch again |
-| `GET /auth/me` returns a different `permissionsVersion` | Refetch |
-| Window regains focus, `generatedAt` older than 15 min | Refetch |
-| **Any `403` response** | **Refetch, then re-evaluate** |
-| Logout, or any `401` | Clear the store |
+If a user has `canView` but not `canEdit`, **show the record with the fields
+disabled** rather than refusing to open it. That is what the .NET portal does
+("…are view only for your user group"), and it is the difference between a
+user who can do their job and one who files a ticket.
 
-**The 403 rule is the important one.** A 403 means your cached map was wrong —
-an admin changed something mid-session. Refetch, then look again: if the
-permission really is gone, the button disappears on re-render and you show the
-"access removed" message. If it is still there, it was a *scope* problem and the
-error body already explains it.
+### Route guarding
 
-Storage: keep it in **one** store (React context / Pinia / NgRx). Mirror to
-`sessionStorage` keyed `acl:<employeeId>:<version>` so F5 does not flash an empty
-menu. **Never `localStorage`** — it survives logout on a shared machine.
+```js
+<Route
+  path="/employees"
+  element={<RequireRight moduleCode="EMPLOYEES" action="canView"><EmployeesPage /></RequireRight>}
+/>
+```
 
----
-
-## 5. The permission-driven UI pattern
-
-### 5.1 One provider, one hook
-
-```ts
-interface AccessApi {
-  can(code: string): boolean;
-  canAny(codes: string[]): boolean;
-  canAll(codes: string[]): boolean;
-  scopeOf(code: string): Scope | null;
-  hasScopeAtLeast(code: string, min: Scope): boolean;
-  canModule(moduleCode: string): boolean;
-  isLoading: boolean;
-  refresh(): Promise<void>;
+```jsx
+function RequireRight({ moduleCode, action, children }) {
+  const { rightsByModule } = useSession();
+  if (!rightsByModule[moduleCode]?.[action]) return <Navigate to="/no-access" replace />;
+  return children;
 }
 ```
 
-```tsx
-export function useAccess(): AccessApi { /* reads the store */ }
+---
 
-// Reference implementation of the two that matter
-const can = (code: string) => code in acl.permissions;
+## 7. The administration screens
 
-const hasScopeAtLeast = (code: string, min: Scope) => {
-  const mine = acl.permissions[code];
-  return mine !== undefined && SCOPE_RANK[mine] >= SCOPE_RANK[min];
-};
+Three screens, mirroring the .NET portal.
+
+### 7.1 Group List — `/administration/groups`
+
+`GET /access/groups?search=&page=1&pageSize=25`
+
+| Column | From |
+|---|---|
+| Group Name | `groupName` |
+| Description | `description` |
+| Members | `memberCount` |
+| Active | `isActive` |
+| Edit | show when `canEdit` on `GROUPS` |
+| Delete | show when `canDelete` on `GROUPS`, and **disable when `memberCount > 0`** |
+
+Show the Delete button disabled with a tooltip rather than hidden when a group
+has members — the server refuses it with `409 GROUP_HAS_MEMBERS`, and a
+disabled button with a reason is a better answer than a failed click.
+
+A group with `isSystem: true` (Administrator) must render **without** Edit or
+Delete. The server refuses both with `409 GROUP_IS_SYSTEM`.
+
+### 7.2 Add / Edit Group — `/administration/groups/:id`
+
+This is the matrix screen. Two calls:
+
+```
+GET /access/modules                 -> the catalog (for a new group)
+GET /access/groups/:groupId         -> the group AND its complete matrix
 ```
 
-> **House rule: nothing outside this hook reads `permissions` directly.** One
-> place to change when the payload shape moves.
+`GET /access/groups/:groupId` already returns **every** active module, with
+zeros where the group holds nothing — so you render the grid straight from
+`data.rights` without merging anything yourself:
 
-### 5.2 Route guards
-
-Declare them **in the route table**, not inside page components, so the entire
-access map of the app is readable in one file.
-
-```tsx
-{ path: '/admin/roles',  element: <RequirePermission code="roles.view"><RolesPage /></RequirePermission> },
-{ path: '/admin/groups', element: <RequirePermission code="groups.view"><GroupsPage /></RequirePermission> },
-{ path: '/employees',    element: <RequirePermission code="employees.view"><EmployeesPage /></RequirePermission> },
+```json
+{
+  "data": {
+    "groupId": 4,
+    "groupName": "Recruiters",
+    "description": "Hiring team",
+    "isSystem": false,
+    "isActive": true,
+    "memberCount": 6,
+    "rights": [
+      { "moduleId": 1,  "moduleCode": "DASHBOARD", "moduleName": "Dashboard",
+        "parentModuleId": null, "routePath": "/dashboard", "sortOrder": 10,
+        "canView": true, "canAdd": false, "canEdit": false,
+        "canDelete": false, "canPrint": false, "canMail": false },
+      { "moduleId": 11, "moduleCode": "EMPLOYEES", "moduleName": "Employees", "...": "..." }
+    ]
+  }
+}
 ```
 
-**On failure, redirect to `/no-access`, never to login.** Bouncing an
-already-logged-in user to a login screen is the single most confusing thing an
-ACL frontend can do — they log in again, land in the same place, and file a
-ticket. Unauthenticated is a *separate*, outer guard that does go to login.
+The grid: one row per module, six checkboxes, exactly like the .NET screen.
 
-### 5.3 Component and button guards
-
-```tsx
-<Can code="employees.create">
-  <Button onClick={openCreate}>Add employee</Button>
-</Can>
-
-<Can code="employees.delete" fallback={<Tooltip title="Requires DEPARTMENT access">
-  <span><Button disabled>Delete</Button></span>
-</Tooltip>}>
-  <Button danger onClick={confirmDelete}>Delete</Button>
-</Can>
+```
+Module                  View   Add   Edit   Delete   Print   Mail
+Dashboard                [x]   [ ]   [ ]     [ ]      [ ]     [ ]
+Employee Management      [x]   [ ]   [ ]     [ ]      [ ]     [ ]
+  Employees              [x]   [x]   [x]     [ ]      [x]     [ ]
+Organization Setup       [ ]   [ ]   [ ]     [ ]      [ ]     [ ]
+  Organizations          [ ]   [ ]   [ ]     [ ]      [ ]     [ ]
 ```
 
-**The rule: hide navigational affordances, disable destructive ones with a
-tooltip.** A menu item the user can never reach is noise — hide it. A delete
-button on a row they can see but cannot delete is *information* — disable it and
-say why. Never render an **enabled** control that is guaranteed to 403.
+Indent children under their `parentModuleId` and order by `sortOrder`.
 
-### 5.4 Menu generation
+Two conveniences worth building, because an administrator setting up a group
+otherwise clicks sixty boxes: a **select-all per row**, and **ticking Add,
+Edit, Delete, Print or Mail auto-ticks View** (a user who may edit a screen
+they cannot open is a contradiction the backend will honour literally).
 
-Driven by `data.modules`, never a hardcoded array.
+Save with the whole matrix:
 
-```ts
-// Presentation only. Presence, label and order all come from the server.
-const MENU_META: Record<string, { path: string; icon: string }> = {
-  employees:    { path: '/employees',    icon: 'users' },
-  attendance:   { path: '/attendance',   icon: 'clock' },
-  leave:        { path: '/leave',        icon: 'calendar' },
-  payslip:      { path: '/payslips',     icon: 'file-text' },
-  announcement: { path: '/announcements',icon: 'megaphone' },
-  roles:        { path: '/admin/roles',  icon: 'shield' },
-  groups:       { path: '/admin/groups', icon: 'users-cog' },
-};
-
-const menu = acl.modules
-  .filter((m) => MENU_META[m.code])
-  .sort((a, b) => a.sortOrder - b.sortOrder)
-  .map((m) => ({ ...MENU_META[m.code], label: m.name, moduleCode: m.code }));
+```http
+PUT /access/groups/4
+{
+  "groupName": "Recruiters",
+  "description": "Hiring team",
+  "isActive": true,
+  "rights": [
+    { "moduleId": 11, "canView": true, "canAdd": true, "canEdit": true,
+      "canDelete": false, "canPrint": true, "canMail": false },
+    { "moduleId": 1,  "canView": true }
+  ]
+}
 ```
 
-A module absent from `modules[]` never renders. Adding a module to the backend
-catalog makes it appear here with no frontend release — only the `MENU_META`
-entry for path and icon is needed.
+Omitted flags default to `false`. **Modules you leave out of the array are
+left untouched** — so you can save one row from a partial edit if you want to,
+but the screen normally posts all of them.
 
-### 5.5 Column- and field-level control
+If the form state might not carry a valid name, use the rights-only endpoint
+instead so a blank name field cannot block a sixty-row save:
 
-```tsx
-// A column only some people may see
-const columns = [
-  { key: 'name',  title: 'Name' },
-  { key: 'email', title: 'Work email' },
-  ...(can('payroll.view') ? [{ key: 'ctc', title: 'CTC' }] : []),
-];
-
-// A field that is readable but not editable
-<Input value={employee.designation} readOnly={!can('employees.update')} />
+```http
+PUT /access/groups/4/rights
+{ "rights": [ ... ] }
 ```
 
-### 5.6 Scope-aware labelling
+### 7.3 User Access — `/administration/user-access`
 
-```tsx
-const scope = scopeOf('employees.view');
-const subtitle = {
-  OWN: 'Your own record',
-  TEAM: 'You and your direct reports',
-  DEPARTMENT: 'Your department',
-  ALL: 'All employees',
-}[scope ?? 'OWN'];
+Who is in which group. One employee has exactly **one** group.
+
+```http
+GET    /access/groups/4/members?page=1&pageSize=25
+PUT    /access/employees/17/group     { "groupId": 4 }
+PUT    /access/employees/17/group     { "groupId": null }   // remove
+DELETE /access/employees/17/group                            // same thing
+POST   /access/groups/4/members       { "employeeDetailIds": [17, 18, 19] }
 ```
 
-Use `scopeContext` to disable a row action on somebody else's record:
+The bulk call is all-or-nothing and reports ids it could not find rather than
+failing the whole batch:
 
-```ts
-const isMine = row.employeeDetailId === acl.scopeContext.employeeDetailId;
-const isMyReport = row.managerId === acl.scopeContext.employeeDetailId;
+```json
+{ "data": { "groupId": 4, "assigned": [17, 18], "missing": [19] } }
 ```
-
-**Do not re-filter the list the server returned.** It is already scoped. These
-values are for disabling controls, nothing else.
 
 ---
 
-## 6. Screens to build
+## 8. Complete API reference
 
-### 6.1 Role management — `/admin/roles`
+Base: `/api/v1`. Every call needs `Authorization: Bearer <accessToken>`.
 
-**Needs** `roles.view` to open; `roles.create` / `roles.update` / `roles.delete`
-for the actions.
+### For every signed-in user — no right required
 
-**List table:** Name · Code · Permissions count · Users count · System badge ·
-Active · row actions (Edit, Permissions, Delete).
+| Method | Path | Returns |
+|---|---|---|
+| `GET` | `/access/me` | group, `isSystemGroup`, `modules[]`, `rightsByModule{}` |
+| `GET` | `/access/menu` | the filtered navigation tree |
+| `GET` | `/access/page?path=` | the six rights for one page (also `?moduleCode=`, `?moduleId=`) |
 
-**Create / Edit drawer:** `name`, `description`. `code` is editable **only on
-create** — after that it is immutable and rendered read-only.
+### Modules — needs `GROUPS: canView`
 
-**System roles** (the five masters) come back with `isSystem: true`. Render a
-lock icon and disable rename/delete **from that flag** — do not rely on catching
-the 403. Catch it as a backstop anyway.
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/access/modules` | the catalog. `?includeInactive=true` for retired ones |
 
-**Delete** opens a confirm naming the user count. If the role still has users the
-API answers `409` with `details.userCount`; show that, do not retry.
+### Groups — needs `GROUPS`
 
-```
-GET    /api/v1/roles?page=1&pageSize=20&search=
-POST   /api/v1/roles                      { code, name, description? }
-PATCH  /api/v1/roles/:roleId              { name?, description?, isActive? }
-DELETE /api/v1/roles/:roleId
-```
+| Method | Path | Right | Notes |
+|---|---|---|---|
+| `GET` | `/access/groups` | `canView` | `?search=`, `?page=`, `?pageSize=`, `?includeInactive=` |
+| `GET` | `/access/groups/:groupId` | `canView` | group + **complete** matrix + `memberCount` |
+| `POST` | `/access/groups` | `canAdd` | `{ groupName, description?, isActive?, rights? }` → `201` |
+| `PUT` | `/access/groups/:groupId` | `canEdit` | name, description, isActive and/or rights |
+| `PUT` | `/access/groups/:groupId/rights` | `canEdit` | `{ rights: [...] }` only |
+| `DELETE` | `/access/groups/:groupId` | `canDelete` | refused while it has members |
 
-```jsonc
-// RoleSummary
-{ "roleId": 3, "code": "HR_EXECUTIVE", "name": "HR Executive",
-  "description": "Day-to-day employee record maintenance",
-  "isSystem": true, "isActive": true,
-  "permissionCount": 18, "userCount": 7,
-  "modifiedAt": "2026-10-19T08:11:02.000Z" }
-```
+### Membership — needs `USER_ACCESS`
 
-### 6.2 Permission matrix — `/admin/roles/:roleId/permissions`
-
-**The centrepiece.** Needs `roles.view` to open, `roles.assign-permission` to save.
-
-**Layout.** Collapsible section per module, from `GET /permissions/catalog`. One
-row per permission: a checkbox, the permission name and description, and a scope
-`<select>` that is **enabled only when the row is checked and `isScoped` is
-true**. A "select all" checkbox per module header.
-
-**Scope dropdown options come from `catalog.scopes`** in the same response —
-never hardcode the four values, so adding a scope later is a backend-only change.
-
-**Dirty tracking** with an unsaved-changes guard on navigation.
-
-**Save sends the entire desired state** — every checked permission with its
-scope — via `PUT`. The screen is a grid and the user's mental model is "this is
-the state I want", so a full replace means no diffing on your side and no lost
-update when two cells change.
-
-Send `expectedModifiedAt` from the role you loaded. If someone else saved
-meanwhile the API answers `409 ROLE_MODIFIED_ELSEWHERE`; show "This role was
-changed by someone else. Reload and reapply."
-
-**There is no "create permission" button.** The catalog is read-only, by design —
-permissions are code artefacts, and one created through a UI is a permission
-nothing checks. Say so in a hint on the page if there is room.
-
-```
-GET /api/v1/permissions/catalog
-GET /api/v1/roles/:roleId/permissions
-PUT /api/v1/roles/:roleId/permissions
-    { "permissions": [ { "permissionId": 12, "scope": "ALL" }, ... ],
-      "expectedModifiedAt": "2026-10-19T08:11:02.000Z" }
-```
-
-```jsonc
-// GET /permissions/catalog
-{ "modules": [
-    { "code": "employees", "name": "Employees", "sortOrder": 10,
-      "permissions": [
-        { "permissionId": 11, "code": "employees.view", "module": "employees",
-          "action": "view", "name": "View employees",
-          "description": "See employee records", "isScoped": true,
-          "defaultScope": "OWN", "sortOrder": 10 }
-      ] }
-  ],
-  "scopes": [
-    { "value": "OWN",        "rank": 1, "name": "Own record only" },
-    { "value": "TEAM",       "rank": 2, "name": "Self and direct reports" },
-    { "value": "DEPARTMENT", "rank": 3, "name": "Whole department" },
-    { "value": "ALL",        "rank": 4, "name": "Entire organisation" }
-  ] }
-```
-
-### 6.3 Group management — `/admin/groups`
-
-**Needs** `groups.view`; `groups.create` / `update` / `delete`,
-`groups.manage-member`, `groups.assign-permission` for actions.
-
-Same list + drawer pattern as roles. The detail view has **two tabs**:
-
-**Permissions tab** — the *identical matrix component* as §6.2, pointed at the
-group endpoints. Build it once, parameterise the endpoints and the "save"
-permission. Do not fork it.
-
-**Members tab** — a searchable employee picker, add/remove. Optimistic update
-with rollback on failure.
-
-Add a one-line hint on the page: *"Groups only add permissions. They can never
-remove one — use a per-user DENY for that."*
-
-```
-GET    /api/v1/groups
-POST   /api/v1/groups                            { code, name, description? }
-GET    /api/v1/groups/:groupId
-PATCH  /api/v1/groups/:groupId
-DELETE /api/v1/groups/:groupId
-GET    /api/v1/groups/:groupId/permissions
-PUT    /api/v1/groups/:groupId/permissions       { permissions: [...] }
-GET    /api/v1/groups/:groupId/members?search=
-POST   /api/v1/groups/:groupId/members           { employeeIds: [12, 13] }
-DELETE /api/v1/groups/:groupId/members/:employeeId
-```
-
-Membership is add/remove rather than full-replace because a group can hold
-hundreds of people and the UI is a picker, not a grid.
-
-### 6.4 User access and overrides — `/admin/users/:employeeId/access`
-
-**Needs** `user-access.view` to open. Four panels on one page.
-
-**Panel 1 — Roles.** Multi-select of all active roles, saved with
-`PUT .../roles` (full replace). Needs `user-access.assign-role`.
-Warn when `MANAGER` is selected without `EMPLOYEE` (see §2.4).
-
-**Panel 2 — Groups.** Multi-select, `PUT .../groups`. Needs
-`user-access.manage-group`.
-
-**Panel 3 — Overrides.** Needs `user-access.override` (Super Admin only by
-default). A table: Permission · Effect · Scope · Reason · Expires · Added by ·
-When.
-
-The add dialog:
-- `permissionId` — searchable picker over the catalog
-- `effect` — `GRANT` or `DENY`
-- `scope` — **shown only for `GRANT` on a scoped permission.** Sending a scope
-  with a `DENY` is rejected `422 SCOPE_NOT_SUPPORTED`; omitting it on a scoped
-  `GRANT` is `422 SCOPE_REQUIRED`
-- `reason` — **required**. An exception nobody can explain is the thing an
-  auditor asks about first
-- `expiresAt` — optional
-
-Render DENY rows in red with the hint *"This removes the permission regardless
-of role or group."*
-
-**Panel 4 — Effective permissions (read-only).** From
-`GET .../effective-permissions`. For each code: the final scope **and the source
-chain**, so an admin can answer "why can this person approve leave?" without
-guessing.
-
-```jsonc
-{ "employeeId": 12,
-  "permissions": [
-    { "code": "leave.approve", "effectiveScope": "TEAM", "granted": true,
-      "sources": [ { "type": "ROLE",  "name": "Manager", "scope": "TEAM" } ] },
-    { "code": "leave.view", "effectiveScope": "TEAM", "granted": true,
-      "sources": [ { "type": "ROLE",  "name": "Employee", "scope": "OWN" },
-                   { "type": "ROLE",  "name": "Manager",  "scope": "TEAM" } ] },
-    { "code": "payroll.view", "effectiveScope": null, "granted": false,
-      "sources": [ { "type": "GROUP",    "name": "Payroll Reviewers", "scope": "ALL" },
-                   { "type": "OVERRIDE", "effect": "DENY",
-                     "reason": "Under investigation — SEC-114" } ] }
-  ] }
-```
-
-Render the third case with the group row struck through and the DENY row
-highlighted — that single visual is what makes the whole model explainable to a
-non-technical admin.
-
-**Self-edit guard:** if the admin is viewing their own record, warn before
-saving. The API answers `409 SELF_LOCKOUT_BLOCKED` if the change would remove
-their own administrative access.
-
-```
-GET    /api/v1/access/users/:employeeId
-GET    /api/v1/access/users/:employeeId/roles
-PUT    /api/v1/access/users/:employeeId/roles        { roleIds: [1, 4] }
-GET    /api/v1/access/users/:employeeId/groups
-PUT    /api/v1/access/users/:employeeId/groups       { groupIds: [2] }
-GET    /api/v1/access/users/:employeeId/overrides
-POST   /api/v1/access/users/:employeeId/overrides
-       { permissionId, effect, scope?, reason, expiresAt? }
-PATCH  /api/v1/access/users/:employeeId/overrides/:overrideId
-DELETE /api/v1/access/users/:employeeId/overrides/:overrideId
-GET    /api/v1/access/users/:employeeId/effective-permissions
-```
-
-### 6.5 `/no-access`
-
-Reached by route guards and by catching a 403. Shows: the attempted route, the
-required permission code, a "request access" link (mailto or ticket), and a back
-button. **Never auto-redirects to login.**
+| Method | Path | Right | Notes |
+|---|---|---|---|
+| `GET` | `/access/groups/:groupId/members` | `canView` | paged |
+| `POST` | `/access/groups/:groupId/members` | `canEdit` | `{ employeeDetailIds: [] }` |
+| `PUT` | `/access/employees/:employeeDetailId/group` | `canEdit` | `{ groupId }` or `{ groupId: null }` |
+| `DELETE` | `/access/employees/:employeeDetailId/group` | `canEdit` | remove from their group |
 
 ---
 
-## 7. Error handling
+## 9. Error handling
 
-Every response — success or failure — uses the same envelope:
+Every failure uses the standard envelope, with the machine-readable code in
+**`details.code`** — not in `data`.
 
-```jsonc
-{ "success": false, "statusCode": 403,
+```json
+{
+  "success": false,
+  "statusCode": 403,
   "message": "You do not have permission to perform this action",
-  "data": null,
-  "details": { "code": "PERMISSION_DENIED", "required": ["employees.update"] } }
+  "details": {
+    "code": "PERMISSION_DENIED",
+    "requiredAccess": { "module": "EMPLOYEES", "action": "delete" }
+  }
+}
 ```
 
-| Status | What it means | What to do |
-| --- | --- | --- |
-| **400** | Validation failed | Map `details` onto form fields by key. Nested keys like `permissions[2].scope` address a grid cell |
-| **401** | Not authenticated, or token expired | Try the refresh token **once**. On failure, clear the store and go to login |
-| **403** | Authenticated, but not allowed | Toast `message`. **Refetch `/my-permissions`.** Re-render. Never retry the call |
-| **404** | Not found — **or outside your scope** | "Record not found". The ambiguity is deliberate; do not try to distinguish |
-| **409** | Conflict | Show `message`. For `ROLE_MODIFIED_ELSEWHERE` offer reload; for `*_IN_USE` show the count from `details` |
-| **422** | Semantically invalid payload | A bug in your request. Show `message`, log `details` |
-| **429** | Rate limited | Back off; `details.retryAfterSeconds` tells you how long |
+| Status | `details.code` | What the UI should do |
+|---|---|---|
+| `401` | — | token missing, expired or revoked → refresh once, then sign out |
+| `403` | `NO_GROUP_ASSIGNED` | **no group at all.** Show "your account has no access yet — contact your administrator". Do not say "permission denied"; the fix is a different one |
+| `403` | `PERMISSION_DENIED` | their group lacks that right. `requiredAccess` names it — safe to show in a support ticket |
+| `403` | `ACCOUNT_INACTIVE` | they have been deactivated or exited → sign out |
+| `404` | `GROUP_NOT_FOUND` | the group was deleted by someone else → refresh the list |
+| `404` | `UNKNOWN_MODULE` (on `/access/page`) | that path is not a module. A frontend bug, not a rights problem |
+| `409` | `NAME_ALREADY_EXISTS` | duplicate group name → highlight the field |
+| `409` | `GROUP_IS_SYSTEM` | Administrator cannot be changed → the button should not have been shown |
+| `409` | `GROUP_HAS_MEMBERS` | `details.memberCount` says how many → "move these N people first" |
+| `409` | `GROUP_INACTIVE` | assigning into a switched-off group |
+| `400` | `UNKNOWN_MODULE` | a module id in the payload is not in the catalog |
+| `400` | `DUPLICATE_MODULE_RIGHT` | the same module twice in one matrix |
 
-**Always render `body.message`. Never invent your own copy.** Every string comes
-from one backend enum, so the wording stays consistent across every client; a
-hand-written toast drifts the moment the backend rewords something.
-
-`details.code` is a stable machine-readable string (`PERMISSION_DENIED`,
-`SCOPE_DENIED`, `ROLE_IS_PROTECTED`, `SELF_LOCKOUT_BLOCKED`, …). Branch on
-**that**, never on the message text.
-
-### Why 403 and 404 split the way they do
-
-On a **read**, a row outside your scope returns **404**, not 403 — otherwise the
-response would confirm that an employee id exists, which is exactly what scoping
-is meant to hide.
-
-On a **write** to a row you *can* read but not modify, you get **403
-`SCOPE_DENIED`** with the required scope in `details`. You already see the row on
-screen, so a 404 there would be a lie that generates a support ticket.
+A `403` arriving on a screen you rendered is **not** necessarily a bug — the
+user's rights may have changed since the page loaded. Re-fetch `/access/me`
+and re-render before showing an error.
 
 ---
 
-## 8. Testing checklist
+## 10. Testing checklist
 
-- [ ] Log in as each of the five master roles — five visibly different menus.
-- [ ] Manager sees only direct reports in `/employees`; HR Admin sees everyone.
-- [ ] Employee cannot reach `/admin/roles` by typing the URL directly.
-- [ ] **Deep-link every protected route** with the URL bar, not just the menu.
-- [ ] Add a DENY override for a permission the user's role grants → after
-      refetch, the button is gone.
-- [ ] Toggle a role permission in a second browser tab, then save in the first →
-      the `409` concurrency path shows the reload prompt.
-- [ ] Strip a permission mid-session, then click the stale button → 403 →
-      automatic refetch → control disappears. **No logout.**
-- [ ] Clear `sessionStorage` mid-session and reload → the app rehydrates
-      cleanly, no empty-menu flash.
-- [ ] Log out → the access store is empty and no permission survives in storage.
+- [ ] A user with **no group** sees the shell, an empty menu, and a clear message
+- [ ] A user with `canView` only: no Add, Edit, Delete, Print or Mail buttons anywhere
+- [ ] …and the detail screen opens **read-only** rather than refusing
+- [ ] Granting a right in another browser takes effect on **refresh**, with no re-login
+- [ ] Removing a user's group takes effect the same way
+- [ ] The Administrator group shows no Edit or Delete
+- [ ] Deleting a group with members is prevented, with the count shown
+- [ ] A deep link to a page the user cannot view redirects instead of flashing the screen
+- [ ] A `403` from any call is handled without a blank page
+- [ ] **Call a guarded endpoint from curl with a low-rights token** — it must be refused.
+      That is the real test; everything above is the UI being polite
 
 ---
 
-## 9. Appendix — permission catalog
+## 11. Common mistakes
 
-Scoped permissions accept OWN / TEAM / DEPARTMENT / ALL; unscoped ones are a
-plain yes/no.
-
-| Module | Permissions | Scoped |
-| --- | --- | --- |
-| `profile` | view, update | yes |
-| `employees` | view, create, update, delete, export | yes |
-| `employee-document` | view, upload, delete | yes |
-| `attendance` | view, mark, regularize, approve, export | yes |
-| `leave` | view, apply, cancel, approve | yes |
-| `leave` | configure | no |
-| `payroll` | view, process | yes |
-| `payroll` | configure | no |
-| `payslip` | view, download | yes |
-| `department` | view, create, update, delete | no |
-| `designation` | view, create, update, delete | no |
-| `announcement` | view, create, update, delete | no |
-| `report` | headcount, attendance, payroll | yes |
-| `roles` | view, create, update, delete, assign-permission | no |
-| `permissions` | view | no |
-| `groups` | view, create, update, delete, manage-member, assign-permission | no |
-| `user-access` | view, assign-role, manage-group, override | no |
-
-The authoritative list is always `GET /api/v1/permissions/catalog`, generated
-from `src/enums/permission.enum.js`. Build the matrix screen from that response,
-never from this table.
+| Don't | Do |
+|---|---|
+| `if (group === 'HR Admin')` | `if (rights.canEdit)` |
+| Hard-code module ids in screens | Ask `/access/page?path=` with the route you already have |
+| Filter the menu yourself | Render `/access/menu` as given |
+| Build the matrix by merging modules + grants | Use `GET /access/groups/:id`, which returns it whole |
+| Treat `403` as fatal | Re-fetch `/access/me`; their rights may have changed |
+| Cache rights in `localStorage` across sessions | Keep them in session state, re-fetch on login and refresh |
+| Hide a record the user may view but not edit | Show it disabled |

@@ -11,10 +11,9 @@
  *      at a location and a real FOREIGN KEY now enforces it, so "delete" is a
  *      DeletedAt stamp and the endpoint refuses while anybody is assigned.
  *
- * Who may call these is settled before the request arrives, by
- * requirePermission in the route file. Nothing here re-checks a permission -
- * none of these permissions is scoped, so there are no rows to narrow and no
- * second question to answer.
+ * Who may call these is settled before the request arrives, by requireAccess
+ * in the route file. Nothing here re-checks a right: a group either holds the
+ * action on the module or the request never arrived.
  */
 import { query, queryOne } from '../helpers/query.helper.js';
 import {

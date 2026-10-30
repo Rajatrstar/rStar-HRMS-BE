@@ -11,6 +11,7 @@ import { getPool, closePool } from './config/db.js';
 import { API_PREFIX } from './enums/index.js';
 import { logger } from './utils/logger.js';
 import { assertTemplatesExist } from './utils/template.js';
+import { auditRoutes } from './utils/route-audit.js';
 import { startEmailWorker, stopEmailWorker } from './workers/email-outbox.worker.js';
 
 async function start() {
@@ -25,6 +26,15 @@ async function start() {
   startEmailWorker();
 
   const app = createApp();
+
+  // Refuses to start if any API route is missing its access guard. Deliberately
+  // before listen(): an unguarded endpoint must never be reachable, not even for
+  // the moment it takes somebody to read the log.
+  const audit = auditRoutes(app);
+  logger.info(
+    `Access guards verified on ${audit.guarded}/${audit.total} API routes (${audit.public} public)`,
+  );
+
   const server = app.listen(env.PORT, () => {
     logger.info(`API listening on http://localhost:${env.PORT}${API_PREFIX} [${env.NODE_ENV}]`);
   });

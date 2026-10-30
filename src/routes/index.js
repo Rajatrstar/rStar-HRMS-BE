@@ -9,12 +9,15 @@ import { ROUTE_GROUP } from '../enums/index.js';
 import healthRoutes from './health.routes.js';
 import authRoutes from './auth.routes.js';
 import organizationRoutes from './organization.routes.js';
+import employeeRoutes from './employee.routes.js';
+import accessRoutes from './access.routes.js';
 
 const router = Router();
 
 router.use(ROUTE_GROUP.HEALTH, healthRoutes);
 router.use(ROUTE_GROUP.AUTH, authRoutes);
 router.use(ROUTE_GROUP.ORGANIZATIONS, organizationRoutes);
-// router.use(ROUTE_GROUP.EMPLOYEES, employeeRoutes);
+router.use(ROUTE_GROUP.EMPLOYEES, employeeRoutes);
+router.use(ROUTE_GROUP.ACCESS, accessRoutes);
 
 export default router;

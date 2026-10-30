@@ -37,18 +37,45 @@ function toBool(key, fallback) {
   return optional(key, String(fallback)).toLowerCase() === 'true';
 }
 
+const DB_HOST = required('DB_HOST');
+
+/**
+ * Whether we are pointed at Azure SQL Database rather than a SQL Server you
+ * can walk up to.
+ *
+ * Derived from the host instead of being its own flag, because a flag can
+ * disagree with the host name and the defaults it drives — encryption, patient
+ * timeouts, retrying a connect — are exactly the ones you must not get wrong
+ * by forgetting to flip a second setting.
+ */
+const IS_AZURE_SQL = /\.database\.windows\.net$/i.test(DB_HOST);
+
 export const env = Object.freeze({
   NODE_ENV: optional('NODE_ENV', 'development'),
   PORT: toInt('PORT', 5000),
   CORS_ORIGIN: optional('CORS_ORIGIN', '*'),
 
-  DB_HOST: required('DB_HOST'),
+  DB_HOST,
   DB_PORT: toInt('DB_PORT', 1433),
   DB_NAME: required('DB_NAME'),
   DB_USER: required('DB_USER'),
   DB_PASSWORD: required('DB_PASSWORD'),
   DB_ENCRYPT: toBool('DB_ENCRYPT', true),
-  DB_TRUST_SERVER_CERTIFICATE: toBool('DB_TRUST_SERVER_CERTIFICATE', true),
+  // A local instance presents a self-signed certificate that no CA vouches
+  // for, so it has to be trusted blindly. Azure SQL does not, so the default
+  // flips and the check below refuses to let it be turned off.
+  DB_TRUST_SERVER_CERTIFICATE: toBool('DB_TRUST_SERVER_CERTIFICATE', !IS_AZURE_SQL),
+
+  // Azure is allowed to be slow before it is allowed to be broken: a
+  // serverless database that has auto-paused takes tens of seconds to resume,
+  // and 15 seconds would turn every first request of the morning into an
+  // outage.
+  DB_CONNECTION_TIMEOUT_MS: toInt('DB_CONNECTION_TIMEOUT_MS', IS_AZURE_SQL ? 30_000 : 15_000),
+  DB_REQUEST_TIMEOUT_MS: toInt('DB_REQUEST_TIMEOUT_MS', IS_AZURE_SQL ? 60_000 : 30_000),
+  DB_POOL_MAX: toInt('DB_POOL_MAX', 10),
+  // Retries are for transient Azure failures only (see db.js) — a wrong
+  // password still fails on the first attempt.
+  DB_CONNECT_RETRIES: toInt('DB_CONNECT_RETRIES', IS_AZURE_SQL ? 5 : 1),
 
   // Separate secrets, so a leaked access secret cannot be used to mint refresh
   // tokens. Both are required: a default would silently ship to production.
@@ -116,6 +143,34 @@ export const env = Object.freeze({
 });
 
 export const isProduction = env.NODE_ENV === 'production';
+
+/** True when DB_HOST is an Azure SQL logical server. */
+export const isAzureSql = IS_AZURE_SQL;
+
+/**
+ * Two settings that are merely unwise locally are a hole in the wire against
+ * Azure, and both fail in ways that do not look like themselves: an
+ * unencrypted connection is simply refused, and a blindly trusted certificate
+ * fails silently — by working.
+ *
+ * Checked here rather than in db.js so a misconfigured deployment dies at
+ * import time, before it can serve a single request over that connection.
+ */
+if (IS_AZURE_SQL) {
+  if (!env.DB_ENCRYPT) {
+    throw new Error(
+      'DB_ENCRYPT=false cannot be used with Azure SQL: the service only accepts encrypted ' +
+        'connections. Remove it or set DB_ENCRYPT=true.',
+    );
+  }
+  if (env.DB_TRUST_SERVER_CERTIFICATE) {
+    throw new Error(
+      'DB_TRUST_SERVER_CERTIFICATE=true cannot be used with Azure SQL. Its certificate is issued ' +
+        'by a public CA and validates on its own; trusting any certificate only disables the ' +
+        'check that would catch an interception. Set DB_TRUST_SERVER_CERTIFICATE=false.',
+    );
+  }
+}
 
 /**
  * Whether the login response may echo the OTP.

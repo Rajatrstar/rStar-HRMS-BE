@@ -14,11 +14,13 @@
     "db:migrate": "node --env-file-if-exists=.env scripts/migrate.js",
     "db:seed": "node --env-file-if-exists=.env scripts/seed.js",
     "db:seed:employees": "node --env-file-if-exists=.env scripts/seed-employees.js",
-    "db:seed:permissions": "node --env-file-if-exists=.env scripts/seed-permissions.js",
+    "db:seed:access": "node --env-file-if-exists=.env scripts/seed-access.js",
+    "db:seed:users": "node --env-file-if-exists=.env scripts/seed-users.js",
     "db:create:admin": "node --env-file-if-exists=.env scripts/create-admin.js",
     "dev:node": "node --watch --env-file-if-exists=.env src/index.js",
     "mail:test": "node --env-file-if-exists=.env scripts/send-test-email.js",
-    "db:verify": "node --env-file-if-exists=.env scripts/verify-schema.js"
+    "db:verify": "node --env-file-if-exists=.env scripts/verify-schema.js",
+    "db:check": "node --env-file-if-exists=.env scripts/db-check.js"
   },
   "dependencies": {
     "@node-rs/bcrypt": "^2.0.0",

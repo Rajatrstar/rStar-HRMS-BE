@@ -6,7 +6,7 @@
  * from a controller, a script, or a scheduled job alike.
  */
 import { pingDatabase } from '../config/db.js';
-import { env } from '../config/env.js';
+import { env, isProduction } from '../config/env.js';
 
 /** Liveness: is the process itself up? Deliberately does not touch the database. */
 export function getLiveness() {
@@ -25,7 +25,12 @@ export async function getReadiness() {
   return {
     ready: database,
     checks: { database },
-    database: { host: env.DB_HOST, port: env.DB_PORT, name: env.DB_NAME },
+    // The host is a debugging aid on a developer machine. On a deployed server
+    // it is the address of the database, published to anyone who can reach
+    // /health — so production reports only whether it answered.
+    database: isProduction
+      ? { name: env.DB_NAME }
+      : { host: env.DB_HOST, port: env.DB_PORT, name: env.DB_NAME },
     timestamp: new Date().toISOString(),
   };
 }

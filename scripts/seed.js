@@ -9,7 +9,7 @@
  * are a satellite. So this creates the PERSON first and then their login, in
  * one transaction.
  *
- * It deliberately assigns NO ROLE, which means the account can sign in and
+ * It deliberately assigns NO GROUP, which means the account can sign in and
  * will then be refused by every guarded endpoint. That is not a bug, it is the
  * honest result of seeding credentials and nothing else - use
  * `npm run db:create:admin` when you want an account that can actually do
@@ -119,7 +119,7 @@ async function run_() {
     `${outcome.action}: ${email} ` +
       `(EmployeeId ${outcome.employeeId}, EmployeeDetailId ${outcome.employeeDetailId})`,
   );
-  logger.warn('No role assigned - this account will be refused by every guarded endpoint.');
+  logger.warn('No group assigned - this account will be refused by every guarded endpoint.');
   logger.warn(`Run: EMAIL=${email} npm run db:create:admin`);
 
   await closePool();

@@ -18,8 +18,8 @@
 #
 #   ORG_DEMO=1 ./scripts/api-flow.sh
 #
-# Both need a login holding the organization.* permissions - today that means
-# Super Admin or HR Admin. A 403 is reported and skipped, not fatal.
+# Both need a login whose GROUP holds View on the Organizations and Locations
+# modules. A 403 is reported and skipped, not fatal.
 #
 # The forgot-password flow runs last and is opt-in, because it really does
 # change a password. Give it an employee whose work email and date of birth
@@ -27,11 +27,26 @@
 #
 #   FORGOT_EMAIL=anmol.ghai@rstartec.com FORGOT_DOB=1995-06-12 ./scripts/api-flow.sh
 #
+# Employee writes are behind a switch too - they create a real employee,
+# exit them and delete them again:
+#
+#   EMP_DEMO=1 PASSWORD=... ./scripts/api-flow.sh
+#
 set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://localhost:5000/api/v1}"
-EMAIL="${EMAIL:-admin@rstartec.com}"
-PASSWORD="${PASSWORD:-admin}"
+# The only account that holds anything out of the box is the one `npm run
+# db:create:admin` puts in the Administrator group. Anyone else can sign in and
+# will then be refused by every guarded endpoint, which looks like a bug and is
+# not one - they are in no group.
+EMAIL="${EMAIL:-rajat.kushwaha@rstartec.com}"
+# No default: a wrong one produces a 401 at step 2 and a confusing 403 trail
+# after it, so fail loudly here instead.
+PASSWORD="${PASSWORD:-}"
+if [ -z "$PASSWORD" ]; then
+  echo "PASSWORD is not set. Run: PASSWORD='...' ./scripts/api-flow.sh" >&2
+  exit 1
+fi
 
 # Blank skips the forgot-password section entirely.
 FORGOT_EMAIL="${FORGOT_EMAIL:-}"
@@ -102,10 +117,22 @@ step "6. me  ->  GET $BASE_URL/auth/me  (token used automatically)"
 curl -sS "$BASE_URL/auth/me" -H "Authorization: Bearer $ACCESS_TOKEN"
 echo
 
+# The rotated pair is adopted, not discarded: the rest of the run - logout
+# included - should exercise the tokens a real client would now be holding.
+# Both stay in the SAME session as the pair login issued, which is what lets
+# step 20 end all of them at once.
 step "7. refresh  ->  POST $BASE_URL/auth/refresh"
-curl -sS -X POST "$BASE_URL/auth/refresh" \
+REFRESHED=$(curl -sS -X POST "$BASE_URL/auth/refresh" \
   -H 'Content-Type: application/json' \
-  -d "{\"refreshToken\":\"$REFRESH_TOKEN\"}" | json "j.message"
+  -d "{\"refreshToken\":\"$REFRESH_TOKEN\"}")
+echo "$REFRESHED" | json "j.message"
+
+NEW_ACCESS=$(echo "$REFRESHED" | json "j.data && j.data.accessToken")
+if [ -n "$NEW_ACCESS" ]; then
+  ACCESS_TOKEN="$NEW_ACCESS"
+  REFRESH_TOKEN=$(echo "$REFRESHED" | json "j.data && j.data.refreshToken")
+  echo "Rotated. Using the refreshed pair from here on."
+fi
 
 # --- organisation ----------------------------------------------------------
 # Needs organization.view, which only Super Admin and HR Admin hold today. A
@@ -122,11 +149,11 @@ if [ -n "$ORG_COUNT" ]; then
   echo "organizations on file: $ORG_COUNT"
 fi
 
-# details.requiredPermission names the exact code to grant, so a help-desk
-# ticket can quote it instead of guessing which role is missing what.
-ORG_DENIED=$(echo "$ORGS" | json "j.details && j.details.requiredPermission")
+# details.requiredAccess names the module and the action, so a help-desk ticket
+# can quote the exact checkbox instead of guessing which group is missing what.
+ORG_DENIED=$(echo "$ORGS" | json "j.details && j.details.requiredAccess && j.details.requiredAccess.module + ':' + j.details.requiredAccess.action")
 if [ -n "$ORG_DENIED" ]; then
-  echo "missing permission: $ORG_DENIED - only Super Admin and HR Admin hold it today"
+  echo "missing right: $ORG_DENIED - tick it for this user's group on the group screen"
 fi
 
 step "9. organization types  ->  GET $BASE_URL/organizations/types"
@@ -244,6 +271,108 @@ else
   echo "Set FORGOT_EMAIL and FORGOT_DOB to exercise the reset flow."
 fi
 
-printf '\n\033[32mFlow complete.\033[0m Export the token for ad-hoc calls:\n'
-printf '  export TOKEN=%s\n' "$ACCESS_TOKEN"
-printf '  curl %s/auth/me -H "Authorization: Bearer $TOKEN"\n' "$BASE_URL"
+# --- employees -------------------------------------------------------------
+# Needs employees.create / view / update / deactivate / delete. Like the
+# organisation section, a 403 here is a real answer - it means this login is
+# not an HR admin - so it is reported and the run continues.
+#
+# Set EMP_DEMO=1 to run it: it creates a real employee, exits them and deletes
+# them again. Everything it makes, it removes.
+
+step "20. employees  ->  GET $BASE_URL/employees?pageSize=5"
+EMPLOYEES=$(curl -sS "$BASE_URL/employees?pageSize=5" -H "Authorization: Bearer $ACCESS_TOKEN")
+echo "$EMPLOYEES" | json "j.message"
+EMP_TOTAL=$(echo "$EMPLOYEES" | json "j.meta && j.meta.total")
+if [ -n "$EMP_TOTAL" ]; then
+  echo "total employees visible to this login: $EMP_TOTAL"
+else
+  echo "$EMPLOYEES" | json "j.details && j.details.requiredAccess && 'missing right: ' + j.details.requiredAccess.module + ':' + j.details.requiredAccess.action"
+fi
+
+if [ -n "$EMP_DEMO" ]; then
+  EMP_STAMP=$(date +%s)
+  EMP_CODE="FLOW$EMP_STAMP"
+
+  step "21. create employee  ->  POST $BASE_URL/employees"
+  CREATED_EMP=$(curl -sS -X POST "$BASE_URL/employees" \
+    -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Content-Type: application/json' \
+    -d "{\"employeeCode\":\"$EMP_CODE\",\"firstName\":\"Flow\",\"lastName\":\"Probe\",
+         \"workEmail\":\"flow.$EMP_STAMP@rstartec.com\",\"employmentType\":\"Permanent\",
+         \"dateOfJoining\":\"2024-04-01\",\"designation\":\"Engineer\",\"workFromOffice\":true}")
+  echo "$CREATED_EMP" | json "j.message"
+
+  EMP_ID=$(echo "$CREATED_EMP" | json "j.data && j.data.employeeDetailId")
+  if [ -z "$EMP_ID" ]; then
+    echo "Could not create an employee: $CREATED_EMP" >&2
+  else
+    echo "employeeDetailId: $EMP_ID  (serial $(echo "$CREATED_EMP" | json "j.data.employeeSerialNo"))"
+
+    step "22. get employee  ->  GET $BASE_URL/employees/$EMP_ID"
+    curl -sS "$BASE_URL/employees/$EMP_ID" -H "Authorization: Bearer $ACCESS_TOKEN" \
+      | json "j.data && (j.data.firstName + ' ' + j.data.lastName)"
+
+    step "23. update employee  ->  PUT $BASE_URL/employees/$EMP_ID"
+    curl -sS -X PUT "$BASE_URL/employees/$EMP_ID" \
+      -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Content-Type: application/json' \
+      -d "{\"employeeCode\":\"$EMP_CODE\",\"firstName\":\"Flow\",\"lastName\":\"Probe-Renamed\",
+           \"workEmail\":\"flow.$EMP_STAMP@rstartec.com\",\"employmentType\":\"Permanent\",
+           \"dateOfJoining\":\"2024-04-01\",\"designation\":\"Senior Engineer\"}" \
+      | json "j.data && j.data.designation"
+
+    # The whole point of a separate endpoint: an exit without a date and a
+    # status is refused, rather than saved with IsActive = 0 and no story.
+    step "24. deactivate with no exit details  ->  PATCH (expected 400)"
+    curl -sS -X PATCH "$BASE_URL/employees/$EMP_ID/deactivate" \
+      -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Content-Type: application/json' -d '{}' \
+      | json "j.details && Object.keys(j.details).join(' and ') + ' are required'"
+
+    step "25. deactivate employee  ->  PATCH $BASE_URL/employees/$EMP_ID/deactivate"
+    curl -sS -X PATCH "$BASE_URL/employees/$EMP_ID/deactivate" \
+      -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Content-Type: application/json' \
+      -d '{"dateOfLeaving":"2026-03-31","employmentStatus":"Resigned"}' \
+      | json "j.data && ('isActive=' + j.data.isActive + ' status=' + j.data.employmentStatus)"
+
+    step "26. delete employee  ->  DELETE $BASE_URL/employees/$EMP_ID"
+    curl -sS -X DELETE "$BASE_URL/employees/$EMP_ID" -H "Authorization: Bearer $ACCESS_TOKEN" \
+      | json "j.message"
+  fi
+else
+  step "21-26. employee create / update / deactivate / delete  ->  skipped"
+  echo "Set EMP_DEMO=1 to exercise them. They create a real employee and remove it again."
+fi
+
+# --- logout ----------------------------------------------------------------
+# Last, because it ends the session every step above was using.
+#
+# The two checks after it are the point of the endpoint. A logout that only
+# deleted the client's copy of the token would still pass step 27 and fail
+# both of these: the access token would keep opening guarded routes until it
+# expired, and the refresh token would keep minting replacements for days.
+
+step "27. logout  ->  POST $BASE_URL/auth/logout"
+curl -sS -X POST "$BASE_URL/auth/logout" -H "Authorization: Bearer $ACCESS_TOKEN" | json "j.message"
+
+step "28. access token after logout  ->  GET $BASE_URL/auth/me  (expect 401)"
+ME_AFTER=$(curl -sS -o /dev/null -w '%{http_code}' "$BASE_URL/auth/me" \
+  -H "Authorization: Bearer $ACCESS_TOKEN")
+if [ "$ME_AFTER" = "401" ]; then
+  printf '\033[32mHTTP %s - access token rejected, as it should be.\033[0m\n' "$ME_AFTER"
+else
+  printf '\033[31mHTTP %s - the access token still works after logout.\033[0m\n' "$ME_AFTER" >&2
+  exit 1
+fi
+
+step "29. refresh token after logout  ->  POST $BASE_URL/auth/refresh  (expect 401)"
+REFRESH_AFTER=$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$BASE_URL/auth/refresh" \
+  -H 'Content-Type: application/json' \
+  -d "{\"refreshToken\":\"$REFRESH_TOKEN\"}")
+if [ "$REFRESH_AFTER" = "401" ]; then
+  printf '\033[32mHTTP %s - refresh token rejected too. Both halves are dead.\033[0m\n' "$REFRESH_AFTER"
+else
+  printf '\033[31mHTTP %s - the refresh token survived logout and can mint a new access token.\033[0m\n' "$REFRESH_AFTER" >&2
+  exit 1
+fi
+
+printf '\n\033[32mFlow complete.\033[0m Step 27 logged the session out, so the token\n'
+printf 'it used is dead. Sign in again for ad-hoc calls:\n'
+printf "  PASSWORD='...' ./scripts/api-flow.sh\n"

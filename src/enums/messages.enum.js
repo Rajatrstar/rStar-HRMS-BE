@@ -25,6 +25,7 @@ export const MESSAGES = Object.freeze({
   OTP_NOT_REQUESTED: 'No OTP is pending for this account. Please log in first',
   LOGIN_SUCCESS: 'Login successful',
   TOKEN_REFRESHED: 'Token refreshed',
+  LOGOUT_SUCCESS: 'Logged out. This access token and its refresh token are no longer valid.',
   TOKEN_MISSING: 'Authentication token is required',
   TOKEN_INVALID: 'Authentication token is invalid or has expired',
   PROFILE_FETCHED: 'Profile fetched',
@@ -38,47 +39,33 @@ export const MESSAGES = Object.freeze({
   VALIDATION_FAILED: 'The submitted data is invalid',
 
   // Access control. The denial wording is deliberately generic about WHAT was
-  // being reached for - the permission code goes in `details`, where a
-  // help-desk ticket can quote it, not into prose that ends up in a toast.
+  // being reached for - the module and the action go in `details`, where a
+  // help-desk ticket can quote them, not into prose that ends up in a toast.
   PERMISSION_DENIED: 'You do not have permission to perform this action',
-  SCOPE_DENIED: 'You do not have permission to perform this action on this record',
-  SCOPE_UNRESOLVED: 'Your access depends on an employee profile that is missing',
   ACCOUNT_INACTIVE: 'This account is no longer active',
-  ESCALATION_BLOCKED: 'You cannot grant access you do not hold yourself',
-  SELF_LOCKOUT_BLOCKED: 'This change would remove your own administrative access',
-  LAST_SUPER_ADMIN: 'The last Super Admin cannot be removed',
-  ROLE_IS_PROTECTED: 'This is a system role and cannot be changed',
-  ROLE_IN_USE: 'This role is still assigned to employees',
-  GROUP_IN_USE: 'This group still has members',
   MODIFIED_ELSEWHERE: 'This record was changed by someone else. Reload and try again',
   CODE_ALREADY_EXISTS: 'That code is already in use',
-  UNKNOWN_PERMISSION_IDS: 'One or more permissions do not exist',
-  SCOPE_REQUIRED: 'A scope is required for this permission',
-  SCOPE_NOT_SUPPORTED: 'This permission does not take a scope',
   RESOURCE_NOT_FOUND: 'The requested record does not exist',
 
+  // Employees.
+  EMPLOYEES_FETCHED: 'Employees fetched',
+  EMPLOYEE_FETCHED: 'Employee fetched',
+  EMPLOYEE_CREATED: 'Employee created',
+  EMPLOYEE_UPDATED: 'Employee updated',
+  EMPLOYEE_DEACTIVATED: 'Employee exited. Their access has been withdrawn',
+  EMPLOYEE_DELETED: 'Employee deleted',
+  EMPLOYEE_NOT_FOUND: 'That employee does not exist',
+  EMPLOYEE_CODE_EXISTS: 'That employee code is already in use',
+  EMPLOYEE_EMAIL_EXISTS: 'That work email is already in use',
+  EMPLOYEE_ALREADY_INACTIVE: 'This employee has already been exited',
+  EMPLOYEE_HAS_REPORTS: 'This employee still has direct reports. Reassign them first',
+  CANNOT_DEACTIVATE_SELF: 'You cannot exit your own employee record',
+  CANNOT_DELETE_SELF: 'You cannot delete your own employee record',
+  INVALID_EXIT_DATE: 'The leaving date cannot be before the joining date',
+  MANAGER_NOT_FOUND: 'The chosen manager is not an active employee',
+  MANAGER_IS_SELF: 'An employee cannot be their own manager',
+
   // Access control, success side.
-  PERMISSIONS_FETCHED: 'Permissions fetched',
-  MY_PERMISSIONS_FETCHED: 'Permissions fetched',
-  ROLES_FETCHED: 'Roles fetched',
-  ROLE_FETCHED: 'Role fetched',
-  ROLE_CREATED: 'Role created',
-  ROLE_UPDATED: 'Role updated',
-  ROLE_DELETED: 'Role deleted',
-  ROLE_PERMISSIONS_UPDATED: 'Role permissions updated',
-  GROUPS_FETCHED: 'Groups fetched',
-  GROUP_FETCHED: 'Group fetched',
-  GROUP_CREATED: 'Group created',
-  GROUP_UPDATED: 'Group updated',
-  GROUP_DELETED: 'Group deleted',
-  GROUP_PERMISSIONS_UPDATED: 'Group permissions updated',
-  GROUP_MEMBERS_UPDATED: 'Group members updated',
-  USER_ACCESS_FETCHED: 'User access fetched',
-  USER_ROLES_UPDATED: 'User roles updated',
-  USER_GROUPS_UPDATED: 'User groups updated',
-  OVERRIDE_CREATED: 'Permission override created',
-  OVERRIDE_UPDATED: 'Permission override updated',
-  OVERRIDE_REMOVED: 'Permission override removed',
   ACCOUNT_NOT_FOUND: 'Account no longer exists',
 
   // Organisation setup.
@@ -100,4 +87,35 @@ export const MESSAGES = Object.freeze({
   LOCATION_CODE_EXISTS: 'A location with that code already exists in this organization',
   // Said plainly, because the fix is specific: move the employees first.
   LOCATION_IN_USE: 'Employees are still assigned to this location',
+
+  /* --- Group-based access control -------------------------------------- */
+
+  MODULES_FETCHED: 'Modules fetched',
+  MENU_FETCHED: 'Menu fetched',
+  PAGE_ACCESS_FETCHED: 'Page access fetched',
+  MY_ACCESS_FETCHED: 'Access fetched',
+
+  GROUPS_FETCHED: 'Groups fetched',
+  GROUP_FETCHED: 'Group fetched',
+  GROUP_CREATED: 'Group created',
+  GROUP_UPDATED: 'Group updated',
+  GROUP_DELETED: 'Group deleted',
+  GROUP_RIGHTS_UPDATED: 'Group rights updated',
+  GROUP_NOT_FOUND: 'That group does not exist',
+  GROUP_NAME_EXISTS: 'A group with that name already exists',
+  // Named for what it protects, so the refusal reads as a design decision
+  // rather than a bug: this is the group that guarantees somebody can
+  // always get back into the rights screen.
+  GROUP_IS_SYSTEM: 'The Administrator group cannot be changed or deleted',
+  GROUP_HAS_MEMBERS: 'Employees are still in this group',
+  GROUP_INACTIVE: 'That group is not active',
+
+  GROUP_MEMBERS_FETCHED: 'Group members fetched',
+  GROUP_ASSIGNED: 'Group assigned',
+  GROUP_REMOVED: 'Group removed',
+  MEMBERS_ASSIGNED: 'Employees assigned to the group',
+
+  UNKNOWN_MODULE: 'That module does not exist',
+  DUPLICATE_MODULE_RIGHT: 'The same module appears more than once in the rights list',
+  PAGE_NOT_MAPPED: 'No module is mapped to that page',
 });

@@ -25,9 +25,10 @@ npm run dev              # http://localhost:5000/api/v1
 | `npm run db:migrate` | Applies new files in `db/migrations`, once each            |
 | `npm run db:seed`    | Creates an employee **and** their login — defaults to `admin@rstartec.com` / `admin`. No role |
 | `npm run db:seed:employees` | Creates a couple of sample employees. They have no login and cannot sign in |
-| `npm run db:seed:permissions` | Syncs the permission catalog and the five master roles |
-| `npm run db:create:admin` | Creates a login **+** profile **+** role — a usable administrator |
+| `npm run db:seed:access` | Syncs the module catalog and the Administrator group |
+| `npm run db:create:admin` | Creates a login **+** profile **+** group — a usable administrator |
 | `npm run db:verify`  | Checks every model in `src/models` against the live schema |
+| `npm run db:check`   | Connects as the app does and reports what is there — the first thing to run when it will not connect |
 | `npm run mail:test`  | Sends one real email to prove the SMTP settings work       |
 
 Seed a different account with `npm run db:seed -- someone@rstartec.com theirPassword`.
@@ -51,10 +52,11 @@ never touches an existing password unless you ask:
 
 ```bash
 EMAIL=someone@rstartec.com PASSWORD='NewPass@123' RESET_PASSWORD=1 npm run db:create:admin
-EMAIL=hr@rstartec.com ROLE=HR_ADMIN npm run db:create:admin   # any code from tblRole
+EMAIL=hr@rstartec.com GROUP="HR Team" npm run db:create:admin  # any group in tblGroup
 ```
 
-Until the admin API exists this is the only way to assign a role.
+Groups are otherwise assigned through the access-control API — see
+[docs/ACCESS-CONTROL-FRONTEND.md](docs/ACCESS-CONTROL-FRONTEND.md).
 
 Both load `.env` through Node's own `--env-file-if-exists`, so there is no `dotenv` dependency.
 
@@ -74,7 +76,92 @@ server. Type `rs` + Enter in the terminal to force a restart.
 | POST   | `/api/v1/auth/forgot-password` | —  | Check work email + date of birth, email a reset code |
 | POST   | `/api/v1/auth/reset-password`  | —  | Exchange that code for a new password          |
 | POST   | `/api/v1/auth/refresh`    | —      | Exchange a refresh token for a new pair       |
+| POST   | `/api/v1/auth/logout`     | Bearer | End the session — kills BOTH tokens           |
 | GET    | `/api/v1/auth/me`         | Bearer | The signed-in account                         |
+
+### Logout actually logs you out
+
+A signed JWT cannot be unsigned, so deleting the client's copy would leave the
+access token opening guarded routes until it expired and the refresh token
+minting replacements for days. Both tokens therefore carry the same `sid`, and
+logout records that id in `dbo.tblRevokedSession`. One row kills the pair:
+
+```
+verify-otp  ->  session S: access(S) + refresh(S)
+refresh     ->  session S: a new access(S) + refresh(S)   <- same session, on purpose
+logout      ->  S is revoked  ->  every token carrying S is dead
+```
+
+Three consequences worth knowing:
+
+- **`/auth/refresh` keeps the session rather than starting one.** A new id per
+  refresh would leave the just-exchanged token outside any later revocation.
+- **It is per session, not per account.** Logging out on your laptop does not
+  sign you out on your phone.
+- **Every authenticated request now does one extra lookup** — a seek on a
+  unique index over a table holding only unexpired logouts. That is the price
+  of logout meaning something.
+
+Tokens issued before this existed carry no `sid` and are rejected, so the
+deploy that introduces it signs everyone out once.
+
+Employee onboarding. Every one needs a bearer token **and** the right beside
+it, on the **Employees** module:
+
+| Method | Path                                             | Right       |
+| ------ | ------------------------------------------------ | ----------- |
+| GET    | `/api/v1/employees`                              | `canView`   |
+| GET    | `/api/v1/employees/:employeeDetailId`            | `canView`   |
+| POST   | `/api/v1/employees`                              | `canAdd`    |
+| PUT    | `/api/v1/employees/:employeeDetailId`            | `canEdit`   |
+| PATCH  | `/api/v1/employees/:employeeDetailId/deactivate` | `canEdit`   |
+| DELETE | `/api/v1/employees/:employeeDetailId`            | `canDelete` |
+
+Holding `canView` means seeing **every** employee. There is no row scope in
+the group model — see [docs/ACCESS-CONTROL.md](docs/ACCESS-CONTROL.md) for
+what that replaced and how to get it back if it is ever needed.
+
+`GET /employees` is paged (`page`, `pageSize`, max 200) and filterable by
+`search` (name, code or work email), `employmentStatus`, `isActive`,
+`departmentId` and `managerId`. The totals come back in `meta`.
+
+### Exiting an employee
+
+Deactivation is its own endpoint and its own permission, not `isActive: false`
+on the update. Exiting somebody ends their access to the system — an act an HR
+Executive may be trusted to prepare but not to perform — and it demands facts
+an edit does not.
+
+**Mandatory**, and why each one:
+
+| Field | Why it cannot be optional |
+| ----- | ------------------------- |
+| `dateOfLeaving` | Final pay, leave encashment and every headcount-as-at report are computed from it |
+| `employmentStatus` | Must be `Exited`, `Resigned`, `Terminated` or `Inactive`. `IsActive = 0` says they are gone; this says **how**, which is what notice pay and rehire eligibility turn on |
+
+Optional: `contractorEndDate`. `dateOfLeaving` is writable **here and nowhere
+else** — letting an ordinary edit set one would allow a leaving date on
+somebody still marked active.
+
+It is refused when:
+
+- **you are exiting yourself** — you would withdraw your own access mid-request
+- **they still have direct reports** (`409`, with the count) — their team would
+  point at a manager no screen lists
+- **the leaving date precedes the joining date** (`400`) — the CHECK constraint
+  would refuse it anyway, as a 500 naming a constraint; this is a 400 naming
+  the field
+- **they are already exited** (`409`) — almost always a double-submit
+
+Their access goes with it. The resolver reads `IsActive`, so guarded endpoints
+start refusing within the access cache's 60-second TTL, and `login`, `refresh`
+and `/auth/me` all answer **403 `ACCOUNT_INACTIVE`** from the next request.
+
+**Delete is a different thing.** An exited employee is company history and
+appears in last year's payroll; a deleted record is one that should not have
+existed — a duplicate, a candidate who never joined, a typo. That is why
+delete asks for no exit details. It soft-deletes (`DeletedAt`), because roles,
+grants, logins and every `CreatedBy` in the schema point at that id.
 
 Organisation setup. Every one of these needs a bearer token **and** the permission
 named beside it — today only Super Admin and HR Admin hold any of them:
@@ -132,6 +219,14 @@ curl -X POST http://localhost:5000/api/v1/auth/verify-otp   -H "Content-Type: ap
 
 # 3. use it
 curl http://localhost:5000/api/v1/auth/me -H "Authorization: Bearer <accessToken>"
+
+# 4. end the session — no body, the token says which session to end
+curl -X POST http://localhost:5000/api/v1/auth/logout   -H "Authorization: Bearer <accessToken>"
+# { "data": { "employeeDetailId": 3, "alreadyRevoked": false } }
+
+# 5. both halves are now dead — each of these answers 401
+curl http://localhost:5000/api/v1/auth/me -H "Authorization: Bearer <accessToken>"
+curl -X POST http://localhost:5000/api/v1/auth/refresh   -H "Content-Type: application/json"   -d '{"refreshToken":"<refreshToken>"}'
 ```
 
 An OTP works once, expires after `OTP_EXPIRY_MINUTES`, and is replaced whenever
@@ -144,10 +239,11 @@ Postman. It is grouped into folders, one per area:
 
 ```
 Health                    liveness, readiness. No auth
-Auth                      login, OTP, refresh, password reset
+Auth                      login, OTP, refresh, logout, password reset
 Admin
   ├─ Organization         the company profile
   └─ Locations            the location master
+Employees                 onboarding: create, read, update, exit, delete
 ```
 
 Requests are numbered **within** their folder, in the order they depend on each
@@ -174,15 +270,28 @@ postman/Local.postman_environment.json      baseUrl + the seeded login
 postman/Staging.postman_environment.json    placeholders, password left empty
 ```
 
-Twenty-two requests. Every one asserts the response envelope, so a change to the
+Forty requests. Every one asserts the response envelope, so a change to the
 reply shape fails the run rather than slipping through.
+
+Several requests are **supposed to fail**, and their test asserts the failure:
+`Auth › 8` and `9` send the tokens logout just revoked and expect `401`;
+`Employees › 7` sends an exit with no details and expects a `400` naming both
+mandatory fields. A green run means the guards held, not that nothing went
+wrong.
+
+**Employees** runs top to bottom as one employee's whole life - created in
+request 1, exited in 9, deleted in 11 - so a full run leaves the database as
+it found it. The employee code and work email are generated per run by the
+collection pre-request script, so running it twice does not collide with
+itself.
 
 `resend-otp` sits between login and verify-otp deliberately — it replaces the
 live code, and after verify-otp succeeds there is no OTP left to resend.
 
-Everything under **Admin** is permission-guarded, and today only Super Admin and
-HR Admin hold any of those permissions. A `403` names the exact code it wanted in
-`details.requiredPermission` — grant that code rather than guessing at a role.
+Everything under **Admin** and **Access Control** is guarded, and out of the box
+only the Administrator group holds anything. A `403` names the module and action
+it wanted in `details.requiredAccess` — tick that checkbox for the user's group
+rather than guessing.
 `Admin › Locations › 3.` deliberately expects a `409`: one organisation may not
 have two locations of the same name.
 
@@ -417,17 +526,62 @@ shaping a response); a util would work in any project (an error class, a logger)
 
 ## Access control
 
-Roles, groups, per-user overrides and row-level scope. Two documents:
+Group based, one rule:
+
+> **an employee belongs to a GROUP, and a group holds RIGHTS on MODULES.**
+
+Six rights per module — View, Add, Edit, Delete, Print, Mail — set on one
+screen. No roles, no per-user exceptions, no row-level scopes: if somebody can
+do something, exactly one group gave it to them.
 
 | Doc | For |
 | --- | --- |
-| [docs/ACCESS-CONTROL.md](docs/ACCESS-CONTROL.md) | Backend: how it decides, and how to change it |
-| [docs/ACCESS-CONTROL-FRONTEND.md](docs/ACCESS-CONTROL-FRONTEND.md) | Frontend: the contract, the screens, the UI patterns |
+| [docs/ACCESS-CONTROL.md](docs/ACCESS-CONTROL.md) | Backend: the schema, the resolver, and why it is shaped this way |
+| [docs/ACCESS-CONTROL-FRONTEND.md](docs/ACCESS-CONTROL-FRONTEND.md) | Frontend: every endpoint, menu binding, page binding, the admin screens |
 
-The short version: `src/enums/permission.enum.js` is the catalog and the source
-of truth, `npm run db:seed:permissions` syncs it into the database, and a route
-is guarded with `requirePermission(PERMISSION.SOMETHING)` from
+`src/enums/module.enum.js` is the module catalog and the source of truth,
+`npm run db:seed:access` syncs it into the database, and a route is guarded
+with `requireAccess(MODULE.EMPLOYEES, ACTION.DELETE)` from
 `src/middlewares/permission.middleware.js`.
+
+**The server will not start with an unguarded API route.** `src/utils/route-audit.js`
+walks the router at boot and refuses to listen if any endpoint under
+`/api/v1` has no guard — because the way access control goes wrong is an
+endpoint copied from the one above it with the middleware argument dropped,
+which fails silently and passes every test written by an administrator.
+
+### What the frontend calls
+
+| Method | Path | Who |
+| --- | --- | --- |
+| `GET` | `/access/me` | any signed-in user — group + the full rights map |
+| `GET` | `/access/menu` | any signed-in user — the navigation, already filtered |
+| `GET` | `/access/page?path=/employees` | any signed-in user — the six rights for one page |
+| `GET` | `/access/modules` | `GROUPS: canView` — the catalog |
+| `GET` `POST` | `/access/groups` | `GROUPS: canView` / `canAdd` |
+| `GET` `PUT` `DELETE` | `/access/groups/:groupId` | `GROUPS: canView` / `canEdit` / `canDelete` |
+| `PUT` | `/access/groups/:groupId/rights` | `GROUPS: canEdit` — the matrix alone |
+| `GET` `POST` | `/access/groups/:groupId/members` | `USER_ACCESS: canView` / `canEdit` |
+| `PUT` `DELETE` | `/access/employees/:employeeDetailId/group` | `USER_ACCESS: canEdit` |
+
+`GET /access/groups/:groupId` returns the **complete** matrix — every active
+module, with zeros where the group holds nothing — so the checkbox grid
+renders without the client merging two lists.
+
+### Setting it up
+
+```bash
+npm run db:migrate
+npm run db:seed:access          # the module catalog + the Administrator group
+EMAIL=you@rstartec.com npm run db:create:admin
+```
+
+`Administrator` is a **system group**: it holds every right on every module,
+its rights are not stored as rows (so a module added next month is covered
+with nothing to re-seed), and the API refuses to rename, strip or delete it.
+That is the way back in if somebody clears the wrong checkbox.
+
+Every other group starts with **nothing**. Grant it on the group screen.
 
 ## Response contract
 
@@ -525,6 +679,40 @@ for `${Model.col('x')}` makes the SQL harder to read than the rename it guards
 against. `dbo._Migrations` has no model on purpose: it belongs to
 `scripts/migrate.js` and nothing else should read it.
 
+### The employee table
+
+`dbo.tblEmployeeDetails` carries 78 columns, matching the HR record kept in
+Zoho People (migration `007`). Two things about it are easy to get wrong.
+
+**There are two auto-numbers, and only one is an identity.**
+
+| Column | How it is filled | What it is for |
+| ------ | ---------------- | -------------- |
+| `EmployeeDetailId` | `BIGINT IDENTITY` | the primary key; every FK, grant and JWT subject in the schema points at it |
+| `EmployeeSerialNo` | `INT`, defaulted from `dbo.seqEmployeeSerialNo` | a plain counting number for HR to quote |
+| `EmployeeCode` | written by hand | the human code, `EMP001` or `RSTR157` |
+
+SQL Server allows exactly **one** identity column per table, so the second
+number comes from a SEQUENCE instead. From a caller's side it behaves the
+same — leave the column out of the `INSERT` and a number appears — with two
+differences worth knowing: the next value can be read without inserting a
+row, and **a rolled-back transaction still consumes its number**, because
+sequences are not transactional. Gaps are normal and not a bug.
+
+**Two vocabularies share `EmploymentType` and `EmploymentStatus`.** Ours
+(`FullTime`, `Active`, …) and the Zoho export's (`Permanent`, `Resigned`, …).
+Both are accepted because rows exist in the first and imports arrive in the
+second. `src/enums/employee.enum.js` marks which is which; the CHECK
+constraints in `001` and `007` are the enforcement, so adding a value means
+editing the enum **and** writing a migration.
+
+`PanNumber` and `AadharNumber` are deliberately **not indexed** and **not in
+`EMPLOYEE_DETAILS_PUBLIC_PROPS`** — they should leave the table only through
+an endpoint written for them, never by being swept into a default select
+list. Only `ManagerId` drives the TEAM scope; `SecondaryManagerId` and
+`AdditionalManagerId` are recorded but grant nothing, because widening who
+can see whose data is an access-control decision, not an import side effect.
+
 ## Writing queries
 
 Always parameterize — never build SQL with string concatenation:
@@ -575,3 +763,128 @@ Quick check that the server is reachable, independent of Node:
 ```bash
 sqlcmd -S localhost,1433 -U sa -P <password> -C -Q "SELECT DB_NAME()"
 ```
+
+Or through the same configuration the app uses, which also reports what is
+already in the database:
+
+```bash
+npm run db:check
+```
+
+## Connecting to Azure SQL
+
+Nothing in the application is Azure-specific. A `DB_HOST` ending in
+`.database.windows.net` is what switches it over, and from that one fact it
+requires encryption, waits longer for a connection, and retries the failures
+Azure produces on its own. `.env.azure.example` is the template; copy it over
+the SQL Server block in `.env`.
+
+```
+DB_HOST=rstar-hrms.database.windows.net
+DB_PORT=1433
+DB_NAME=rStarHRMS
+DB_USER=hrms_app
+DB_PASSWORD=<the contained user's password>
+DB_ENCRYPT=true
+DB_TRUST_SERVER_CERTIFICATE=false
+```
+
+The last line is not optional and the app will not start without it. Azure's
+certificate is issued by a public CA, so it validates on its own; trusting any
+certificate does not make the connection work, it only switches off the check
+that would notice an intercepted one. `DB_ENCRYPT=false` is refused for the
+same reason — Azure would reject it anyway, with an error that does not say so.
+
+### Creating the server
+
+Once, from the Azure CLI. Pick your own names; the password rules are Azure's.
+
+```bash
+az group create -n rstar-hrms -l centralindia
+
+az sql server create \
+  -g rstar-hrms -n rstar-hrms -l centralindia \
+  -u hrmsadmin -p '<strong-admin-password>'
+
+# General Purpose serverless: it auto-pauses when idle, which is why the app
+# waits 30 seconds for the first connection rather than failing the boot.
+az sql db create \
+  -g rstar-hrms -s rstar-hrms -n rStarHRMS \
+  -e GeneralPurpose -f Gen5 -c 1 --compute-model Serverless \
+  --auto-pause-delay 60 --backup-storage-redundancy Local
+
+# Your own machine, for migrations and development.
+az sql server firewall-rule create \
+  -g rstar-hrms -s rstar-hrms -n my-machine \
+  --start-ip-address <your-ip> --end-ip-address <your-ip>
+
+# Azure-hosted services (App Service, Container Apps) reaching it. The
+# all-zero range is Azure's "allow Azure services" rule, NOT 0.0.0.0/0 —
+# it does not open the server to the internet.
+az sql server firewall-rule create \
+  -g rstar-hrms -s rstar-hrms -n allow-azure-services \
+  --start-ip-address 0.0.0.0 --end-ip-address 0.0.0.0
+```
+
+### Creating the two users
+
+The server administrator can drop the database, so the API never uses it.
+`db/azure/001_app_users.sql` creates the two accounts that it does use — run it
+once, as the administrator, **against `rStarHRMS` rather than `master`**:
+
+```bash
+sqlcmd -S rstar-hrms.database.windows.net -d rStarHRMS \
+       -U hrmsadmin -P '<admin-password>' -i db/azure/001_app_users.sql
+```
+
+| User | Rights | Used by |
+|---|---|---|
+| `hrms_app` | read + write | the running API — this is what goes in `.env` |
+| `hrms_deploy` | read + write + schema changes | `db:migrate`, nothing else |
+
+They are split because the failure modes differ by an order of magnitude: SQL
+injection reaching the database as `hrms_app` can corrupt rows, which a restore
+fixes; as a user that can also `DROP TABLE` it is a different conversation.
+Both are *contained* users, with their password held in the database rather
+than in a master-level login, so the database can be copied, restored or failed
+over to another server and still work without repairing orphaned users.
+
+### First deploy
+
+```bash
+cp .env .env.deploy        # then set DB_USER/DB_PASSWORD to hrms_deploy
+node --env-file=.env.deploy scripts/migrate.js
+npm run db:seed:access
+npm run db:create:admin
+npm run db:verify
+```
+
+`.env.deploy` is git-ignored. Keeping the deployment credentials in their own
+file rather than in `.env` is what stops the running API ever holding them.
+
+Every migration in `db/migrations` runs on Azure SQL unchanged — nothing in
+them uses a feature the service lacks.
+
+### When it will not connect
+
+```bash
+npm run db:check
+```
+
+It reports the target, resolves the host, connects, and then says who you
+authenticated as, what rights that user has, which migrations are applied and
+what tier the database is on. On failure it names the cause rather than the
+symptom, because against a cloud database almost every one of these arrives as
+the same connect timeout:
+
+| What you see | What it actually is |
+|---|---|
+| timeout, no error number | Outbound TCP 1433 is blocked — common on corporate and hotel Wi-Fi. Test from a phone hotspot |
+| `Client with IP address ... is not allowed` | No firewall rule covers this machine. Your IP changed if it worked yesterday |
+| `Login failed` (18456) | Wrong password, or the contained user was created in `master` instead of in `rStarHRMS` |
+| `Cannot open database` (4060) | Right server, wrong database name, or that user has no access to it |
+| `Database is not currently available` (40613) | A serverless database waking up, or a failover. The app retries this one by itself |
+
+A certificate error against Azure means something is intercepting the
+connection — a proxy or TLS-inspecting antivirus. The fix is to exempt
+`*.database.windows.net` there, never to set `DB_TRUST_SERVER_CERTIFICATE=true`.

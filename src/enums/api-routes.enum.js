@@ -14,7 +14,8 @@ export const ROUTE_GROUP = Object.freeze({
   HEALTH: '/health',
   AUTH: '/auth',
   ORGANIZATIONS: '/organizations',
-  // EMPLOYEES: '/employees',
+  EMPLOYEES: '/employees',
+  ACCESS: '/access',
 });
 
 /**
@@ -33,6 +34,7 @@ export const ROUTES = Object.freeze({
     FORGOT_PASSWORD: '/forgot-password',
     RESET_PASSWORD: '/reset-password',
     REFRESH: '/refresh',
+    LOGOUT: '/logout',
     ME: '/me',
   }),
   /**
@@ -54,11 +56,50 @@ export const ROUTES = Object.freeze({
     LOCATION_UPDATE: '/:organizationId/locations/:locationId',
     LOCATION_DELETE: '/:organizationId/locations/:locationId',
   }),
-  // EMPLOYEES: Object.freeze({
-  //   LIST: '/',
-  //   CREATE: '/',
-  //   DETAIL: '/:id',
-  //   UPDATE: '/:id',
-  //   DELETE: '/:id',
-  // }),
+  /**
+   * Onboarding and the employee record.
+   *
+   * DEACTIVATE is its own endpoint rather than `isActive: false` on UPDATE.
+   * Exiting somebody demands facts an edit does not - a leaving date and a
+   * status - and refuses for reasons an edit never would, such as still
+   * having direct reports. Folding it into UPDATE would mean one handler
+   * whose required fields change depending on a flag in the body, which is
+   * the shape that quietly lets an exit through with no date on it.
+   */
+  EMPLOYEES: Object.freeze({
+    LIST: '/',
+    CREATE: '/',
+    DETAIL: '/:employeeDetailId',
+    UPDATE: '/:employeeDetailId',
+    DEACTIVATE: '/:employeeDetailId/deactivate',
+    DELETE: '/:employeeDetailId',
+  }),
+
+  /**
+   * Access control: the module catalog, groups and their rights, and who
+   * is in which group.
+   *
+   * ME, MENU and PAGE are what the frontend calls on every login and every
+   * navigation. They are deliberately NOT behind a module right - a user
+   * who may see nothing still has to be told that, and a login that cannot
+   * ask what it may do has nothing to render at all.
+   */
+  ACCESS: Object.freeze({
+    ME: '/me',
+    MENU: '/menu',
+    PAGE: '/page',
+
+    MODULES: '/modules',
+
+    GROUP_LIST: '/groups',
+    GROUP_CREATE: '/groups',
+    GROUP_DETAIL: '/groups/:groupId',
+    GROUP_UPDATE: '/groups/:groupId',
+    GROUP_DELETE: '/groups/:groupId',
+    GROUP_RIGHTS: '/groups/:groupId/rights',
+
+    GROUP_MEMBERS: '/groups/:groupId/members',
+    GROUP_MEMBERS_ASSIGN: '/groups/:groupId/members',
+    EMPLOYEE_GROUP: '/employees/:employeeDetailId/group',
+  }),
 });

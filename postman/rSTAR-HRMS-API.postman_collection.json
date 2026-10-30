@@ -23,7 +23,7 @@
 		},
 		{
 			"key": "loginEmail",
-			"value": "admin@rstartec.com",
+			"value": "rajat.kushwaha@rstartec.com",
 			"type": "string"
 		},
 		{
@@ -75,6 +75,29 @@
 			"key": "locationId",
 			"value": "",
 			"type": "string"
+		},
+		{
+			"key": "employeeDetailId",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "employeeCode",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "employeeEmail",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "groupId",
+			"value": ""
+		},
+		{
+			"key": "groupName",
+			"value": ""
 		}
 	],
 	"item": [
@@ -176,7 +199,7 @@
 		},
 		{
 			"name": "Auth",
-			"description": "Login is two steps: the password is checked first, then a one-time code.\n\nRun these top to bottom once per session. `verify-otp` captures {{accessToken}} and {{refreshToken}}, and every other folder inherits the collection Bearer auth that reads them - nothing is ever pasted.\n\nforgot-password / reset-password really do change a password. They are last for that reason.",
+			"description": "Login is two steps: the password is checked first, then a one-time code.\n\nRun these top to bottom once per session. `verify-otp` captures {{accessToken}} and {{refreshToken}}, and every other folder inherits the collection Bearer auth that reads them - nothing is ever pasted.\n\nlogout (7) is followed by two requests that are SUPPOSED to return 401: they send the access token and the refresh token it just revoked. That is the whole claim being tested - both halves of the pair die together, so a logged-out client cannot refresh its way back in. 10 and 11 then sign in again, because the folders below need a live token.\n\nforgot-password / reset-password really do change a password. They are last for that reason.",
 			"item": [
 				{
 					"name": "1. login",
@@ -553,7 +576,301 @@
 					}
 				},
 				{
-					"name": "7. forgot-password",
+					"name": "7. logout",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('session ended', () => pm.response.to.have.status(200));",
+									"",
+									"// Keep the tokens in the variables ON PURPOSE. The next two requests",
+									"// have to send the very tokens this call just killed - clearing them",
+									"// here would make those requests prove nothing, because an empty",
+									"// Authorization header is rejected for a different reason entirely.",
+									"pm.test('reports the session as newly revoked', () => {",
+									"  pm.expect(pm.response.json().data.alreadyRevoked).to.eql(false);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/auth/logout",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"logout"
+							]
+						},
+						"description": "Ends the session this access token belongs to. No body: the token already says which session to end, and the refresh token shares it, so one call kills both. Requests 8 and 9 prove that."
+					}
+				},
+				{
+					"name": "8. me after logout (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"// The point of the endpoint. A logout that only cleared the client's",
+									"// copy of the token would leave this at 200 until the token expired",
+									"// on its own - up to JWT_ACCESS_EXPIRES_IN of access after 'logging",
+									"// out'.",
+									"pm.test('the access token is dead', () => pm.response.to.have.status(401));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/auth/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"me"
+							]
+						},
+						"description": "Sends the access token that request 7 revoked. A 401 is the pass condition."
+					}
+				},
+				{
+					"name": "9. refresh after logout (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"// The other half, and the one that actually matters. The refresh token",
+									"// outlives the access token by days; if logout missed it, the client",
+									"// could mint a fresh access token immediately and the logout would",
+									"// have achieved nothing.",
+									"pm.test('the refresh token cannot mint a new pair', () =>",
+									"  pm.response.to.have.status(401));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"auth": {
+							"type": "noauth"
+						},
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/refresh",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"refresh"
+							]
+						},
+						"description": "Sends the refresh token from the same session. A 401 proves logout reached both tokens, not just the one in the Authorization header."
+					}
+				},
+				{
+					"name": "10. login again (restore the session)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('password accepted', () => pm.response.to.have.status(200));",
+									"",
+									"// `data` is NOT a safe name here: the Postman sandbox predeclares it for",
+									"// the current data-file row, so `const data = ...` is a redeclaration and",
+									"// the whole script dies with a SyntaxError before a single test runs.",
+									"const payload = pm.response.json().data;",
+									"",
+									"if (payload.otp) {",
+									"  pm.collectionVariables.set('otp', payload.otp);",
+									"} else {",
+									"  console.warn('No OTP in response - set OTP_IN_RESPONSE=true or fill {{otp}} by hand.');",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"auth": {
+							"type": "noauth"
+						},
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{loginEmail}}\",\n  \"password\": \"{{loginPassword}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						},
+						"description": "Request 7 ended the session, and every folder after this one needs a live token. This signs back in so a full collection run keeps working."
+					}
+				},
+				{
+					"name": "11. verify-otp again (restore the session)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('login completes', () => pm.response.to.have.status(200));",
+									"",
+									"const payload = pm.response.json().data;",
+									"pm.collectionVariables.set('accessToken', payload.accessToken);",
+									"pm.collectionVariables.set('refreshToken', payload.refreshToken);",
+									"pm.collectionVariables.set('otp', '');",
+									"",
+									"pm.test('a NEW session works - logout is per-session, not per-account', () => {",
+									"  pm.expect(payload.accessToken).to.be.a('string').and.not.empty;",
+									"  pm.expect(payload.refreshToken).to.be.a('string').and.not.empty;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"auth": {
+							"type": "noauth"
+						},
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{loginEmail}}\",\n  \"otp\": \"{{otp}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/verify-otp",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"verify-otp"
+							]
+						},
+						"description": "Stores a fresh token pair. That this succeeds at all is itself the proof that logout ends one session rather than disabling the account."
+					}
+				},
+				{
+					"name": "12. forgot-password",
 					"event": [
 						{
 							"listen": "test",
@@ -630,7 +947,7 @@
 					}
 				},
 				{
-					"name": "8. reset-password",
+					"name": "13. reset-password",
 					"event": [
 						{
 							"listen": "test",
@@ -1348,6 +1665,1380 @@
 					]
 				}
 			]
+		},
+		{
+			"name": "Employees",
+			"description": "Onboarding and the employee record: create, read, update, exit, delete.\n\nRun top to bottom. Request 1 stores {{employeeDetailId}} and everything after it works on that person, ending with a delete - so a full run leaves the database as it found it.\n\nUNLIKE the Admin folder, every permission here is SCOPED. Holding employees.view at OWN returns your own record and nothing else; at TEAM, you and your direct reports; at ALL, the company. A write to a row outside your scope answers 404 rather than 403, because a 403 would confirm that an employee with that id exists.\n\nExiting somebody is its own endpoint and its own permission (employees.deactivate), not a flag on update. It demands a leaving date and an exit status, and refuses while the person still has direct reports - see requests 7 to 10.",
+			"item": [
+				{
+					"name": "1. create employee",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('onboarded', () => pm.response.to.have.status(201));",
+									"",
+									"// `data` is NOT a safe name here: the Postman sandbox predeclares it for",
+									"// the current data-file row, so `const data = ...` is a redeclaration and",
+									"// the whole script dies with a SyntaxError before a single test runs.",
+									"const payload = pm.response.json().data;",
+									"pm.collectionVariables.set('employeeDetailId', payload.employeeDetailId);",
+									"",
+									"pm.test('EmployeeSerialNo was assigned by the database', () => {",
+									"  pm.expect(payload.employeeSerialNo).to.be.a('number');",
+									"});",
+									"pm.test('starts active', () => pm.expect(payload.isActive).to.eql(true));",
+									"pm.test('ids come back as numbers, not strings', () => {",
+									"  pm.expect(payload.employeeDetailId).to.be.a('number');",
+									"});",
+									"pm.test('PAN and Aadhar are NOT echoed back', () => {",
+									"  // Sensitive, so they are absent from the public column list. If this",
+									"  // ever fails, a government identifier has started appearing in every",
+									"  // employee listing.",
+									"  pm.expect(payload).to.not.have.property('panNumber');",
+									"  pm.expect(payload).to.not.have.property('aadharNumber');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"employeeCode\": \"{{employeeCode}}\",\n  \"firstName\": \"Priya\",\n  \"lastName\": \"Sharma\",\n  \"workEmail\": \"{{employeeEmail}}\",\n  \"personalEmail\": \"priya.personal@example.com\",\n  \"phone\": \"9876543210\",\n  \"workPhone\": \"1204567890\",\n  \"workPhoneExtension\": \"204\",\n  \"emergencyContactNumber\": \"9888888888\",\n  \"emergencyContactRelation\": \"Spouse\",\n  \"dateOfBirth\": \"1993-08-21\",\n  \"gender\": \"Female\",\n  \"maritalStatus\": \"Married\",\n  \"presentAddressLine1\": \"A-12, Sector 62\",\n  \"presentCity\": \"Noida\",\n  \"presentState\": \"Uttar Pradesh\",\n  \"presentCountry\": \"India\",\n  \"presentPostalCode\": \"201309\",\n  \"permanentCity\": \"Lucknow\",\n  \"permanentCountry\": \"India\",\n  \"panNumber\": \"ABCDE1234F\",\n  \"aadharNumber\": \"123412341234\",\n  \"designation\": \"Marketing Lead\",\n  \"department\": \"Marketing\",\n  \"jobRole\": \"Marketing Lead\",\n  \"employeeBand\": \"B3\",\n  \"userType\": \"Employee\",\n  \"sourceOfHire\": \"Direct\",\n  \"seatingLocation\": \"Noida\",\n  \"employmentType\": \"Permanent\",\n  \"employmentStatus\": \"Active\",\n  \"dateOfJoining\": \"2024-04-01\",\n  \"probationEndDate\": \"2024-10-01\",\n  \"totalExperience\": \"0 to 50\",\n  \"currentExperience\": 2.5,\n  \"onboardingStatus\": \"Not Triggered\",\n  \"approvalStatus\": \"Not Submitted\",\n  \"backgroundVerificationStatus\": \"Not Initiated\",\n  \"workFromOffice\": true,\n  \"billableStatus\": \"Non-Billable\",\n  \"projectName\": \"rSTAR\",\n  \"taxRegime\": \"New\",\n  \"tags\": \"postman\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/employees",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees"
+							]
+						},
+						"description": "Onboards an employee. No login is created - signing in is a separate decision. The code and email use {{$timestamp}} so the request can be run repeatedly without colliding with itself."
+					}
+				},
+				{
+					"name": "2. create duplicate (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('the unique index refuses it', () => pm.response.to.have.status(409));",
+									"pm.test('and says which rule broke', () => {",
+									"  const code = pm.response.json().details.code;",
+									"  pm.expect(['CODE_ALREADY_EXISTS', 'EMAIL_ALREADY_EXISTS']).to.include(code);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"employeeCode\": \"{{employeeCode}}\",\n  \"firstName\": \"Priya\",\n  \"lastName\": \"Sharma\",\n  \"workEmail\": \"{{employeeEmail}}\",\n  \"employmentType\": \"Permanent\",\n  \"dateOfJoining\": \"2024-04-01\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/employees",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees"
+							]
+						},
+						"description": "Sends the same employee code and work email as request 1. A 409 is the pass condition: the filtered unique index is the authority, and the API reads the answer from it rather than pre-checking with a SELECT - which would be a second round trip and still wrong under concurrency, because the row can land between the check and the insert."
+					}
+				},
+				{
+					"name": "3. list employees",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('fetched', () => pm.response.to.have.status(200));",
+									"const body = pm.response.json();",
+									"pm.test('data is a page, not the whole table', () => {",
+									"  pm.expect(body.data).to.be.an('array');",
+									"  pm.expect(body.data.length).to.be.at.most(25);",
+									"});",
+									"pm.test('meta carries the paging', () => {",
+									"  pm.expect(body.meta).to.have.property('total');",
+									"  pm.expect(body.meta).to.have.property('page', 1);",
+									"  pm.expect(body.meta).to.have.property('pageSize', 25);",
+									"  pm.expect(body.meta).to.have.property('totalPages');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/employees?page=1&pageSize=25",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "pageSize",
+									"value": "25"
+								}
+							]
+						},
+						"description": "Paged, and scoped: the rows are the ones your grant reaches. Holding employees.view at OWN returns one record, at ALL the company."
+					}
+				},
+				{
+					"name": "4. search and filter",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('fetched', () => pm.response.to.have.status(200));",
+									"pm.test('search matches the employee just created', () => {",
+									"  const rows = pm.response.json().data;",
+									"  pm.expect(rows.length).to.eql(1);",
+									"  pm.expect(rows[0].employeeCode).to.eql(pm.collectionVariables.get('employeeCode'));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/employees?search={{employeeCode}}&isActive=true",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees"
+							],
+							"query": [
+								{
+									"key": "search",
+									"value": "{{employeeCode}}"
+								},
+								{
+									"key": "isActive",
+									"value": "true"
+								}
+							]
+						},
+						"description": "search covers first name, last name, employee code and work email - one box, because that is what a user means by typing into \"Search\". Other filters: employmentStatus, isActive, departmentId, managerId."
+					}
+				},
+				{
+					"name": "5. get employee",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('fetched', () => pm.response.to.have.status(200));",
+									"const payload = pm.response.json().data;",
+									"pm.test('it is the right person', () => {",
+									"  pm.expect(payload.employeeCode).to.eql(pm.collectionVariables.get('employeeCode'));",
+									"});",
+									"pm.test('carries the counts the detail screen needs', () => {",
+									"  pm.expect(payload).to.have.property('directReports');",
+									"  pm.expect(payload).to.have.property('hasLogin');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}"
+							]
+						},
+						"description": "One employee, plus two things the detail screen needs: how many people report to them, and whether they can sign in. An id outside your scope answers 404 rather than 403 - a 403 would confirm the row exists."
+					}
+				},
+				{
+					"name": "6. update employee",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('updated', () => pm.response.to.have.status(200));",
+									"const payload = pm.response.json().data;",
+									"pm.test('the change stuck', () => {",
+									"  pm.expect(payload.designation).to.eql('Senior Marketing Lead');",
+									"  pm.expect(payload.projectName).to.eql('rSTAR Core');",
+									"});",
+									"pm.test('UPDATE cannot set a leaving date', () => {",
+									"  // Only the deactivate endpoint may. Otherwise an employee could be",
+									"  // given a leaving date while still active, which is the exact",
+									"  // contradiction that endpoint exists to prevent.",
+									"  pm.expect(payload.dateOfLeaving).to.eql(null);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"employeeCode\": \"{{employeeCode}}\",\n  \"firstName\": \"Priya\",\n  \"lastName\": \"Sharma\",\n  \"workEmail\": \"{{employeeEmail}}\",\n  \"personalEmail\": \"priya.personal@example.com\",\n  \"phone\": \"9876543210\",\n  \"workPhone\": \"1204567890\",\n  \"workPhoneExtension\": \"204\",\n  \"emergencyContactNumber\": \"9888888888\",\n  \"emergencyContactRelation\": \"Spouse\",\n  \"dateOfBirth\": \"1993-08-21\",\n  \"gender\": \"Female\",\n  \"maritalStatus\": \"Married\",\n  \"presentAddressLine1\": \"A-12, Sector 62\",\n  \"presentCity\": \"Noida\",\n  \"presentState\": \"Uttar Pradesh\",\n  \"presentCountry\": \"India\",\n  \"presentPostalCode\": \"201309\",\n  \"permanentCity\": \"Lucknow\",\n  \"permanentCountry\": \"India\",\n  \"panNumber\": \"ABCDE1234F\",\n  \"aadharNumber\": \"123412341234\",\n  \"designation\": \"Senior Marketing Lead\",\n  \"department\": \"Marketing\",\n  \"jobRole\": \"Marketing Lead\",\n  \"employeeBand\": \"B3\",\n  \"userType\": \"Employee\",\n  \"sourceOfHire\": \"Direct\",\n  \"seatingLocation\": \"Noida\",\n  \"employmentType\": \"Permanent\",\n  \"employmentStatus\": \"Active\",\n  \"dateOfJoining\": \"2024-04-01\",\n  \"probationEndDate\": \"2024-10-01\",\n  \"totalExperience\": \"0 to 50\",\n  \"currentExperience\": 2.5,\n  \"onboardingStatus\": \"Not Triggered\",\n  \"approvalStatus\": \"Not Submitted\",\n  \"backgroundVerificationStatus\": \"Not Initiated\",\n  \"workFromOffice\": true,\n  \"billableStatus\": \"Non-Billable\",\n  \"projectName\": \"rSTAR Core\",\n  \"taxRegime\": \"New\",\n  \"tags\": \"postman\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}"
+							]
+						},
+						"description": "PUT, not PATCH: a field left out becomes NULL. The edit screen posts the whole form back, and a partial update is how a field the user cleared reappears after a reload."
+					}
+				},
+				{
+					"name": "7. deactivate with no exit details (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('refused', () => pm.response.to.have.status(400));",
+									"pm.test('and names BOTH mandatory fields', () => {",
+									"  const details = pm.response.json().details;",
+									"  pm.expect(details).to.have.property('dateOfLeaving');",
+									"  pm.expect(details).to.have.property('employmentStatus');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}/deactivate",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}",
+								"deactivate"
+							]
+						},
+						"description": "The point of a separate endpoint. Exiting somebody requires a leaving date and an exit status; an empty body is refused with both named at once, rather than saved with IsActive = 0 and no explanation."
+					}
+				},
+				{
+					"name": "8. deactivate with an impossible date (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('refused', () => pm.response.to.have.status(400));",
+									"pm.test('and says why', () => {",
+									"  pm.expect(pm.response.json().details.code).to.eql('INVALID_EXIT_DATE');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"dateOfLeaving\": \"2020-01-01\",\n  \"employmentStatus\": \"Resigned\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}/deactivate",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}",
+								"deactivate"
+							]
+						},
+						"description": "A leaving date before the joining date. The CHECK constraint would refuse it too, but as a 500 naming a constraint; this is a 400 naming the field and both dates."
+					}
+				},
+				{
+					"name": "9. deactivate employee",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('exited', () => pm.response.to.have.status(200));",
+									"const payload = pm.response.json().data;",
+									"pm.test('IsActive is now false', () => pm.expect(payload.isActive).to.eql(false));",
+									"pm.test('the exit is recorded, not just the flag', () => {",
+									"  pm.expect(payload.employmentStatus).to.eql('Resigned');",
+									"  pm.expect(payload.dateOfLeaving).to.include('2026-03-31');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"dateOfLeaving\": \"2026-03-31\",\n  \"employmentStatus\": \"Resigned\",\n  \"contractorEndDate\": null\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}/deactivate",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}",
+								"deactivate"
+							]
+						},
+						"description": "MANDATORY: dateOfLeaving and employmentStatus (one of Exited, Resigned, Terminated, Inactive). Optional: contractorEndDate. Refused if the employee still has direct reports, is already exited, or is you. Their access goes with it - login, refresh and /auth/me all start answering 403."
+					}
+				},
+				{
+					"name": "10. deactivate again (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('refused', () => pm.response.to.have.status(409));",
+									"pm.test('and says it has already happened', () => {",
+									"  pm.expect(pm.response.json().details.code).to.eql('EMPLOYEE_ALREADY_INACTIVE');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"dateOfLeaving\": \"2026-03-31\",\n  \"employmentStatus\": \"Resigned\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}/deactivate",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}",
+								"deactivate"
+							]
+						},
+						"description": "Almost always a double-submit. Answered 409 with the existing exit date in the details, rather than silently overwriting the first exit with a second one."
+					}
+				},
+				{
+					"name": "11. delete employee",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('deleted', () => pm.response.to.have.status(200));",
+									"pm.test('returns what was removed', () => {",
+									"  const payload = pm.response.json().data;",
+									"  pm.expect(payload.employeeCode).to.eql(pm.collectionVariables.get('employeeCode'));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}"
+							]
+						},
+						"description": "Soft delete - DeletedAt is stamped and the row stays, because roles, grants, logins and every CreatedBy in the schema point at this id. Distinct from deactivation: an exited employee is company history, a deleted record is one that should not have existed."
+					}
+				},
+				{
+					"name": "12. get deleted employee (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('gone from reads', () => pm.response.to.have.status(404));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}"
+							]
+						},
+						"description": "Every read path filters DeletedAt IS NULL, so a soft-deleted employee is invisible to the API even though the row is still there."
+					}
+				},
+				{
+					"name": "13. employees without token (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('authentication is required', () => pm.response.to.have.status(401));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"auth": {
+							"type": "noauth"
+						},
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/employees",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees"
+							]
+						},
+						"description": "Overrides the collection auth with none. 401, not 403: nothing has been authenticated yet, so there is no permission to deny."
+					}
+				}
+			]
+		},
+		{
+			"name": "Access Control",
+			"description": "Group-based access control: the module catalog, groups and their rights matrix, and who is in which group - plus the three calls the frontend makes on every login and navigation (/me, /menu, /page).\n\nRun IN ORDER. Request 4 creates a group and captures its id; 13 and 14 clean it up. Requests 1-3 work for any signed-in user; the rest need rights on the GROUPS or USER_ACCESS modules, which the Administrator group holds.\n\nSign in with the Auth folder first.",
+			"item": [
+				{
+					"name": "1. my access",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/access/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"access",
+								"me"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('carries the rights map the frontend caches', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.expect(data).to.have.property(\"rightsByModule\");",
+									"\tpm.expect(data).to.have.property(\"modules\");",
+									"\tconsole.log(\"group:\", data.group ? data.group.groupName : \"(none)\");",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "2. my menu",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/access/menu",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"access",
+								"menu"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('is a tree, already filtered to this user', function () {",
+									"\tconst menu = pm.response.json().data;",
+									"\tpm.expect(menu).to.be.an(\"array\");",
+									"\tmenu.forEach((entry) => pm.expect(entry).to.have.property(\"children\"));",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "3. rights on a page",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/access/page?path=/employees",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"access",
+								"page"
+							],
+							"query": [
+								{
+									"key": "path",
+									"value": "/employees"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('answers with the six flags for that page', function () {",
+									"\tconst rights = pm.response.json().data.rights;",
+									"\t[\"canView\", \"canAdd\", \"canEdit\", \"canDelete\", \"canPrint\", \"canMail\"]",
+									"\t\t.forEach((flag) => pm.expect(rights).to.have.property(flag));",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "4. module catalog",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/access/modules",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"access",
+								"modules"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('every module carries its menu metadata', function () {",
+									"\tconst modules = pm.response.json().data;",
+									"\tpm.expect(modules.length).to.be.above(0);",
+									"\tpm.expect(modules[0]).to.have.property(\"moduleCode\");",
+									"\tpm.expect(modules[0]).to.have.property(\"routePath\");",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "5. create group",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/access/groups",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"access",
+								"groups"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"groupName\": \"{{groupName}}\",\n  \"description\": \"Created by the Postman run\",\n  \"isActive\": true,\n  \"rights\": [\n    {\n      \"moduleId\": 1,\n      \"canView\": true\n    },\n    {\n      \"moduleId\": 10,\n      \"canView\": true\n    },\n    {\n      \"moduleId\": 11,\n      \"canView\": true,\n      \"canAdd\": true,\n      \"canEdit\": true,\n      \"canPrint\": true\n    }\n  ]\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 201', function () {",
+									"\tpm.response.to.have.status(201);",
+									"});",
+									"pm.test('returns the WHOLE matrix, not just what was sent', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.expect(data.rights.length).to.be.above(3);",
+									"\tpm.collectionVariables.set(\"groupId\", data.groupId);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "6. create duplicate (should fail)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/access/groups",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"access",
+								"groups"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"groupName\": \"{{groupName}}\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 409', function () {",
+									"\tpm.response.to.have.status(409);",
+									"});",
+									"pm.test('a duplicate name is refused', function () {",
+									"\tpm.expect(pm.response.json().details.code).to.eql(\"NAME_ALREADY_EXISTS\");",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "7. unknown module (should fail)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/access/groups",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"access",
+								"groups"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"groupName\": \"{{groupName}}-bad\",\n  \"rights\": [\n    {\n      \"moduleId\": 9999,\n      \"canView\": true\n    }\n  ]\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 400', function () {",
+									"\tpm.response.to.have.status(400);",
+									"});",
+									"pm.test('an unknown module id is a 400, not a silent skip', function () {",
+									"\tpm.expect(pm.response.json().details.code).to.eql(\"UNKNOWN_MODULE\");",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "8. list groups",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/access/groups?page=1&pageSize=25",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"access",
+								"groups"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "pageSize",
+									"value": "25"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('paged, with a member count per group', function () {",
+									"\tconst body = pm.response.json();",
+									"\tpm.expect(body.meta).to.have.property(\"total\");",
+									"\tpm.expect(body.data[0]).to.have.property(\"memberCount\");",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "9. get group with its matrix",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/access/groups/{{groupId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"access",
+								"groups",
+								"{{groupId}}"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('every active module is present, zeros included', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tconst employees = data.rights.find((row) => row.moduleId === 11);",
+									"\tpm.expect(employees.canView).to.be.true;",
+									"\tpm.expect(employees.canDelete).to.be.false;",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "10. update the rights matrix",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/access/groups/{{groupId}}/rights",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"access",
+								"groups",
+								"{{groupId}}",
+								"rights"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"rights\": [\n    {\n      \"moduleId\": 11,\n      \"canView\": true,\n      \"canAdd\": true,\n      \"canEdit\": true,\n      \"canDelete\": true,\n      \"canPrint\": true,\n      \"canMail\": false\n    }\n  ]\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('the new right is stored', function () {",
+									"\tconst employees = pm.response.json().data.rights.find((row) => row.moduleId === 11);",
+									"\tpm.expect(employees.canDelete).to.be.true;",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "11. rename the group",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/access/groups/{{groupId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"access",
+								"groups",
+								"{{groupId}}"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"groupName\": \"{{groupName}} renamed\",\n  \"description\": \"Renamed by the Postman run\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('the name changed', function () {",
+									"\tpm.expect(pm.response.json().data.groupName).to.include(\"renamed\");",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "12. edit the Administrator group (should fail)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/access/groups/1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"access",
+								"groups",
+								"1"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"groupName\": \"Hijacked\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 409', function () {",
+									"\tpm.response.to.have.status(409);",
+									"});",
+									"pm.test('the system group is immutable - this is the way back in', function () {",
+									"\tpm.expect(pm.response.json().details.code).to.eql(\"GROUP_IS_SYSTEM\");",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "13. group members",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/access/groups/{{groupId}}/members",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"access",
+								"groups",
+								"{{groupId}}",
+								"members"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('empty, nobody has been put in it yet', function () {",
+									"\tpm.expect(pm.response.json().data.members).to.be.an(\"array\");",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "14. delete group",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/access/groups/{{groupId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"access",
+								"groups",
+								"{{groupId}}"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('deleted - it had no members', function () {",
+									"\tpm.expect(pm.response.json().data.deleted).to.be.true;",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "15. get deleted group (should fail)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/access/groups/{{groupId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"access",
+								"groups",
+								"{{groupId}}"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 404', function () {",
+									"\tpm.response.to.have.status(404);",
+									"});",
+									"pm.test('gone', function () {",
+									"\tpm.expect(pm.response.json().details.code).to.eql(\"GROUP_NOT_FOUND\");",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "16. groups without token (should fail)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/access/groups",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"access",
+								"groups"
+							]
+						},
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 401', function () {",
+									"\tpm.response.to.have.status(401);",
+									"});",
+									"pm.test('no token, no access control screen', function () {",
+									"\tpm.expect(pm.response.json().success).to.be.false;",
+									"});"
+								]
+							}
+						}
+					]
+				}
+			]
 		}
 	],
 	"event": [
@@ -1361,6 +3052,23 @@
 					"const base = pm.variables.get('baseUrl') || '';",
 					"if (base.includes('ngrok')) {",
 					"  pm.request.headers.upsert({ key: 'ngrok-skip-browser-warning', value: 'true' });",
+					"}",
+					"",
+					"// A fresh employee code and work email per run, so the Employees folder",
+					"// can be re-run without request 1 colliding with the row it created last",
+					"// time. Set once per run: regenerating them per request would make",
+					"// request 2's duplicate check compare against a different code.",
+					"if (!pm.collectionVariables.get('employeeCode') ||",
+					"    pm.info.requestName.startsWith('1. create employee')) {",
+					"  const unique = Date.now().toString().slice(-8);",
+					"  pm.collectionVariables.set('employeeCode', 'PM' + unique);",
+					"  pm.collectionVariables.set('employeeEmail', 'pm.' + unique + '@rstartec.com');",
+					"}",
+					"",
+					"// A unique group name per run, so the Access Control folder can be re-run",
+					"// without request 5 colliding with the group it created last time.",
+					"if (!pm.collectionVariables.get('groupName')) {",
+					"\tpm.collectionVariables.set('groupName', 'QA Group ' + Date.now().toString().slice(-6));",
 					"}"
 				]
 			}
