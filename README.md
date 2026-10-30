@@ -363,7 +363,8 @@ Two things that bite:
 
 With `OTP_IN_RESPONSE=false`, the collection cannot complete a login unattended
 by design — run `login`, take the OTP from the server console, put it in the
-`otp` variable, then run `verify-otp` onwards.
+`otp` variable, then run `verify-otp` onwards. Or set `DefaultOTP=true` and the
+code is always `123456`.
 
 ### Rate limiting and the login rush
 
@@ -432,8 +433,53 @@ limiter alone.
   the curl script can finish a login unattended. It is off by default and
   **ignored outright when `NODE_ENV=production`**, so a misconfigured deploy
   cannot leak one-time codes to callers.
+- **`DefaultOTP` makes every code `DEFAULT_OTP_CODE` and stops all outbound
+  mail** — see [Development mode](#development-mode-defaultotp). Same production
+  gate, for a stronger reason: a constant second factor is no second factor, so
+  anyone holding one password would be through.
 - **Passwords are capped at 72 characters** because bcrypt ignores anything
   beyond 72 bytes; rejecting it is honest, silently truncating is not.
+
+## Development mode (`DefaultOTP`)
+
+Working on login without a mailbox is the normal case locally, so one switch
+covers it:
+
+```ini
+DefaultOTP=true
+DEFAULT_OTP_CODE=123456    # must be OTP_LENGTH digits
+```
+
+| | `DefaultOTP=true` | `DefaultOTP=false` (default) |
+|---|---|---|
+| OTP issued by `/auth/login` | always `DEFAULT_OTP_CODE` | a fresh random code |
+| OTP issued by `/auth/forgot-password` | always `DEFAULT_OTP_CODE` | a fresh random code |
+| Email | nothing queued, nothing sent, to anybody | queued to `dbo.EmailOutbox` and delivered |
+| `NODE_ENV=production` | ignored, with a warning on startup | unchanged |
+
+Everything else behaves exactly as it does in production: the code still has to
+be submitted to `/auth/verify-otp`, it still expires after
+`OTP_EXPIRY_MINUTES`, it is still single-use, and the rate limiters still
+apply. Only where the code comes from changes.
+
+Three details worth knowing:
+
+- **The suppression happens at queue time**, not in the mail worker. Nothing is
+  written to `dbo.EmailOutbox` at all, so turning the flag back off later
+  cannot flush a backlog of stale reset codes into real inboxes. The rendered
+  message is written to the log as `[mail:suppressed]` so you can still read
+  it.
+- **`generateOtp()` is the only place the code is chosen**, so login and
+  password reset cannot disagree about which mode they are in.
+- **The server refuses to start** if `DEFAULT_OTP_CODE` is not exactly
+  `OTP_LENGTH` digits. The submitted OTP is length-validated before it reaches
+  a comparison, so a mismatch would otherwise make every login fail with
+  nothing pointing at this setting.
+
+The variable is read as both `DefaultOTP` and `DEFAULT_OTP`. `process.env` is
+case-insensitive on Windows and case-sensitive everywhere else, and a flag that
+works on a laptop and silently does nothing in a container is the failure this
+flag exists to prevent.
 
 ## Email
 

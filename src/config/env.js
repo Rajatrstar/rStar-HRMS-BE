@@ -50,6 +50,20 @@ const DB_HOST = required('DB_HOST');
  */
 const IS_AZURE_SQL = /\.database\.windows\.net$/i.test(DB_HOST);
 
+/**
+ * Which spelling of the default-OTP switch is actually set.
+ *
+ * The flag is written DefaultOTP in the .env the team passes around, while
+ * every other variable here is SCREAMING_SNAKE. process.env is
+ * case-insensitive on Windows and case-sensitive everywhere else, so reading
+ * one spelling alone would work on a developer's laptop and then silently do
+ * nothing in a Linux container - the exact failure the flag exists to avoid.
+ */
+const DEFAULT_OTP_KEY =
+  ['DEFAULT_OTP', 'DefaultOTP'].find(
+    (key) => process.env[key] !== undefined && process.env[key].trim() !== '',
+  ) ?? 'DEFAULT_OTP';
+
 export const env = Object.freeze({
   NODE_ENV: optional('NODE_ENV', 'development'),
   PORT: toInt('PORT', 5000),
@@ -94,6 +108,13 @@ export const env = Object.freeze({
   // can complete the two-step login without a human reading the server log.
   // Off by default, and ignored outright in production - see OTP_IN_RESPONSE below.
   OTP_IN_RESPONSE: toBool('OTP_IN_RESPONSE', false),
+
+  // Development only: every OTP issued is DEFAULT_OTP_CODE and no outbound
+  // mail is queued or delivered, so a login can be completed on a machine
+  // with no mailbox and no SMTP credentials. Hard-ignored in production -
+  // see useDefaultOtp below.
+  DEFAULT_OTP: toBool(DEFAULT_OTP_KEY, false),
+  DEFAULT_OTP_CODE: optional('DEFAULT_OTP_CODE', '123456'),
 
   // Outbound mail. All optional: the server must still boot on a machine that
   // has no SMTP credentials, with queued mail rendered to the log instead.
@@ -182,13 +203,48 @@ if (IS_AZURE_SQL) {
 export const exposeOtpInResponse = env.OTP_IN_RESPONSE && !isProduction;
 
 /**
+ * Whether every OTP is the fixed development code and outbound mail is
+ * suppressed.
+ *
+ * Two gates, like exposeOtpInResponse, and for a harder reason: a constant
+ * second factor is no second factor at all. Anyone who learned one password -
+ * or walked off with a hash list - would be through. The production check is
+ * what makes the flag safe to leave in a shared .env.
+ */
+export const useDefaultOtp = env.DEFAULT_OTP && !isProduction;
+
+/** True while DefaultOTP is suppressing mail; the outbox is bypassed entirely. */
+export const suppressOutboundMail = useDefaultOtp;
+
+if (env.DEFAULT_OTP && isProduction) {
+  // Not fatal - the server is safe, it is simply behaving the way production
+  // should. But the person who set the flag is expecting a fixed code and
+  // will otherwise read "my OTP email never arrives" as a broken mail server.
+  console.warn(
+    '[env] DefaultOTP is set but NODE_ENV=production, so it is ignored: real OTPs are ' +
+      'generated and real mail is sent.',
+  );
+}
+
+if (useDefaultOtp && !new RegExp(`^[0-9]{${env.OTP_LENGTH}}$`).test(env.DEFAULT_OTP_CODE)) {
+  // The login endpoint validates the submitted OTP against OTP_LENGTH before
+  // it ever reaches a comparison, so a mismatched code here would make every
+  // single login fail validation with nothing pointing at this setting.
+  throw new Error(
+    `DEFAULT_OTP_CODE must be exactly ${env.OTP_LENGTH} digits to match OTP_LENGTH, got ` +
+      `"${env.DEFAULT_OTP_CODE}". Change one of the two so they agree.`,
+  );
+}
+
+/**
  * Whether real mail can actually be sent.
  *
  * Enabling the flag without credentials would fail on every single outbox row
  * and burn through the retry budget, so the username and password are part of
  * the test rather than the flag alone.
  */
-export const mailEnabled = env.MAIL_ENABLED && env.MAIL_USER !== '' && env.MAIL_PASSWORD !== '';
+export const mailEnabled =
+  env.MAIL_ENABLED && env.MAIL_USER !== '' && env.MAIL_PASSWORD !== '' && !suppressOutboundMail;
 
 /**
  * The From address. Microsoft 365 rejects a From that is not the authenticated

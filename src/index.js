@@ -6,7 +6,7 @@
  * import here.
  */
 import { createApp } from './app.js';
-import { env } from './config/env.js';
+import { env, useDefaultOtp } from './config/env.js';
 import { getPool, closePool } from './config/db.js';
 import { API_PREFIX } from './enums/index.js';
 import { logger } from './utils/logger.js';
@@ -22,6 +22,16 @@ async function start() {
   // Fail here rather than when an employee never receives their email: every
   // EMAIL_TEMPLATE entry must have a file behind it.
   logger.debug(`${assertTemplatesExist()} email template(s) loaded`);
+
+  // Loud on purpose. Everything below this line behaves differently, and the
+  // difference is invisible from the outside until somebody wonders why their
+  // OTP email never arrived.
+  if (useDefaultOtp) {
+    logger.warn(
+      `DefaultOTP is ON: every OTP is ${env.DEFAULT_OTP_CODE} and NO email will be sent. ` +
+        'Development only - this is ignored when NODE_ENV=production.',
+    );
+  }
 
   startEmailWorker();
 

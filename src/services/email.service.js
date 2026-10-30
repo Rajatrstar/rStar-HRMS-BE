@@ -8,7 +8,8 @@
  */
 import { query, mutate, sql } from '../helpers/query.helper.js';
 import { buildEmail, addressList } from '../helpers/email.helper.js';
-import { env } from '../config/env.js';
+import { env, suppressOutboundMail } from '../config/env.js';
+import { logger } from '../utils/logger.js';
 import { EmailOutbox, EMAIL_STATUS } from '../models/index.js';
 
 const INSERT_SQL = `
@@ -31,10 +32,25 @@ const INSERT_SQL = `
  *
  * @param {{ to: string|string[], cc?: string|string[], template: string, data?: object }} input
  * @param {(statement: string, params?: object) => Promise<any[]>} [run]
- * @returns {Promise<number>} the new EmailId
+ * @returns {Promise<number|null>} the new EmailId, or null when DefaultOTP
+ *   suppressed the send and nothing was queued
  */
 export async function queueTemplatedMail({ to, cc, template, data }, run) {
+  // Rendered before the suppression check, not after: a broken template must
+  // still fail in development, which is the only place this flag can be on.
   const { templateCode, subject, html, text } = buildEmail({ template, data });
+
+  // DefaultOTP: nothing is written to the outbox at all. Queueing and letting
+  // the worker drop it would leave real rows behind that a later restart with
+  // the flag off would happily deliver - stale password-reset codes landing in
+  // somebody's inbox days after the fact.
+  if (suppressOutboundMail) {
+    logger.info(
+      `[mail:suppressed] DefaultOTP is on - to=${addressList(to)} subject="${subject}"\n` +
+        `${text ?? '(no text part)'}`,
+    );
+    return null;
+  }
 
   const params = EmailOutbox.params({
     templateCode,

@@ -2,7 +2,7 @@
  * One-time passcode generation and comparison.
  */
 import { randomInt, timingSafeEqual } from 'node:crypto';
-import { env } from '../config/env.js';
+import { env, useDefaultOtp } from '../config/env.js';
 
 /**
  * Numeric OTP of the configured length, zero-padded so it never loses a
@@ -10,6 +10,12 @@ import { env } from '../config/env.js';
  * and its output is predictable from a few observed values.
  */
 export function generateOtp() {
+  // One known code for everyone, so a developer can finish a login without a
+  // mailbox. This is the single place both flows - login and password reset -
+  // take their code from, so the switch cannot be half-applied. env.js refuses
+  // to let it be on in production.
+  if (useDefaultOtp) return env.DEFAULT_OTP_CODE;
+
   const max = 10 ** env.OTP_LENGTH;
   return String(randomInt(0, max)).padStart(env.OTP_LENGTH, '0');
 }

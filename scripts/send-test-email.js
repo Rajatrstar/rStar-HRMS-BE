@@ -40,6 +40,18 @@ async function run() {
     template: EMAIL_TEMPLATE.OTP_LOGIN,
     data: { name: recipient.split('@')[0], otp: '123456', minutes: env.OTP_EXPIRY_MINUTES },
   });
+
+  // DefaultOTP suppresses the queue itself, which makes this script a no-op -
+  // and a silent one, since the rendered mail only goes to the log.
+  if (emailId === null) {
+    logger.warn(
+      'DefaultOTP is on, so nothing was queued and nothing will be sent. ' +
+        'Set DefaultOTP=false in .env to test real delivery.',
+    );
+    closeMailer();
+    return;
+  }
+
   logger.info(`Queued EmailId ${emailId} for ${recipient}`);
 
   const outcome = await processOutbox();
