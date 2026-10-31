@@ -50,6 +50,42 @@ export const ROUTES = Object.freeze({
     DETAIL: '/:organizationId',
     UPDATE: '/:organizationId',
 
+    /**
+     * Master data: the five lookup lists the organisation screens choose
+     * from, as sub-paths of this group - a department and a designation
+     * belong to the company, not to one organisation row, so they sit beside
+     * /organizations rather than under /organizations/:organizationId.
+     *
+     * RESOURCE holds where each list sits; COLLECTION and ITEM are the two
+     * suffixes appended to one of those, so `/organizations/departments/:id`
+     * is RESOURCE.DEPARTMENTS + ITEM. That is what lets the master-data
+     * routes be wired from one loop without writing a path string.
+     *
+     * THESE MUST BE DECLARED BEFORE DETAIL below. Express matches in
+     * declaration order, so with `/:organizationId` first, a GET of
+     * /organizations/departments is read as organisation id "departments"
+     * and dies in the validator with "must be a whole number" - the same
+     * trap TYPES carries a note about.
+     *
+     * The id parameter is `:id` on all five, not `:departmentId`: the
+     * handlers are shared, so a per-resource parameter name would have to be
+     * read out of the registry by every one of them to find the same number.
+     */
+    MASTER_DATA: Object.freeze({
+      RESOURCE: Object.freeze({
+        PARENT_DEPARTMENTS: '/parent-departments',
+        DEPARTMENTS: '/departments',
+        DESIGNATIONS: '/designations',
+        LEAVE_TYPES: '/leave-types',
+        CATEGORIES: '/categories',
+      }),
+
+      /** The list itself: GET and POST. Empty, so the path is the resource. */
+      COLLECTION: '',
+      /** One row: GET, PUT and DELETE. */
+      ITEM: '/:id',
+    }),
+
     LOCATION_LIST: '/:organizationId/locations',
     LOCATION_CREATE: '/:organizationId/locations',
     LOCATION_DETAIL: '/:organizationId/locations/:locationId',

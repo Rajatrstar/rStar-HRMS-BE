@@ -6,4 +6,5 @@ export * from './email-template.enum.js';
 export * from './employee.enum.js';
 export * from './organization.enum.js';
 export * from './module.enum.js';
+export * from './master-data.enum.js';
 export * from './error-code.enum.js';

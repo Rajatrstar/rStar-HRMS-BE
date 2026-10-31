@@ -14,6 +14,7 @@ import { Router } from 'express';
 import { ROUTES } from '../enums/index.js';
 import { MODULE, ACTION } from '../enums/module.enum.js';
 import * as organizationController from '../controllers/organization.controller.js';
+import { registerMasterDataRoutes } from './master-data.routes.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { requireAccess } from '../middlewares/permission.middleware.js';
 
@@ -47,6 +48,18 @@ router.post(
   requireAccess(MODULE.ORGANIZATIONS, ACTION.ADD),
   organizationController.create,
 );
+
+/* Master data ---------------------------------------------------------------
+   The five lookup lists - parent departments, departments, designations,
+   leave types and categories - live in master-data.routes.js and are
+   registered here.
+
+   DECLARED BEFORE /:organizationId, for the same reason as TYPES above:
+   Express matches in declaration order, so with the id route first a GET of
+   /organizations/departments is read as organisation id "departments" and
+   dies in the validator with "must be a whole number". */
+
+registerMasterDataRoutes(router);
 
 router.get(
   ROUTES.ORGANIZATIONS.DETAIL,

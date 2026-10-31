@@ -25,6 +25,8 @@ npm run db:create:admin  # an administrator who can sign in
 | `npm run db:seed`    | Creates an employee **and** their login — defaults to `admin@rstartec.com` / `admin`. No role |
 | `npm run db:seed:employees` | Creates a couple of sample employees. They have no login and cannot sign in |
 | `npm run db:seed:access` | Syncs the module catalog and the Administrator group |
+| `npm run db:seed:masterdata` | Loads the five master-data lists - parent departments, departments, designations, leave types, categories - from the Zoho export |
+| `npm run db:grant:masterdata` | Gives HR Admin view/add/edit/delete on the five master-data lists (the system groups already hold everything) |
 | `npm run db:create:admin` | Creates a login **+** profile **+** group — a usable administrator |
 | `npm run db:verify`  | Checks every model in `src/models` against the live schema |
 | `npm run db:check`   | Connects as the app does and reports what is there — the first thing to run when it will not connect |
@@ -229,6 +231,47 @@ HRMS belongs to is a decommission, not an operation an endpoint should offer. Bo
 `PUT`s are a **full replace** — a field left out of the body is set to `NULL`.
 Deleting a location is a soft delete and answers `409 LOCATION_IN_USE` while any
 employee is still assigned to it.
+
+Master data — the five lookup lists every other screen chooses from. They live
+under the same group as the rest of organisation setup, beside `/organizations`
+rather than under `/organizations/:organizationId`: a department belongs to the
+company, not to one organisation row — unlike a location, which only means
+anything as part of one.
+
+| Method | Path                                      | Permission             |
+| ------ | ----------------------------------------- | ---------------------- |
+| GET    | `/api/v1/organizations/<list>`            | `<list>.view`          |
+| POST   | `/api/v1/organizations/<list>`            | `<list>.add`           |
+| GET    | `/api/v1/organizations/<list>/:id`        | `<list>.view`          |
+| PUT    | `/api/v1/organizations/<list>/:id`        | `<list>.edit`          |
+| DELETE | `/api/v1/organizations/<list>/:id`        | `<list>.delete`        |
+
+`<list>` is one of `parent-departments`, `departments`, `designations`,
+`leave-types` or `categories`. Every row is a name, an optional description and
+`isActive`; a department additionally carries `parentDepartmentId`, and reads
+return the resolved `parentDepartmentName` beside it.
+
+**Who holds these rights.** Super Admin and Administrator are system groups and
+hold everything implicitly. HR Admin holds View / Add / Edit / Delete on all five
+lists, written as real rows by `npm run db:grant:masterdata` — run it once on a
+fresh database. Manager and Employee hold nothing on them and are refused with
+`403 PERMISSION_DENIED`. None of that is in the code: it is the rights matrix,
+and the group screen can change it without a deploy.
+
+The list endpoints take `?isActive=true` and `?search=` (matches anywhere in the
+name), and `/departments` also takes `?parentDepartmentId=`. `PUT` is a **full
+replace**, like the organisation endpoints. `DELETE` is a soft delete and refuses
+with a `409` while anything still points at the row — `PARENT_DEPARTMENT_IN_USE`
+for a parent that still has departments, `DEPARTMENT_IN_USE` or
+`DESIGNATION_IN_USE` for one employees are still on. Leave types and categories
+have no dependants yet, so theirs always goes through.
+
+Each list is declared **before** `/:organizationId` in `organization.routes.js`:
+Express matches in declaration order, so the other way round a GET of
+`/organizations/departments` is read as organisation id `departments` and dies in
+the validator.
+
+Load the lists from the Zoho export with `npm run db:seed:masterdata`.
 
 Every response uses the same envelope:
 

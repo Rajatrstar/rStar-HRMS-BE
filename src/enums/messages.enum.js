@@ -118,4 +118,52 @@ export const MESSAGES = Object.freeze({
   UNKNOWN_MODULE: 'That module does not exist',
   DUPLICATE_MODULE_RIGHT: 'The same module appears more than once in the rights list',
   PAGE_NOT_MAPPED: 'No module is mapped to that page',
+
+  /* --- Master data ------------------------------------------------------
+     Five lists, one wording pattern. Spelled out per resource rather than
+     built from a label at runtime, because this file is meant to be the
+     place you read to find out exactly what the API says. */
+
+  PARENT_DEPARTMENTS_FETCHED: 'Parent departments fetched',
+  PARENT_DEPARTMENT_FETCHED: 'Parent department fetched',
+  PARENT_DEPARTMENT_CREATED: 'Parent department created',
+  PARENT_DEPARTMENT_UPDATED: 'Parent department updated',
+  PARENT_DEPARTMENT_DELETED: 'Parent department deleted',
+  PARENT_DEPARTMENT_NOT_FOUND: 'That parent department does not exist',
+  PARENT_DEPARTMENT_NAME_EXISTS: 'A parent department with that name already exists',
+  PARENT_DEPARTMENT_IN_USE: 'Departments are still under this parent department',
+
+  DEPARTMENTS_FETCHED: 'Departments fetched',
+  DEPARTMENT_FETCHED: 'Department fetched',
+  DEPARTMENT_CREATED: 'Department created',
+  DEPARTMENT_UPDATED: 'Department updated',
+  DEPARTMENT_DELETED: 'Department deleted',
+  DEPARTMENT_NOT_FOUND: 'That department does not exist',
+  DEPARTMENT_NAME_EXISTS: 'A department with that name already exists',
+  DEPARTMENT_IN_USE: 'Employees are still assigned to this department',
+
+  DESIGNATIONS_FETCHED: 'Designations fetched',
+  DESIGNATION_FETCHED: 'Designation fetched',
+  DESIGNATION_CREATED: 'Designation created',
+  DESIGNATION_UPDATED: 'Designation updated',
+  DESIGNATION_DELETED: 'Designation deleted',
+  DESIGNATION_NOT_FOUND: 'That designation does not exist',
+  DESIGNATION_NAME_EXISTS: 'A designation with that name already exists',
+  DESIGNATION_IN_USE: 'Employees still hold this designation',
+
+  LEAVE_TYPES_FETCHED: 'Leave types fetched',
+  LEAVE_TYPE_FETCHED: 'Leave type fetched',
+  LEAVE_TYPE_CREATED: 'Leave type created',
+  LEAVE_TYPE_UPDATED: 'Leave type updated',
+  LEAVE_TYPE_DELETED: 'Leave type deleted',
+  LEAVE_TYPE_NOT_FOUND: 'That leave type does not exist',
+  LEAVE_TYPE_NAME_EXISTS: 'A leave type with that name already exists',
+
+  CATEGORIES_FETCHED: 'Categories fetched',
+  CATEGORY_FETCHED: 'Category fetched',
+  CATEGORY_CREATED: 'Category created',
+  CATEGORY_UPDATED: 'Category updated',
+  CATEGORY_DELETED: 'Category deleted',
+  CATEGORY_NOT_FOUND: 'That category does not exist',
+  CATEGORY_NAME_EXISTS: 'A category with that name already exists',
 });

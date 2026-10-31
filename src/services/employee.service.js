@@ -15,7 +15,13 @@
  * schema point at these ids. Delete stamps DeletedAt.
  */
 import { query, queryOne } from '../helpers/query.helper.js';
-import { EmployeeDetails, EmployeeLogin, EMPLOYEE_DETAILS_PUBLIC_PROPS } from '../models/index.js';
+import {
+  EmployeeDetails,
+  EmployeeLogin,
+  Department,
+  Designation,
+  EMPLOYEE_DETAILS_PUBLIC_PROPS,
+} from '../models/index.js';
 import { ApiError } from '../utils/api-error.js';
 import { MESSAGES, ERROR_CODE, EMPLOYMENT_STATUS } from '../enums/index.js';
 
@@ -191,6 +197,53 @@ async function assertManagerUsable(managerId, employeeDetailId = null) {
   if (!row) {
     throw ApiError.badRequest(MESSAGES.MANAGER_NOT_FOUND, { code: ERROR_CODE.MANAGER_NOT_FOUND });
   }
+}
+
+/**
+ * A department or designation named on an employee has to exist.
+ *
+ * Both columns carry a real FOREIGN KEY since 009_master_data.sql, so without
+ * this check a stale id from an open tab would come back as SQL Server error
+ * 547 - which the error middleware has no choice but to report as a 500. The
+ * key still does the enforcing; this is only here to say so in a language the
+ * client can act on.
+ *
+ * A soft-deleted row is refused too, which the key cannot see: DeletedAt is an
+ * ordinary column to it, so it is perfectly happy to point an employee at a
+ * department no screen lists any more.
+ *
+ * Inactive is NOT refused. Switching a department off stops it being offered
+ * to new employees; it must not break the save of somebody already in it.
+ */
+async function assertMasterDataUsable(model, idProp, value, message) {
+  if (value === null || value === undefined) return;
+
+  const row = await queryOne(
+    `SELECT TOP (1) ${model.col(idProp)} AS id
+       FROM ${model.table}
+      WHERE ${model.col(idProp)} = @id AND ${model.col('deletedAt')} IS NULL`,
+    { id: model.param(idProp, value) },
+  );
+
+  if (!row) {
+    throw ApiError.badRequest(message, { code: ERROR_CODE.MASTER_DATA_NOT_FOUND });
+  }
+}
+
+/** The two master-data references an employee carries. */
+async function assertJobReferencesUsable(input) {
+  await assertMasterDataUsable(
+    Department,
+    'departmentId',
+    input.departmentId,
+    MESSAGES.DEPARTMENT_NOT_FOUND,
+  );
+  await assertMasterDataUsable(
+    Designation,
+    'designationId',
+    input.designationId,
+    MESSAGES.DESIGNATION_NOT_FOUND,
+  );
 }
 
 /** YYYY-MM-DD from either a Date out of the driver or a validated string. */
@@ -411,6 +464,7 @@ export async function createEmployee(actorId, input) {
   await assertManagerUsable(input.managerId);
   await assertManagerUsable(input.secondaryManagerId);
   await assertManagerUsable(input.additionalManagerId);
+  await assertJobReferencesUsable(input);
 
   const columns = WRITABLE_PROPS.map((prop) => EmployeeDetails.col(prop)).join(', ');
   const values = WRITABLE_PROPS.map((prop) => `@${prop}`).join(', ');
@@ -455,6 +509,7 @@ export async function updateEmployee(access, actorId, employeeDetailId, input) {
   await assertManagerUsable(input.managerId, employeeDetailId);
   await assertManagerUsable(input.secondaryManagerId, employeeDetailId);
   await assertManagerUsable(input.additionalManagerId, employeeDetailId);
+  await assertJobReferencesUsable(input);
 
   /*
     Every column is overwritten, PUT-style - except EmploymentStatus, which is

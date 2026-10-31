@@ -3,7 +3,7 @@
 		"name": "rSTAR HRMS API",
 		"_postman_id": "b7a1f3c2-5d4e-4a6b-9c8d-0e1f2a3b4c5d",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"description": "HRMS backend API, grouped into folders.\n\nHealth   - liveness and readiness, no auth\nAuth     - login, OTP, refresh, password reset\nAdmin    - Organization and Locations (permission-guarded)\n\nORDER MATTERS the first time through: run Auth top to bottom to capture the token, then Admin > Organization before Admin > Locations, because the location requests read the {{organizationId}} that `create organization` stores.\n\nNo bearer token is ever pasted. verify-otp stores it in {{accessToken}} and every request inherits the collection-level Bearer auth that reads it.\n\nSet {{baseUrl}} in the Variables tab, or pick an environment, and go."
+		"description": "HRMS backend API, grouped into folders.\n\nHealth   - liveness and readiness, no auth\nAuth     - login, OTP, refresh, password reset\nAdmin    - Organization, Locations and the five master-data lists (permission-guarded)\nEmployees   - onboarding, the employee record, exit and deletion\nAccess Control - groups, their rights matrix and who is in them\n\nORDER MATTERS the first time through: run Auth top to bottom to capture the token, then Admin > Organization before Admin > Locations, because the location requests read the {{organizationId}} that `create organization` stores. Employees, Access Control and the master-data folders under Admin each stand on their own - any of them can be run straight after Auth.\n\nNo bearer token is ever pasted. verify-otp stores it in {{accessToken}} and every request inherits the collection-level Bearer auth that reads it.\n\nSet {{baseUrl}} in the Variables tab, or pick an environment, and go."
 	},
 	"auth": {
 		"type": "bearer",
@@ -97,6 +97,46 @@
 		},
 		{
 			"key": "groupName",
+			"value": ""
+		},
+		{
+			"key": "parentDepartmentId",
+			"value": ""
+		},
+		{
+			"key": "parentDepartmentName",
+			"value": ""
+		},
+		{
+			"key": "departmentId",
+			"value": ""
+		},
+		{
+			"key": "departmentName",
+			"value": ""
+		},
+		{
+			"key": "designationId",
+			"value": ""
+		},
+		{
+			"key": "designationName",
+			"value": ""
+		},
+		{
+			"key": "leaveTypeId",
+			"value": ""
+		},
+		{
+			"key": "leaveTypeName",
+			"value": ""
+		},
+		{
+			"key": "categoryId",
+			"value": ""
+		},
+		{
+			"key": "categoryName",
 			"value": ""
 		}
 	],
@@ -1020,7 +1060,7 @@
 		},
 		{
 			"name": "Admin",
-			"description": "Organisation setup and, as they are built, roles, groups and user access. Everything in here is permission-guarded and today only Super Admin and HR Admin hold any of it.\n\nA 403 names the exact code it wanted in `details.requiredPermission` - grant that rather than guessing at a role.",
+			"description": "Organisation setup: the company and its locations, and the five master-data lists the rest of the application chooses from - parent departments, departments, designations, leave types and categories.\n\nEverything in here is permission-guarded. Organization and Locations are Super Admin and HR Admin today; so are the five lists, and Manager and Employee hold nothing on them.\n\nA 403 names the exact module and action it wanted in `details.requiredAccess` - grant that on the group screen rather than guessing at a group.",
 			"item": [
 				{
 					"name": "Organization",
@@ -1660,6 +1700,1881 @@
 									]
 								},
 								"description": "Soft delete - requires organization-location.delete. Answers 409 LOCATION_IN_USE while any employee is still assigned to it."
+							}
+						}
+					]
+				},
+				{
+					"name": "Parent Departments",
+					"description": "The top of the department tree. A department points at one of these, and deleting one is refused while any department still does.\n\nAll five lists share one set of handlers at /organizations/<list>, so the shape is identical: name, description, isActive, and meta.total beside a list. Each is its own module with its own rights, which is what lets a group be given designations without being handed departments.\n\nRights today: Super Admin and HR Admin hold View / Add / Edit / Delete; Manager and Employee hold nothing and are refused with 403. Run `npm run db:grant:masterdata` after a fresh database to put that matrix back.\n\nRUN THE FOLDER TOP TO BOTTOM - the early requests store the ids the rest read, and every row it creates is deleted again before the end. Names are generated per run, so it can be re-run as often as you like.",
+					"item": [
+						{
+							"name": "1. create parent department",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('created', () => pm.response.to.have.status(201));",
+											"pm.collectionVariables.set('parentDepartmentId', pm.response.json().data.parentDepartmentId);",
+											"pm.test('comes back active', () => {",
+											"  pm.expect(pm.response.json().data.isActive).to.eql(true);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"{{parentDepartmentName}}\",\n  \"description\": \"Created by the Postman collection\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/organizations/parent-departments",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"parent-departments"
+									]
+								},
+								"description": "The top of the department tree - Technology, Client Engagement and Operations in the Zoho export.\n\nSuper Admin and HR Admin only - Manager and Employee hold no right on this list and are refused with 403 PERMISSION_DENIED.\n\nisActive is not settable on create: a list you cannot see the moment you make it would be a strange thing to allow. Switch it off on the edit screen instead."
+							}
+						},
+						{
+							"name": "2. create duplicate (should fail)",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('rejected as a conflict', () => pm.response.to.have.status(409));",
+											"pm.test('says which rule was broken', () => {",
+											"  pm.expect(pm.response.json().details.code).to.eql('NAME_ALREADY_EXISTS');",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"{{parentDepartmentName}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/organizations/parent-departments",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"parent-departments"
+									]
+								},
+								"description": "Name is unique among live rows on all five lists, enforced by a filtered unique index rather than a pre-check SELECT - so two clients racing to add the same name still get one row and one 409. Deleting frees the name again: the index is filtered on DeletedAt."
+							}
+						},
+						{
+							"name": "3. list parent departments",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('fetched', () => pm.response.to.have.status(200));",
+											"pm.test('meta.total matches the rows returned', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body.meta.total).to.eql(body.data.length);",
+											"});",
+											"pm.test('the new parent department is in the list', () => {",
+											"  const names = pm.response.json().data.map((row) => row.name);",
+											"  pm.expect(names).to.include(pm.collectionVariables.get('parentDepartmentName'));",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/organizations/parent-departments",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"parent-departments"
+									]
+								},
+								"description": "Every live parent department, in name order. Takes ?isActive= and ?search= like the other four lists."
+							}
+						},
+						{
+							"name": "4. get parent department",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('fetched', () => pm.response.to.have.status(200));",
+											"pm.test('is the row that was created', () => {",
+											"  pm.expect(pm.response.json().data.parentDepartmentId).to.eql(Number(pm.collectionVariables.get('parentDepartmentId')));",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/organizations/parent-departments/{{parentDepartmentId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"parent-departments",
+										"{{parentDepartmentId}}"
+									]
+								},
+								"description": "One row by id. The id parameter is :id on all five lists, because the handlers behind them are shared."
+							}
+						},
+						{
+							"name": "5. update parent department",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('updated', () => pm.response.to.have.status(200));",
+											"pm.test('the edit took', () => {",
+											"  const data = pm.response.json().data;",
+											"  pm.expect(data.description).to.eql('Edited by the Postman collection');",
+											"  pm.expect(data.isActive).to.eql(false);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"{{parentDepartmentName}}\",\n  \"description\": \"Edited by the Postman collection\",\n  \"isActive\": false\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/organizations/parent-departments/{{parentDepartmentId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"parent-departments",
+										"{{parentDepartmentId}}"
+									]
+								},
+								"description": "A FULL REPLACE, like the organisation endpoints: a field left out of the body is set to NULL. isActive is editable here and nowhere else - this is how a list is retired without deleting it, which matters for a row others still point at."
+							}
+						},
+						{
+							"name": "6. delete parent department",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('deleted', () => pm.response.to.have.status(200));",
+											"pm.test('answers with what was deleted', () => {",
+											"  pm.expect(pm.response.json().data.name).to.eql(pm.collectionVariables.get('parentDepartmentName'));",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/organizations/parent-departments/{{parentDepartmentId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"parent-departments",
+										"{{parentDepartmentId}}"
+									]
+								},
+								"description": "A soft delete - the row keeps its id and gets a DeletedAt stamp, because other tables point at these ids. 200 with the deleted row's identity rather than 204, so the client toast can name it.\n\nGoes through because nothing is under this parent; the Departments folder shows the 409 when something is."
+							}
+						},
+						{
+							"name": "7. master data without token (should fail)",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('rejected', () => pm.response.to.have.status(401));"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"auth": {
+									"type": "noauth"
+								},
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/organizations/designations",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"designations"
+									]
+								},
+								"description": "Sends no bearer token. Proves authenticate sits in front of the master-data paths too - they are registered on the organisations router, so one check covers all five lists."
+							}
+						}
+					]
+				},
+				{
+					"name": "Departments",
+					"description": "Departments, each optionally under a parent department. The only list with a second column of its own: parentDepartmentId, with parentDepartmentName resolved on the way out.\n\nAll five lists share one set of handlers at /organizations/<list>, so the shape is identical: name, description, isActive, and meta.total beside a list. Each is its own module with its own rights, which is what lets a group be given designations without being handed departments.\n\nRights today: Super Admin and HR Admin hold View / Add / Edit / Delete; Manager and Employee hold nothing and are refused with 403. Run `npm run db:grant:masterdata` after a fresh database to put that matrix back.\n\nRUN THE FOLDER TOP TO BOTTOM - the early requests store the ids the rest read, and every row it creates is deleted again before the end. Names are generated per run, so it can be re-run as often as you like.",
+					"item": [
+						{
+							"name": "1. create a parent to hang it on",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('created', () => pm.response.to.have.status(201));",
+											"pm.collectionVariables.set('parentDepartmentId', pm.response.json().data.parentDepartmentId);"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"{{parentDepartmentName}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/organizations/parent-departments",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"parent-departments"
+									]
+								},
+								"description": "This folder stands on its own: it makes the parent it needs, and request 12 deletes it again. Run it without the Parent Departments folder if you like."
+							}
+						},
+						{
+							"name": "2. create department",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('created', () => pm.response.to.have.status(201));",
+											"pm.collectionVariables.set('departmentId', pm.response.json().data.departmentId);",
+											"pm.test('sits under the parent it was given', () => {",
+											"  const data = pm.response.json().data;",
+											"  pm.expect(data.parentDepartmentId).to.eql(Number(pm.collectionVariables.get('parentDepartmentId')));",
+											"  pm.expect(data.parentDepartmentName).to.eql(pm.collectionVariables.get('parentDepartmentName'));",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"{{departmentName}}\",\n  \"description\": \"Created by the Postman collection\",\n  \"parentDepartmentId\": \"{{parentDepartmentId}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/organizations/departments",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"departments"
+									]
+								},
+								"description": "parentDepartmentId is the only field the other four lists do not have; leave it out for a department that sits at the top of the tree.\n\nReads return parentDepartmentName beside the id, so the grid does not have to resolve it.\n\nSuper Admin and HR Admin only - Manager and Employee hold no right on this list and are refused with 403 PERMISSION_DENIED."
+							}
+						},
+						{
+							"name": "3. department under an unknown parent (should fail)",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('rejected', () => pm.response.to.have.status(400));",
+											"pm.test('names what was not found', () => {",
+											"  pm.expect(pm.response.json().details.code).to.eql('MASTER_DATA_NOT_FOUND');",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"{{departmentName}} orphan\",\n  \"parentDepartmentId\": 999999999\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/organizations/departments",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"departments"
+									]
+								},
+								"description": "The parent is checked before the insert, so a stale id from an open tab is a 400 naming the parent - not the foreign-key 547 the driver would otherwise turn into a 500."
+							}
+						},
+						{
+							"name": "4. create duplicate (should fail)",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('rejected as a conflict', () => pm.response.to.have.status(409));",
+											"pm.test('says which rule was broken', () => {",
+											"  pm.expect(pm.response.json().details.code).to.eql('NAME_ALREADY_EXISTS');",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"{{departmentName}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/organizations/departments",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"departments"
+									]
+								},
+								"description": "Name is unique among live rows on all five lists, enforced by a filtered unique index rather than a pre-check SELECT - so two clients racing to add the same name still get one row and one 409. Deleting frees the name again: the index is filtered on DeletedAt."
+							}
+						},
+						{
+							"name": "5. search departments",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('fetched', () => pm.response.to.have.status(200));",
+											"pm.test('search matches the department just created', () => {",
+											"  const rows = pm.response.json().data;",
+											"  pm.expect(rows.length).to.eql(1);",
+											"  pm.expect(rows[0].departmentId).to.eql(Number(pm.collectionVariables.get('departmentId')));",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/organizations/departments?search={{departmentName}}&isActive=true",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"departments"
+									],
+									"query": [
+										{
+											"key": "search",
+											"value": "{{departmentName}}"
+										},
+										{
+											"key": "isActive",
+											"value": "true"
+										}
+									]
+								},
+								"description": "search matches anywhere in the name; isActive narrows to the live ones, which is what a dropdown wants. Both are optional and available on all five lists."
+							}
+						},
+						{
+							"name": "6. departments under one parent",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('fetched', () => pm.response.to.have.status(200));",
+											"pm.test('every row is under the parent asked for', () => {",
+											"  const wanted = Number(pm.collectionVariables.get('parentDepartmentId'));",
+											"  pm.response.json().data.forEach((row) => pm.expect(row.parentDepartmentId).to.eql(wanted));",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/organizations/departments?parentDepartmentId={{parentDepartmentId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"departments"
+									],
+									"query": [
+										{
+											"key": "parentDepartmentId",
+											"value": "{{parentDepartmentId}}"
+										}
+									]
+								},
+								"description": "parentDepartmentId is the one filter only /departments takes - offering it on a flat list would answer 200 and ignore it, which reads to a client as 'nothing matched'."
+							}
+						},
+						{
+							"name": "7. get department",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('fetched', () => pm.response.to.have.status(200));",
+											"pm.test('is the department that was created', () => {",
+											"  pm.expect(pm.response.json().data.departmentId).to.eql(Number(pm.collectionVariables.get('departmentId')));",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/organizations/departments/{{departmentId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"departments",
+										"{{departmentId}}"
+									]
+								},
+								"description": "One row by id, with its parent resolved."
+							}
+						},
+						{
+							"name": "8. update department",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('updated', () => pm.response.to.have.status(200));",
+											"pm.test('the edit took', () => {",
+											"  const data = pm.response.json().data;",
+											"  pm.expect(data.description).to.eql('Renamed by the Postman collection');",
+											"  pm.expect(data.isActive).to.eql(false);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"{{departmentName}}\",\n  \"description\": \"Renamed by the Postman collection\",\n  \"parentDepartmentId\": \"{{parentDepartmentId}}\",\n  \"isActive\": false\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/organizations/departments/{{departmentId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"departments",
+										"{{departmentId}}"
+									]
+								},
+								"description": "A FULL REPLACE, like the organisation endpoints: a field left out of the body is set to NULL. isActive is editable here and nowhere else - this is how a list is retired without deleting it, which matters for a row others still point at.\n\nDrop parentDepartmentId from this body and the department moves to the top of the tree - that is the same rule, not a special case."
+							}
+						},
+						{
+							"name": "9. delete the parent while it is in use (should fail)",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('rejected as a conflict', () => pm.response.to.have.status(409));",
+											"pm.test('says what is still pointing at it', () => {",
+											"  const details = pm.response.json().details;",
+											"  pm.expect(details.code).to.eql('PARENT_DEPARTMENT_IN_USE');",
+											"  pm.expect(details.departments).to.be.at.least(1);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/organizations/parent-departments/{{parentDepartmentId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"parent-departments",
+										"{{parentDepartmentId}}"
+									]
+								},
+								"description": "Delete is a soft delete, so the foreign key cannot refuse this - the references stay valid either way. The service counts the dependants itself and answers 409 with the number, rather than leaving departments under a parent no screen lists.\n\nDepartments and designations refuse the same way while employees are still on them (DEPARTMENT_IN_USE, DESIGNATION_IN_USE). Leave types and categories have no dependants yet, so theirs always goes through."
+							}
+						},
+						{
+							"name": "10. delete department",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('deleted', () => pm.response.to.have.status(200));"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/organizations/departments/{{departmentId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"departments",
+										"{{departmentId}}"
+									]
+								},
+								"description": "Would answer 409 DEPARTMENT_IN_USE if an employee were still assigned to it."
+							}
+						},
+						{
+							"name": "11. get the deleted department (should fail)",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('gone', () => pm.response.to.have.status(404));",
+											"pm.test('answers with the master-data code', () => {",
+											"  pm.expect(pm.response.json().details.code).to.eql('MASTER_DATA_NOT_FOUND');",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/organizations/departments/{{departmentId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"departments",
+										"{{departmentId}}"
+									]
+								},
+								"description": "The row is still in the table with a DeletedAt stamp - nothing here is ever hard-deleted, because employees and audit columns point at these ids. Every read path filters it out, so to a client it is gone."
+							}
+						},
+						{
+							"name": "12. delete the parent",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('deleted', () => pm.response.to.have.status(200));"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/organizations/parent-departments/{{parentDepartmentId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"parent-departments",
+										"{{parentDepartmentId}}"
+									]
+								},
+								"description": "Goes through now that nothing is under it - request 9 refused the same call a moment ago. The folder leaves nothing behind."
+							}
+						}
+					]
+				},
+				{
+					"name": "Designations",
+					"description": "Job titles. Employees point at one with DesignationId, so deleting one is refused while anybody holds it.\n\nAll five lists share one set of handlers at /organizations/<list>, so the shape is identical: name, description, isActive, and meta.total beside a list. Each is its own module with its own rights, which is what lets a group be given designations without being handed departments.\n\nRights today: Super Admin and HR Admin hold View / Add / Edit / Delete; Manager and Employee hold nothing and are refused with 403. Run `npm run db:grant:masterdata` after a fresh database to put that matrix back.\n\nRUN THE FOLDER TOP TO BOTTOM - the early requests store the ids the rest read, and every row it creates is deleted again before the end. Names are generated per run, so it can be re-run as often as you like.",
+					"item": [
+						{
+							"name": "1. create designation",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('created', () => pm.response.to.have.status(201));",
+											"pm.collectionVariables.set('designationId', pm.response.json().data.designationId);"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"{{designationName}}\",\n  \"description\": \"Created by the Postman collection\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/organizations/designations",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"designations"
+									]
+								},
+								"description": "Job titles - 172 of them came out of the Zoho export. Flat list: name, description and isActive, with no parent.\n\nSuper Admin and HR Admin only - Manager and Employee hold no right on this list and are refused with 403 PERMISSION_DENIED."
+							}
+						},
+						{
+							"name": "2. create duplicate (should fail)",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('rejected as a conflict', () => pm.response.to.have.status(409));",
+											"pm.test('says which rule was broken', () => {",
+											"  pm.expect(pm.response.json().details.code).to.eql('NAME_ALREADY_EXISTS');",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"{{designationName}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/organizations/designations",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"designations"
+									]
+								},
+								"description": "Name is unique among live rows on all five lists, enforced by a filtered unique index rather than a pre-check SELECT - so two clients racing to add the same name still get one row and one 409. Deleting frees the name again: the index is filtered on DeletedAt."
+							}
+						},
+						{
+							"name": "3. search designations",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('fetched', () => pm.response.to.have.status(200));",
+											"pm.test('finds the designation just created', () => {",
+											"  const rows = pm.response.json().data;",
+											"  pm.expect(rows.length).to.eql(1);",
+											"  pm.expect(rows[0].designationId).to.eql(Number(pm.collectionVariables.get('designationId')));",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/organizations/designations?search={{designationName}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"designations"
+									],
+									"query": [
+										{
+											"key": "search",
+											"value": "{{designationName}}"
+										}
+									]
+								},
+								"description": "Leave ?search= off for the whole list. ?isActive=true is what a dropdown wants."
+							}
+						},
+						{
+							"name": "4. get designation",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('fetched', () => pm.response.to.have.status(200));"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/organizations/designations/{{designationId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"designations",
+										"{{designationId}}"
+									]
+								},
+								"description": "One row by id."
+							}
+						},
+						{
+							"name": "5. update designation",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('updated', () => pm.response.to.have.status(200));",
+											"pm.test('description was cleared by leaving it out', () => {",
+											"  pm.expect(pm.response.json().data.description).to.eql(null);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"{{designationName}}\",\n  \"isActive\": true\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/organizations/designations/{{designationId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"designations",
+										"{{designationId}}"
+									]
+								},
+								"description": "This body deliberately leaves description out, and the row comes back with none - that is what a full replace means. Send it back to keep it."
+							}
+						},
+						{
+							"name": "6. delete designation",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('deleted', () => pm.response.to.have.status(200));"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/organizations/designations/{{designationId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"designations",
+										"{{designationId}}"
+									]
+								},
+								"description": "Would answer 409 DESIGNATION_IN_USE while an employee still held it. The folder leaves nothing behind."
+							}
+						}
+					]
+				},
+				{
+					"name": "Leave Types",
+					"description": "The kinds of leave that can be applied for. isActive is the switch that takes one off the apply-for-leave screen without deleting it.\n\nAll five lists share one set of handlers at /organizations/<list>, so the shape is identical: name, description, isActive, and meta.total beside a list. Each is its own module with its own rights, which is what lets a group be given designations without being handed departments.\n\nRights today: Super Admin and HR Admin hold View / Add / Edit / Delete; Manager and Employee hold nothing and are refused with 403. Run `npm run db:grant:masterdata` after a fresh database to put that matrix back.\n\nRUN THE FOLDER TOP TO BOTTOM - the early requests store the ids the rest read, and every row it creates is deleted again before the end. Names are generated per run, so it can be re-run as often as you like.",
+					"item": [
+						{
+							"name": "1. create leave type",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('created', () => pm.response.to.have.status(201));",
+											"pm.collectionVariables.set('leaveTypeId', pm.response.json().data.leaveTypeId);"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"{{leaveTypeName}}\",\n  \"description\": \"Created by the Postman collection\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/organizations/leave-types",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"leave-types"
+									]
+								},
+								"description": "The leave calendar's categories. isActive carries the export's 'Is Leave Type enabled': a type that is off stays on file for the history pointing at it and simply stops being offered on the apply-for-leave screen.\n\nSuper Admin and HR Admin only - Manager and Employee hold no right on this list and are refused with 403 PERMISSION_DENIED."
+							}
+						},
+						{
+							"name": "2. list leave types",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('fetched', () => pm.response.to.have.status(200));",
+											"pm.test('the new leave type is in the list', () => {",
+											"  const names = pm.response.json().data.map((row) => row.name);",
+											"  pm.expect(names).to.include(pm.collectionVariables.get('leaveTypeName'));",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/organizations/leave-types",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"leave-types"
+									]
+								},
+								"description": "The whole list, in name order."
+							}
+						},
+						{
+							"name": "3. get leave type",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('fetched', () => pm.response.to.have.status(200));"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/organizations/leave-types/{{leaveTypeId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"leave-types",
+										"{{leaveTypeId}}"
+									]
+								},
+								"description": "One row by id."
+							}
+						},
+						{
+							"name": "4. switch the leave type off",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('updated', () => pm.response.to.have.status(200));",
+											"pm.test('is no longer offered', () => {",
+											"  pm.expect(pm.response.json().data.isActive).to.eql(false);",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"{{leaveTypeName}}\",\n  \"description\": \"Retired by the Postman collection\",\n  \"isActive\": false\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/organizations/leave-types/{{leaveTypeId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"leave-types",
+										"{{leaveTypeId}}"
+									]
+								},
+								"description": "Retiring a leave type is an edit, not a delete: the balances and the history that point at it have to keep resolving. isActive false is what takes it off the apply-for-leave screen."
+							}
+						},
+						{
+							"name": "5. delete leave type",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('deleted', () => pm.response.to.have.status(200));"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/organizations/leave-types/{{leaveTypeId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"leave-types",
+										"{{leaveTypeId}}"
+									]
+								},
+								"description": "Nothing points at a leave type yet - the leave module does not exist - so this always goes through. It will start refusing with a 409 the day leave requests reference it."
+							}
+						}
+					]
+				},
+				{
+					"name": "Categories",
+					"description": "Help-desk and announcement categories.\n\nAll five lists share one set of handlers at /organizations/<list>, so the shape is identical: name, description, isActive, and meta.total beside a list. Each is its own module with its own rights, which is what lets a group be given designations without being handed departments.\n\nRights today: Super Admin and HR Admin hold View / Add / Edit / Delete; Manager and Employee hold nothing and are refused with 403. Run `npm run db:grant:masterdata` after a fresh database to put that matrix back.\n\nRUN THE FOLDER TOP TO BOTTOM - the early requests store the ids the rest read, and every row it creates is deleted again before the end. Names are generated per run, so it can be re-run as often as you like.",
+					"item": [
+						{
+							"name": "1. create category",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('created', () => pm.response.to.have.status(201));",
+											"pm.collectionVariables.set('categoryId', pm.response.json().data.categoryId);"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"{{categoryName}}\",\n  \"description\": \"Created by the Postman collection\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/organizations/categories",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"categories"
+									]
+								},
+								"description": "Help-desk and announcement categories.\n\nSuper Admin and HR Admin only - Manager and Employee hold no right on this list and are refused with 403 PERMISSION_DENIED."
+							}
+						},
+						{
+							"name": "2. a name that is too long (should fail)",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('rejected', () => pm.response.to.have.status(400));",
+											"pm.test('names the field that failed', () => {",
+											"  pm.expect(pm.response.json().details).to.have.property('name');",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/organizations/categories",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"categories"
+									]
+								},
+								"description": "151 characters against an NVARCHAR(150) column. The validator mirrors the column widths from the migration, so an over-long value is a 400 naming the field rather than a silently shortened row. The same limit applies on all five lists."
+							}
+						},
+						{
+							"name": "3. list categories",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('fetched', () => pm.response.to.have.status(200));",
+											"pm.test('finds the category just created', () => {",
+											"  const rows = pm.response.json().data;",
+											"  pm.expect(rows.length).to.eql(1);",
+											"  pm.expect(rows[0].categoryId).to.eql(Number(pm.collectionVariables.get('categoryId')));",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/organizations/categories?search={{categoryName}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"categories"
+									],
+									"query": [
+										{
+											"key": "search",
+											"value": "{{categoryName}}"
+										}
+									]
+								},
+								"description": "The same list shape as the other four: id, name, description, isActive, modifiedAt - and meta.total beside the rows."
+							}
+						},
+						{
+							"name": "4. get category",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('fetched', () => pm.response.to.have.status(200));"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/organizations/categories/{{categoryId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"categories",
+										"{{categoryId}}"
+									]
+								},
+								"description": "One row by id."
+							}
+						},
+						{
+							"name": "5. update category",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('updated', () => pm.response.to.have.status(200));",
+											"pm.test('the edit took', () => {",
+											"  pm.expect(pm.response.json().data.description).to.eql('Edited by the Postman collection');",
+											"});"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"{{categoryName}}\",\n  \"description\": \"Edited by the Postman collection\",\n  \"isActive\": true\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/organizations/categories/{{categoryId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"categories",
+										"{{categoryId}}"
+									]
+								},
+								"description": "A FULL REPLACE, like the organisation endpoints: a field left out of the body is set to NULL. isActive is editable here and nowhere else - this is how a list is retired without deleting it, which matters for a row others still point at."
+							}
+						},
+						{
+							"name": "6. delete category",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"// Every endpoint answers in the same envelope - see 'Response contract'",
+											"// in the README. Asserting it here means a regression shows up on any",
+											"// request, not just the one somebody remembered to check.",
+											"pm.test('envelope is well formed', () => {",
+											"  const body = pm.response.json();",
+											"  pm.expect(body).to.have.property('success');",
+											"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+											"  pm.expect(body).to.have.property('message');",
+											"  pm.expect(body).to.have.property('data');",
+											"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+											"});",
+											"",
+											"pm.test('deleted', () => pm.response.to.have.status(200));"
+										]
+									}
+								}
+							],
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/organizations/categories/{{categoryId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"organizations",
+										"categories",
+										"{{categoryId}}"
+									]
+								},
+								"description": "The folder leaves nothing behind."
 							}
 						}
 					]
@@ -3069,6 +4984,20 @@
 					"// without request 5 colliding with the group it created last time.",
 					"if (!pm.collectionVariables.get('groupName')) {",
 					"\tpm.collectionVariables.set('groupName', 'QA Group ' + Date.now().toString().slice(-6));",
+					"}",
+					"",
+					"// Unique master-data names per run, so the five master-data folders",
+					"// under Admin can be re-run without colliding with the rows they made",
+					"// last time. Regenerated at every folder's first request, because each",
+					"// of those folders creates and then deletes its own rows.",
+					"if (!pm.collectionVariables.get('parentDepartmentName') ||",
+					"    pm.info.requestName.startsWith('1. ')) {",
+					"  const unique = Date.now().toString().slice(-6);",
+					"  pm.collectionVariables.set('parentDepartmentName', 'PM Division ' + unique);",
+					"  pm.collectionVariables.set('departmentName', 'PM Department ' + unique);",
+					"  pm.collectionVariables.set('designationName', 'PM Designation ' + unique);",
+					"  pm.collectionVariables.set('leaveTypeName', 'PM Leave ' + unique);",
+					"  pm.collectionVariables.set('categoryName', 'PM Category ' + unique);",
 					"}"
 				]
 			}

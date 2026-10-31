@@ -66,4 +66,15 @@ export const ERROR_CODE = Object.freeze({
    * for a missing checkbox on a group the person is not in.
    */
   NO_GROUP_ASSIGNED: 'NO_GROUP_ASSIGNED',
+
+  /* --- Master data (009) ----------------------------------------------- */
+
+  /** A master-data row named in the path does not exist, or was deleted. */
+  MASTER_DATA_NOT_FOUND: 'MASTER_DATA_NOT_FOUND',
+  /** Deleting a parent department that still has departments under it. */
+  PARENT_DEPARTMENT_IN_USE: 'PARENT_DEPARTMENT_IN_USE',
+  /** Deleting a department employees are still assigned to. */
+  DEPARTMENT_IN_USE: 'DEPARTMENT_IN_USE',
+  /** Deleting a designation employees still hold. */
+  DESIGNATION_IN_USE: 'DESIGNATION_IN_USE',
 });
