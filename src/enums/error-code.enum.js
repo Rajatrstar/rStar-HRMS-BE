@@ -46,6 +46,20 @@ export const ERROR_CODE = Object.freeze({
   INVALID_EXIT_DATE: 'INVALID_EXIT_DATE',
   /** The manager named on an employee does not exist, or is not active. */
   MANAGER_NOT_FOUND: 'MANAGER_NOT_FOUND',
+  /**
+   * An employment status on the wrong side of IsActive: an exit status on a
+   * live record, or a live status on an exited one. Exits go through deactivate.
+   */
+  INVALID_EMPLOYMENT_STATUS: 'INVALID_EMPLOYMENT_STATUS',
+
+  /* --- Employee profile sections and documents (011) ------------------- */
+
+  /** A saved row's id is not a live row of this employee's section. */
+  SECTION_ROW_NOT_FOUND: 'SECTION_ROW_NOT_FOUND',
+  /** No live document of that type for this employee. */
+  DOCUMENT_NOT_FOUND: 'DOCUMENT_NOT_FOUND',
+  /** An upload with no file, or one too large, or of a type not accepted. */
+  INVALID_FILE: 'INVALID_FILE',
   /* --- Group-based access control (008) ------------------------------- */
 
   /** The group named in the path does not exist, or has been deleted. */

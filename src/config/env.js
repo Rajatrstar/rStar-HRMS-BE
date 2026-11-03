@@ -168,6 +168,12 @@ export const env = Object.freeze({
   // per-request check would be the round trip the cache exists to remove.
   ACCESS_CONTROL_STAMP_POLL_SECONDS: toInt('ACCESS_CONTROL_STAMP_POLL_SECONDS', 5),
 
+  // Uploaded files (PAN / Aadhaar scans). Local disk for now: relative paths
+  // resolve against the project root. Moving to blob storage later changes
+  // where bytes go, not the FileUrl the database and the API agree on.
+  UPLOAD_DIR: optional('UPLOAD_DIR', 'uploads'),
+  UPLOAD_MAX_FILE_MB: toInt('UPLOAD_MAX_FILE_MB', 5),
+
   MAIL_POLL_SECONDS: toInt('MAIL_POLL_SECONDS', 15),
   MAIL_BATCH_SIZE: toInt('MAIL_BATCH_SIZE', 25),
   MAIL_MAX_ATTEMPTS: toInt('MAIL_MAX_ATTEMPTS', 5),

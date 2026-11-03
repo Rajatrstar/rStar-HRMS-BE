@@ -82,6 +82,15 @@ function uniqueViolation(error) {
 }
 
 /**
+ * The one 404 for a missing employee. The code is the same whether the row
+ * never existed or was deleted, so it gives a client something to branch on
+ * without telling it which.
+ */
+function employeeNotFound() {
+  return ApiError.notFound(MESSAGES.EMPLOYEE_NOT_FOUND, { code: ERROR_CODE.EMPLOYEE_NOT_FOUND });
+}
+
+/**
  * Turns a unique-index violation into the right 409.
  *
  * Caught rather than pre-checked: a SELECT first is a second round trip that
@@ -127,7 +136,7 @@ async function loadForWrite(employeeDetailId) {
     EmployeeDetails.params({ employeeDetailId }),
   );
 
-  if (!row) throw ApiError.notFound(MESSAGES.EMPLOYEE_NOT_FOUND);
+  if (!row) throw employeeNotFound();
 
   return row;
 }
@@ -140,7 +149,7 @@ async function loadForWrite(employeeDetailId) {
  */
 async function loadWritable(employeeDetailId) {
   const row = await loadForWrite(employeeDetailId);
-  if (!row) throw ApiError.notFound(MESSAGES.EMPLOYEE_NOT_FOUND);
+  if (!row) throw employeeNotFound();
   return row;
 }
 
@@ -252,9 +261,73 @@ function asDateOnly(value) {
   return value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
 }
 
+/** "First Last" for a joined employee alias, NULL when the join found nobody. */
+function managerNameSql(alias) {
+  return `CASE WHEN ${alias}.EmployeeDetailId IS NULL THEN NULL
+               ELSE CONCAT_WS(' ', ${alias}.FirstName, ${alias}.LastName) END`;
+}
+
+/**
+ * 404s unless the employee exists and is not deleted.
+ *
+ * For the services that hang rows off an employee - sections, documents -
+ * and need nothing from the row but its existence.
+ */
+export async function assertEmployeeExists(employeeDetailId) {
+  await loadForWrite(employeeDetailId);
+}
+
 /* -------------------------------------------------------------------------- */
 /* Read                                                                       */
 /* -------------------------------------------------------------------------- */
+
+/**
+ * The manager dropdown: active employees, narrowed by what the user typed.
+ *
+ * Its own query rather than the list endpoint because a dropdown wants six
+ * columns, not seventy, and because the same rule assertManagerUsable
+ * enforces on save - live and active - belongs in what is offered, or the
+ * form offers people the save then refuses.
+ */
+export async function listManagerOptions({ search, excludeEmployeeDetailId, limit }) {
+  const where = ['DeletedAt IS NULL', 'IsActive = 1'];
+  const bound = {};
+
+  if (search) {
+    where.push(`(FirstName LIKE @search OR LastName LIKE @search
+                 OR CONCAT_WS(' ', FirstName, LastName) LIKE @search
+                 OR EmployeeCode LIKE @search OR WorkEmail LIKE @search)`);
+    bound.search = EmployeeDetails.param('firstName', `%${search}%`);
+  }
+
+  // The employee being edited, who cannot be their own manager.
+  if (excludeEmployeeDetailId !== undefined) {
+    where.push('EmployeeDetailId <> @excludeId');
+    bound.excludeId = EmployeeDetails.param('employeeDetailId', excludeEmployeeDetailId);
+  }
+
+  const rows = await query(
+    `SELECT TOP (@limit)
+            EmployeeDetailId AS employeeDetailId,
+            EmployeeCode     AS employeeCode,
+            FirstName        AS firstName,
+            LastName         AS lastName,
+            Designation      AS designation,
+            Department       AS department,
+            WorkEmail        AS workEmail,
+            ProfilePhotoUrl  AS profilePhotoUrl
+       FROM ${EmployeeDetails.table}
+      WHERE ${where.join(' AND ')}
+      ORDER BY FirstName, LastName, EmployeeDetailId`,
+    { ...bound, limit: EmployeeDetails.param('employeeSerialNo', limit) },
+  );
+
+  return allWithNumericIds(rows).map((row) => ({
+    ...row,
+    // What the dropdown shows, built once here rather than in every client.
+    displayName: `${[row.firstName, row.lastName].filter(Boolean).join(' ')} (${row.employeeCode})`,
+  }));
+}
 
 /**
  * A page of employees the caller may see.
@@ -332,19 +405,28 @@ export async function listEmployees(access, filters) {
  * only reason to be here without a row is that there is no row.
  */
 export async function getEmployee(access, employeeDetailId) {
+  // The three manager names ride along so the Hierarchy section can show
+  // people rather than ids. A deleted manager is joined anyway: the name is
+  // still who the record points at, and hiding it would hide that problem.
   const row = await queryOne(
     `SELECT ${EMPLOYEE_COLUMNS},
             (SELECT COUNT(*) FROM ${EmployeeDetails.table} AS r
               WHERE r.ManagerId = d.EmployeeDetailId AND r.DeletedAt IS NULL) AS directReports,
             (SELECT COUNT(*) FROM ${EmployeeLogin.table} AS l
-              WHERE l.EmployeeDetailId = d.EmployeeDetailId) AS hasLogin
+              WHERE l.EmployeeDetailId = d.EmployeeDetailId) AS hasLogin,
+            ${managerNameSql('m1')} AS managerName,
+            ${managerNameSql('m2')} AS secondaryManagerName,
+            ${managerNameSql('m3')} AS additionalManagerName
        FROM ${EmployeeDetails.table} AS d
+       LEFT JOIN ${EmployeeDetails.table} AS m1 ON m1.EmployeeDetailId = d.ManagerId
+       LEFT JOIN ${EmployeeDetails.table} AS m2 ON m2.EmployeeDetailId = d.SecondaryManagerId
+       LEFT JOIN ${EmployeeDetails.table} AS m3 ON m3.EmployeeDetailId = d.AdditionalManagerId
       WHERE d.EmployeeDetailId = @employeeDetailId
         AND d.DeletedAt IS NULL`,
     EmployeeDetails.params({ employeeDetailId }),
   );
 
-  if (!row) throw ApiError.notFound(MESSAGES.EMPLOYEE_NOT_FOUND);
+  if (!row) throw employeeNotFound();
 
   return { ...withNumericIds(row), hasLogin: row.hasLogin > 0 };
 }
@@ -362,12 +444,13 @@ export async function getEmployee(access, employeeDetailId) {
  *
  * EmployeeSerialNo is absent on purpose: the sequence default fills it, and
  * naming it here would let a caller choose their own serial number.
+ *
+ * So are ZohoUserId, ZohoRecordId and InternalEmployeeId. The import owns
+ * them and the controller accepts none of them, so listing them here only
+ * meant every edit overwrote them with NULL - unlinking the row from Zoho.
  */
 const WRITABLE_PROPS = Object.freeze([
   'employeeCode',
-  'zohoUserId',
-  'zohoRecordId',
-  'internalEmployeeId',
   'firstName',
   'middleName',
   'lastName',
@@ -447,6 +530,42 @@ const WRITABLE_PROPS = Object.freeze([
  * differently, and both are deliberate: create substitutes the default,
  * update keeps whatever is already there.
  */
+/**
+ * Columns an update keeps when the client sends no value, instead of nulling.
+ *
+ * employmentStatus because it is NOT NULL - see updateEmployee. PAN and
+ * Aadhar because no endpoint returns them (EMPLOYEE_DETAILS_PUBLIC_PROPS), so
+ * an edit form cannot post back what it was never given: under plain PUT
+ * semantics every ordinary edit silently erased both. The cost is that they
+ * cannot be cleared through this endpoint, which is the right way round for a
+ * government identifier.
+ */
+const KEPT_WHEN_OMITTED = Object.freeze(['employmentStatus', 'panNumber', 'aadharNumber']);
+
+/**
+ * An exit status on a live record, or a live status on an exited one, is the
+ * contradiction deactivate exists to prevent - so neither create nor update
+ * may produce it. Moving between the two sides is deactivate's job alone.
+ */
+function assertStatusMatchesActive(isActive, employmentStatus) {
+  if (employmentStatus === null || employmentStatus === undefined) return;
+
+  const isExitStatus = EXIT_STATUSES.includes(employmentStatus);
+
+  if (isActive && isExitStatus) {
+    throw ApiError.badRequest(MESSAGES.EXIT_STATUS_NEEDS_DEACTIVATE, {
+      code: ERROR_CODE.INVALID_EMPLOYMENT_STATUS,
+      employmentStatus: 'Use the exit endpoint to move an employee to this status',
+    });
+  }
+  if (!isActive && !isExitStatus) {
+    throw ApiError.badRequest(MESSAGES.EXITED_NEEDS_EXIT_STATUS, {
+      code: ERROR_CODE.INVALID_EMPLOYMENT_STATUS,
+      employmentStatus: `Must be one of: ${EXIT_STATUSES.join(', ')}`,
+    });
+  }
+}
+
 function writableParams(input) {
   return EmployeeDetails.params(
     Object.fromEntries(WRITABLE_PROPS.map((prop) => [prop, input[prop] ?? null])),
@@ -461,6 +580,7 @@ function writableParams(input) {
  * for the shape of creating both together.
  */
 export async function createEmployee(actorId, input) {
+  assertStatusMatchesActive(true, input.employmentStatus);
   await assertManagerUsable(input.managerId);
   await assertManagerUsable(input.secondaryManagerId);
   await assertManagerUsable(input.additionalManagerId);
@@ -504,28 +624,31 @@ export async function createEmployee(actorId, input) {
  * an exit without recording who did it or when.
  */
 export async function updateEmployee(access, actorId, employeeDetailId, input) {
-  await loadWritable(employeeDetailId);
+  const current = await loadWritable(employeeDetailId);
 
+  assertStatusMatchesActive(current.isActive, input.employmentStatus);
   await assertManagerUsable(input.managerId, employeeDetailId);
   await assertManagerUsable(input.secondaryManagerId, employeeDetailId);
   await assertManagerUsable(input.additionalManagerId, employeeDetailId);
   await assertJobReferencesUsable(input);
 
   /*
-    Every column is overwritten, PUT-style - except EmploymentStatus, which is
-    NOT NULL and so has no NULL to be set to. COALESCE keeps the current value
-    when the client omits it.
+    Every column is overwritten, PUT-style - except KEPT_WHEN_OMITTED.
+    EmploymentStatus is NOT NULL and so has no NULL to be set to; PAN and
+    Aadhar are never sent to the client to be sent back. COALESCE keeps the
+    current value when the client omits one.
 
-    Defaulting it to 'Active' here instead, the way create does, would let an
+    Defaulting EmploymentStatus to 'Active' here instead, the way create does, would let an
     ordinary edit of an exited employee flip their status back to Active while
     IsActive stayed 0 - the exact contradiction the deactivate endpoint
     exists to prevent, arriving through the back door.
   */
-  const assignments = WRITABLE_PROPS.map((prop) =>
-    prop === 'employmentStatus'
-      ? 'EmploymentStatus = COALESCE(@employmentStatus, EmploymentStatus)'
-      : `${EmployeeDetails.col(prop)} = @${prop}`,
-  ).join(',\n              ');
+  const assignments = WRITABLE_PROPS.map((prop) => {
+    const col = EmployeeDetails.col(prop);
+    return KEPT_WHEN_OMITTED.includes(prop)
+      ? `${col} = COALESCE(@${prop}, ${col})`
+      : `${col} = @${prop}`;
+  }).join(',\n              ');
 
   let row;
   try {
@@ -548,7 +671,7 @@ export async function updateEmployee(access, actorId, employeeDetailId, input) {
 
   // OUTPUT returns nothing when the WHERE matched nothing. loadWritable
   // already proved the row was there, so this only fires on a race.
-  if (!row) throw ApiError.notFound(MESSAGES.EMPLOYEE_NOT_FOUND);
+  if (!row) throw employeeNotFound();
 
   return withNumericIds(row);
 }
@@ -685,7 +808,7 @@ export async function deleteEmployee(access, actorId, employeeDetailId) {
     },
   );
 
-  if (!row) throw ApiError.notFound(MESSAGES.EMPLOYEE_NOT_FOUND);
+  if (!row) throw employeeNotFound();
 
   return withNumericIds(row);
 }

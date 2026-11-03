@@ -28,7 +28,10 @@ import { ACTION, ACTION_PROP, moduleName } from '../enums/module.enum.js';
  * @param {string|null} config.action   from ACTION
  */
 function buildGuard({ moduleId, action }) {
-  const label = moduleId === null ? 'authenticated' : `${moduleName(moduleId)}:${action}`;
+  // `action` may be a list: holding any one of them is enough.
+  const actions = Array.isArray(action) ? action : [action];
+  const label =
+    moduleId === null ? 'authenticated' : `${moduleName(moduleId)}:${actions.join('|')}`;
 
   const guard = async (req, res, next) => {
     const access = await resolveAccess(req.employee.employeeDetailId);
@@ -45,7 +48,7 @@ function buildGuard({ moduleId, action }) {
 
     // A null moduleId means "any signed-in employee" - /access/me and the
     // menu, which every user needs before they can be shown anything at all.
-    if (moduleId !== null && !access.can(moduleId, action)) {
+    if (moduleId !== null && !actions.some((each) => access.can(moduleId, each))) {
       // An employee with no group reaches here for every guarded route. Said
       // separately because it is a different fix: assign them a group, rather
       // than hunting for a missing checkbox on a group they are not in.
@@ -97,6 +100,24 @@ export function requireAccess(moduleId, action) {
     throw new Error(`Module must be a MODULE.* id, received ${JSON.stringify(moduleId)}.`);
   }
   return buildGuard({ moduleId, action });
+}
+
+/**
+ * One module, any of several actions.
+ *
+ *   requireAnyAccess(MODULE.EMPLOYEES, [ACTION.VIEW, ACTION.ADD, ACTION.EDIT])
+ *
+ * For a read that serves a write screen - the manager dropdown on the Add
+ * Employee form must work for a group that may add but not browse. The 403
+ * reports the whole list as `requiredAccess.action`.
+ */
+export function requireAnyAccess(moduleId, actions) {
+  if (!Array.isArray(actions) || actions.length === 0) {
+    throw new Error('requireAnyAccess needs a non-empty list of ACTION.* values.');
+  }
+  // Each one checked the way requireAccess checks a single action.
+  actions.forEach((action) => requireAccess(moduleId, action));
+  return buildGuard({ moduleId, action: Object.freeze([...actions]) });
 }
 
 /** Shorthand for the four common ones, so route files read as declarations. */

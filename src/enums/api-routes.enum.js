@@ -9,6 +9,16 @@
 /** Mounted once, in app.js. Bump to /api/v2 when the contract breaks. */
 export const API_PREFIX = '/api/v1';
 
+/**
+ * Where uploaded files are served from, under API_PREFIX. Also the start of
+ * every FileUrl stored in the database, so a stored path is always a path
+ * this API answers. Mounted in app.js behind a token and a module right -
+ * these are government ID scans, never a public static folder.
+ */
+export const UPLOADS_PATH = Object.freeze({
+  EMPLOYEES: '/uploads/employees',
+});
+
 /** Where each module's router mounts under the prefix. One entry per module. */
 export const ROUTE_GROUP = Object.freeze({
   HEALTH: '/health',
@@ -130,10 +140,24 @@ export const ROUTES = Object.freeze({
   EMPLOYEES: Object.freeze({
     LIST: '/',
     CREATE: '/',
+    // The manager dropdown. MUST be declared before DETAIL: Express would
+    // otherwise read "managers" as an employee id.
+    MANAGER_OPTIONS: '/managers',
     DETAIL: '/:employeeDetailId',
     UPDATE: '/:employeeDetailId',
     DEACTIVATE: '/:employeeDetailId/deactivate',
     DELETE: '/:employeeDetailId',
+
+    /**
+     * The repeating profile sections. Each is read as a list and saved as a
+     * list - see src/services/employee-section.service.js. The suffixes live
+     * in EMPLOYEE_SECTION below so the routes can be wired from one loop.
+     */
+    SECTION: '/:employeeDetailId',
+
+    DOCUMENT_LIST: '/:employeeDetailId/documents',
+    DOCUMENT_UPLOAD: '/:employeeDetailId/documents/:documentType',
+    DOCUMENT_DELETE: '/:employeeDetailId/documents/:documentType',
   }),
 
   /**

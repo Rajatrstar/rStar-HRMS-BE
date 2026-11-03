@@ -234,6 +234,18 @@
 		{
 			"key": "masterDataName",
 			"value": ""
+		},
+		{
+			"key": "workExperienceId",
+			"value": ""
+		},
+		{
+			"key": "dependentRelationshipId",
+			"value": ""
+		},
+		{
+			"key": "panFileUrl",
+			"value": ""
 		}
 	],
 	"item": [
@@ -10930,7 +10942,7 @@
 		},
 		{
 			"name": "Employees",
-			"description": "Onboarding and the employee record: create, read, update, exit, delete.\n\nRun top to bottom. Request 1 stores {{employeeDetailId}} and everything after it works on that person, ending with a delete - so a full run leaves the database as it found it.\n\nUNLIKE the Admin folder, every permission here is SCOPED. Holding employees.view at OWN returns your own record and nothing else; at TEAM, you and your direct reports; at ALL, the company. A write to a row outside your scope answers 404 rather than 403, because a 403 would confirm that an employee with that id exists.\n\nExiting somebody is its own endpoint and its own permission (employees.deactivate), not a flag on update. It demands a leaving date and an exit status, and refuses while the person still has direct reports - see requests 7 to 10.",
+			"description": "Onboarding and the employee record: create, read, update, the manager picker, the work experience / education / dependents sections, PAN and Aadhaar uploads, exit, delete.\n\nRun top to bottom. Request 1 stores {{employeeDetailId}} and everything after it works on that person, ending with a delete - so a full run leaves the database as it found it.\n\nUNLIKE the Admin folder, every permission here is SCOPED. Holding employees.view at OWN returns your own record and nothing else; at TEAM, you and your direct reports; at ALL, the company. A write to a row outside your scope answers 404 rather than 403, because a 403 would confirm that an employee with that id exists.\n\nExiting somebody is its own endpoint and its own permission (employees.deactivate), not a flag on update. It demands a leaving date and an exit status, and refuses while the person still has direct reports - see requests 7 to 10.\n\nSECTIONS AND DOCUMENTS. Work experience, education and dependents are each saved with one PUT of the whole list: rows with an id are updated, rows without one are added, rows left out are removed. PAN and Aadhaar are multipart uploads stored on the server's disk; the database keeps only the URL path, and the file is fetched from {{baseUrl}} + fileUrl with the bearer token. The upload requests attach postman/fixtures/sample-id.png - set Postman's working directory to the postman folder, or pick any image in the Body tab.",
 			"item": [
 				{
 					"name": "1. create employee",
@@ -11209,6 +11221,11 @@
 									"pm.test('carries the counts the detail screen needs', () => {",
 									"  pm.expect(payload).to.have.property('directReports');",
 									"  pm.expect(payload).to.have.property('hasLogin');",
+									"});",
+									"pm.test('names the managers so the screen needs no second lookup', () => {",
+									"  pm.expect(payload).to.have.property('managerName');",
+									"  pm.expect(payload).to.have.property('secondaryManagerName');",
+									"  pm.expect(payload).to.have.property('additionalManagerName');",
 									"});"
 								]
 							}
@@ -11227,7 +11244,7 @@
 								"{{employeeDetailId}}"
 							]
 						},
-						"description": "One employee, plus two things the detail screen needs: how many people report to them, and whether they can sign in. An id outside your scope answers 404 rather than 403 - a 403 would confirm the row exists."
+						"description": "One employee, plus two things the detail screen needs: how many people report to them, and whether they can sign in. An id outside your scope answers 404 rather than 403 - a 403 would confirm the row exists. It also returns managerName, secondaryManagerName and additionalManagerName next to the manager ids."
 					}
 				},
 				{
@@ -11297,7 +11314,1095 @@
 					}
 				},
 				{
-					"name": "7. deactivate with no exit details (should fail)",
+					"name": "7. manager picker",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('fetched', () => pm.response.to.have.status(200));",
+									"const payload = pm.response.json().data;",
+									"pm.test('a list of options, at most the limit asked for', () => {",
+									"  pm.expect(payload).to.be.an('array');",
+									"  pm.expect(payload.length).to.be.at.most(10);",
+									"});",
+									"pm.test('each option carries what the dropdown shows', () => {",
+									"  payload.forEach((m) => {",
+									"    pm.expect(m.employeeDetailId).to.be.a('number');",
+									"    pm.expect(m.displayName).to.include(m.employeeCode);",
+									"  });",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/employees/managers?search=&limit=10",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"managers"
+							],
+							"query": [
+								{
+									"key": "search",
+									"value": ""
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						},
+						"description": "The Reporting Manager dropdowns on Add and Edit Employee. Active, live employees only, sorted by name. `search` matches first name, last name, full name, employee code and work email; `limit` defaults to 20 and caps at 50. Accepts View, Add or Edit on Employees, so a group that may only add employees can still fill the form.\n\nPick an option and send its employeeDetailId as managerId, secondaryManagerId or additionalManagerId on create/update."
+					}
+				},
+				{
+					"name": "8. manager picker excludes the person being edited",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('fetched', () => pm.response.to.have.status(200));",
+									"pm.test('nobody can be picked as their own manager', () => {",
+									"  const id = Number(pm.collectionVariables.get('employeeDetailId'));",
+									"  pm.expect(pm.response.json().data.map((m) => m.employeeDetailId)).to.not.include(id);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/employees/managers?search={{employeeCode}}&excludeEmployeeDetailId={{employeeDetailId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"managers"
+							],
+							"query": [
+								{
+									"key": "search",
+									"value": "{{employeeCode}}"
+								},
+								{
+									"key": "excludeEmployeeDetailId",
+									"value": "{{employeeDetailId}}"
+								}
+							]
+						},
+						"description": "On the Edit screen, pass the employee being edited as excludeEmployeeDetailId so they never appear in their own manager list. The search is their own code, so without the exclude this would return them."
+					}
+				},
+				{
+					"name": "9. save work experience",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('saved', () => pm.response.to.have.status(200));",
+									"const payload = pm.response.json().data;",
+									"pm.test('returns the whole section after the save', () => pm.expect(payload).to.have.length(2));",
+									"pm.test('newest first', () => pm.expect(payload[0].companyName).to.eql('Globex'));",
+									"// Kept for the next request, which edits Acme and drops Globex.",
+									"pm.collectionVariables.set('workExperienceId', payload.find((r) => r.companyName === 'Acme Corp').employeeWorkExperienceId);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"items\": [\n    {\n      \"companyName\": \"Acme Corp\",\n      \"jobTitle\": \"Developer\",\n      \"fromDate\": \"2019-07-01\",\n      \"toDate\": \"2022-12-31\",\n      \"jobDescription\": \"Built internal tools\",\n      \"isRelevant\": true\n    },\n    {\n      \"companyName\": \"Globex\",\n      \"jobTitle\": \"Senior Developer\",\n      \"fromDate\": \"2023-01-02\",\n      \"toDate\": \"2024-03-15\",\n      \"isRelevant\": true\n    }\n  ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}/work-experience",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}",
+								"work-experience"
+							]
+						},
+						"description": "Saves the whole table in one call, in one transaction. A row with employeeWorkExperienceId is updated, a row without one is added, and a saved row left out of `items` is removed (soft delete). Send `{ \"items\": [] }` to clear the section. Up to 50 rows.\n\nRequired per row: companyName, jobTitle, fromDate. toDate may be empty (current job) but not before fromDate.\n\nAccepts Add or Edit on Employees, so the Add Employee form can save its sections straight after the create."
+					}
+				},
+				{
+					"name": "10. edit, add and remove work experience rows",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('saved', () => pm.response.to.have.status(200));",
+									"const payload = pm.response.json().data;",
+									"const keptId = Number(pm.collectionVariables.get('workExperienceId'));",
+									"pm.test('the row sent with its id was updated in place', () => {",
+									"  const acme = payload.find((r) => r.employeeWorkExperienceId === keptId);",
+									"  pm.expect(acme.companyName).to.eql('Acme Corporation');",
+									"});",
+									"pm.test('the row left out is gone, the new one is in', () => {",
+									"  const names = payload.map((r) => r.companyName);",
+									"  pm.expect(names).to.not.include('Globex');",
+									"  pm.expect(names).to.include('Initech');",
+									"  pm.expect(payload).to.have.length(2);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"items\": [\n    {\n      \"employeeWorkExperienceId\": \"{{workExperienceId}}\",\n      \"companyName\": \"Acme Corporation\",\n      \"jobTitle\": \"Developer\",\n      \"fromDate\": \"2019-07-01\",\n      \"toDate\": \"2022-12-31\",\n      \"isRelevant\": true\n    },\n    {\n      \"companyName\": \"Initech\",\n      \"jobTitle\": \"Tech Lead\",\n      \"fromDate\": \"2024-04-01\"\n    }\n  ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}/work-experience",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}",
+								"work-experience"
+							]
+						},
+						"description": "The same PUT again, showing all three cases at once: Acme is sent with its id and renamed, Initech has no id and is added, Globex is not sent and is removed.\n\nNote: the {{workExperienceId}} placeholder is quoted in the body so the JSON stays valid in the editor; the API accepts the id as a string or a number."
+					}
+				},
+				{
+					"name": "11. work experience with bad rows (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('rejected', () => pm.response.to.have.status(400));",
+									"pm.test('each error names its row and field', () => {",
+									"  const details = pm.response.json().details;",
+									"  pm.expect(details).to.have.property('items[0].toDate');",
+									"  pm.expect(details).to.have.property('items[1].companyName');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"items\": [\n    {\n      \"companyName\": \"Acme Corp\",\n      \"jobTitle\": \"Developer\",\n      \"fromDate\": \"2024-05-01\",\n      \"toDate\": \"2024-01-01\"\n    },\n    {\n      \"companyName\": \"\",\n      \"jobTitle\": \"Developer\",\n      \"fromDate\": \"2024-01-01\"\n    }\n  ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}/work-experience",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}",
+								"work-experience"
+							]
+						},
+						"description": "Errors come back in `details`, keyed `items[<row index>].<field>`, so the form can put each message under the right cell. Nothing is saved when any row is invalid."
+					}
+				},
+				{
+					"name": "12. get work experience",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('fetched', () => pm.response.to.have.status(200));",
+									"pm.test('still the two rows from the last good save', () => pm.expect(pm.response.json().data).to.have.length(2));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}/work-experience",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}",
+								"work-experience"
+							]
+						},
+						"description": "The section rows, newest first (by fromDate). Needs View on Employees."
+					}
+				},
+				{
+					"name": "13. save education",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('saved', () => pm.response.to.have.status(200));",
+									"const payload = pm.response.json().data;",
+									"pm.test('both rows saved, latest first', () => {",
+									"  pm.expect(payload).to.have.length(2);",
+									"  pm.expect(payload[0].instituteName).to.eql('IIM Lucknow');",
+									"});",
+									"pm.test('lookup names come back alongside the ids', () => {",
+									"  pm.expect(payload[0]).to.have.property('qualificationName');",
+									"  pm.expect(payload[0]).to.have.property('specializationName');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"items\": [\n    {\n      \"instituteName\": \"Delhi University\",\n      \"degree\": \"B.Com\",\n      \"dateOfCompletion\": \"2015-06-30\",\n      \"grade\": \"72%\"\n    },\n    {\n      \"instituteName\": \"IIM Lucknow\",\n      \"degree\": \"MBA (Marketing)\",\n      \"dateOfCompletion\": \"2018-04-15\",\n      \"grade\": \"3.6 GPA\"\n    }\n  ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}/education",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}",
+								"education"
+							]
+						},
+						"description": "Same save rules as work experience. Required per row: instituteName. qualificationId and specializationId are optional and come from the Qualifications and Specializations master lists (Admin > Master Data); an unknown or deleted id is a 400 MASTER_DATA_NOT_FOUND. The response adds qualificationName and specializationName for display."
+					}
+				},
+				{
+					"name": "14. get education",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('fetched', () => pm.response.to.have.status(200));",
+									"pm.test('two rows', () => pm.expect(pm.response.json().data).to.have.length(2));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}/education",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}",
+								"education"
+							]
+						},
+						"description": "The education rows, latest dateOfCompletion first."
+					}
+				},
+				{
+					"name": "15. pick a relationship for the dependent",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('fetched', () => pm.response.to.have.status(200));",
+									"const rows = pm.response.json().data;",
+									"pm.test('at least one Relationship exists', () => pm.expect(rows).to.have.length.above(0));",
+									"if (rows.length) pm.collectionVariables.set('dependentRelationshipId', rows[0].relationshipId);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/organizations/relationships",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"organizations",
+								"relationships"
+							]
+						},
+						"description": "Helper for the next request: a dependent needs a relationshipId from the Relationships master list. Stored in its own variable, because the Admin > Relationships folder deletes the row it creates and so leaves {{relationshipId}} pointing at nothing. Fails if the list is empty - add a Relationship first."
+					}
+				},
+				{
+					"name": "16. save dependents",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('saved', () => pm.response.to.have.status(200));",
+									"const payload = pm.response.json().data;",
+									"pm.test('one dependent, with the relationship name filled in', () => {",
+									"  pm.expect(payload).to.have.length(1);",
+									"  pm.expect(payload[0].relationshipName).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"items\": [\n    {\n      \"name\": \"Rohan Sharma\",\n      \"relationshipId\": \"{{dependentRelationshipId}}\",\n      \"dateOfBirth\": \"1991-02-11\",\n      \"gender\": \"Male\",\n      \"contactNumber\": \"9811111111\"\n    }\n  ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}/dependents",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}",
+								"dependents"
+							]
+						},
+						"description": "Same save rules again. Required per row: name and relationshipId (from the Relationships master list). The response adds relationshipName."
+					}
+				},
+				{
+					"name": "17. dependent without a relationship (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('rejected', () => pm.response.to.have.status(400));",
+									"pm.test('points at the missing field', () => {",
+									"  pm.expect(pm.response.json().details).to.have.property('items[0].relationshipId');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"items\": [\n    {\n      \"name\": \"Rohan Sharma\"\n    }\n  ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}/dependents",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}",
+								"dependents"
+							]
+						},
+						"description": "relationshipId is required on every dependent."
+					}
+				},
+				{
+					"name": "18. get dependents",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('fetched', () => pm.response.to.have.status(200));",
+									"pm.test('the failed save changed nothing', () => pm.expect(pm.response.json().data).to.have.length(1));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}/dependents",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}",
+								"dependents"
+							]
+						},
+						"description": "The dependents, in name order."
+					}
+				},
+				{
+					"name": "19. upload PAN",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('uploaded', () => pm.response.to.have.status(200));",
+									"const payload = pm.response.json().data;",
+									"pm.test('only the URL path is stored', () => {",
+									"  pm.expect(payload.documentType).to.eql('PAN');",
+									"  pm.expect(payload.fileUrl).to.match(/^\\/uploads\\/employees\\/\\d+\\/pan-/);",
+									"});",
+									"pm.collectionVariables.set('panFileUrl', payload.fileUrl);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": "fixtures/sample-id.png",
+									"description": "JPEG, PNG, WebP or PDF, up to 5 MB. The sample lives in postman/fixtures - if Postman cannot find it, pick any image here."
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}/documents/PAN",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}",
+								"documents",
+								"PAN"
+							]
+						},
+						"description": "multipart/form-data with one field, `file`. documentType is PAN or AADHAAR (any case). The server checks the file contents, not the name: JPEG, PNG, WebP or PDF, up to 5 MB (UPLOAD_MAX_FILE_MB). Uploading again replaces the old file, which is deleted from disk.\n\nThe file is stored on the server's disk; the database keeps only fileUrl, e.g. /uploads/employees/42/pan-<uuid>.png. Accepts Add or Edit on Employees.\n\nPostman: the sample file is postman/fixtures/sample-id.png. If Postman says the file is missing, set Settings > General > Working directory to the postman folder, or choose any image in the Body tab."
+					}
+				},
+				{
+					"name": "20. upload Aadhaar",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('uploaded', () => pm.response.to.have.status(200));",
+									"pm.test('the type is normalised to upper case', () => pm.expect(pm.response.json().data.documentType).to.eql('AADHAAR'));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": "fixtures/sample-id.png",
+									"description": "JPEG, PNG, WebP or PDF, up to 5 MB. The sample lives in postman/fixtures - if Postman cannot find it, pick any image here."
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}/documents/aadhaar",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}",
+								"documents",
+								"aadhaar"
+							]
+						},
+						"description": "Same as the PAN upload. The type in the path is case-insensitive."
+					}
+				},
+				{
+					"name": "21. upload with no file (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('rejected', () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": []
+						},
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}/documents/PAN",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}",
+								"documents",
+								"PAN"
+							]
+						},
+						"description": "No `file` field: 400 with FILE_REQUIRED. The existing PAN is untouched."
+					}
+				},
+				{
+					"name": "22. upload an unknown document type (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('rejected', () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": "fixtures/sample-id.png",
+									"description": "JPEG, PNG, WebP or PDF, up to 5 MB. The sample lives in postman/fixtures - if Postman cannot find it, pick any image here."
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}/documents/PASSPORT",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}",
+								"documents",
+								"PASSPORT"
+							]
+						},
+						"description": "Only PAN and AADHAAR are accepted."
+					}
+				},
+				{
+					"name": "23. list documents",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('fetched', () => pm.response.to.have.status(200));",
+									"const payload = pm.response.json().data;",
+									"pm.test('one current file per type', () => {",
+									"  pm.expect(payload.map((d) => d.documentType).sort()).to.eql(['AADHAAR', 'PAN']);",
+									"});",
+									"pm.test('metadata for the screen', () => {",
+									"  payload.forEach((d) => {",
+									"    pm.expect(d).to.have.property('originalFileName');",
+									"    pm.expect(d).to.have.property('mimeType');",
+									"    pm.expect(d).to.have.property('fileSizeBytes');",
+									"  });",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}/documents",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}",
+								"documents"
+							]
+						},
+						"description": "The current PAN and Aadhaar files, if any. Each carries fileUrl, originalFileName, mimeType and fileSizeBytes. Needs View on Employees."
+					}
+				},
+				{
+					"name": "24. download the PAN file",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('served', () => pm.response.to.have.status(200));",
+									"pm.test('as an image, not JSON', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('image/png'));",
+									"pm.test('never cached', () => pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}{{panFileUrl}}",
+							"host": [
+								"{{baseUrl}}{{panFileUrl}}"
+							]
+						},
+						"description": "The file itself: {{baseUrl}} + fileUrl, with the same bearer token as every other call. Needs View on Employees, and is sent with Cache-Control: private, no-store.\n\nIn the browser a plain <img src> cannot send the token, so fetch the file and show it from a blob URL - see the frontend doc."
+					}
+				},
+				{
+					"name": "25. download without a token (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('authentication is required', () => pm.response.to.have.status(401));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "noauth"
+						},
+						"url": {
+							"raw": "{{baseUrl}}{{panFileUrl}}",
+							"host": [
+								"{{baseUrl}}{{panFileUrl}}"
+							]
+						},
+						"description": "Government ID scans are never public. Without a token: 401."
+					}
+				},
+				{
+					"name": "26. delete the PAN document",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('deleted', () => pm.response.to.have.status(200));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}/documents/PAN",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}",
+								"documents",
+								"PAN"
+							]
+						},
+						"description": "Removes the record (soft delete) and the file on disk. Needs Edit on Employees."
+					}
+				},
+				{
+					"name": "27. delete the PAN document again (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('nothing left to delete', () => pm.response.to.have.status(404));",
+									"pm.test('says why', () => pm.expect(pm.response.json().details.code).to.eql('DOCUMENT_NOT_FOUND'));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}/documents/PAN",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}",
+								"documents",
+								"PAN"
+							]
+						},
+						"description": "404 DOCUMENT_NOT_FOUND once there is no PAN on file."
+					}
+				},
+				{
+					"name": "28. deactivate with no exit details (should fail)",
 					"event": [
 						{
 							"listen": "test",
@@ -11358,7 +12463,7 @@
 					}
 				},
 				{
-					"name": "8. deactivate with an impossible date (should fail)",
+					"name": "29. deactivate with an impossible date (should fail)",
 					"event": [
 						{
 							"listen": "test",
@@ -11417,7 +12522,7 @@
 					}
 				},
 				{
-					"name": "9. deactivate employee",
+					"name": "30. deactivate employee",
 					"event": [
 						{
 							"listen": "test",
@@ -11479,7 +12584,7 @@
 					}
 				},
 				{
-					"name": "10. deactivate again (should fail)",
+					"name": "31. deactivate again (should fail)",
 					"event": [
 						{
 							"listen": "test",
@@ -11538,7 +12643,7 @@
 					}
 				},
 				{
-					"name": "11. delete employee",
+					"name": "32. delete employee",
 					"event": [
 						{
 							"listen": "test",
@@ -11583,7 +12688,7 @@
 					}
 				},
 				{
-					"name": "12. get deleted employee (should fail)",
+					"name": "33. get deleted employee (should fail)",
 					"event": [
 						{
 							"listen": "test",
@@ -11602,7 +12707,10 @@
 									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
 									"});",
 									"",
-									"pm.test('gone from reads', () => pm.response.to.have.status(404));"
+									"pm.test('gone from reads', () => pm.response.to.have.status(404));",
+									"pm.test('says why, in a code the screen can branch on', () => {",
+									"  pm.expect(pm.response.json().details.code).to.eql('EMPLOYEE_NOT_FOUND');",
+									"});"
 								]
 							}
 						}
@@ -11624,7 +12732,7 @@
 					}
 				},
 				{
-					"name": "13. employees without token (should fail)",
+					"name": "34. employees without token (should fail)",
 					"event": [
 						{
 							"listen": "test",

@@ -19,8 +19,20 @@ import { Router } from 'express';
 import { ROUTES } from '../enums/index.js';
 import { MODULE, ACTION } from '../enums/module.enum.js';
 import * as employeeController from '../controllers/employee.controller.js';
+import * as profileController from '../controllers/employee-profile.controller.js';
+import { SECTION_KEYS } from '../services/employee-section.service.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
-import { requireAccess } from '../middlewares/permission.middleware.js';
+import { requireAccess, requireAnyAccess } from '../middlewares/permission.middleware.js';
+import { singleFileUpload } from '../middlewares/upload.middleware.js';
+
+/*
+  The Add Employee form saves the record, then its sections and documents.
+  A group that may Add but not Edit must be able to finish that form, so the
+  profile writes accept either right. The dropdown that serves both forms
+  accepts View as well.
+*/
+const WRITE_PROFILE = [ACTION.ADD, ACTION.EDIT];
+const PICK_FROM = [ACTION.VIEW, ACTION.ADD, ACTION.EDIT];
 
 const router = Router();
 
@@ -38,6 +50,13 @@ router.post(
   ROUTES.EMPLOYEES.CREATE,
   requireAccess(MODULE.EMPLOYEES, ACTION.ADD),
   employeeController.create,
+);
+
+// Before DETAIL, or "/managers" is read as an employee id.
+router.get(
+  ROUTES.EMPLOYEES.MANAGER_OPTIONS,
+  requireAnyAccess(MODULE.EMPLOYEES, PICK_FROM),
+  employeeController.managerOptions,
 );
 
 /*
@@ -70,6 +89,43 @@ router.delete(
   ROUTES.EMPLOYEES.DELETE,
   requireAccess(MODULE.EMPLOYEES, ACTION.DELETE),
   employeeController.remove,
+);
+
+// Work experience, education, dependents: one GET and one PUT each.
+for (const section of SECTION_KEYS) {
+  const path = `${ROUTES.EMPLOYEES.SECTION}/${section}`;
+
+  router.get(
+    path,
+    requireAccess(MODULE.EMPLOYEES, ACTION.VIEW),
+    profileController.listSection(section),
+  );
+  router.put(
+    path,
+    requireAnyAccess(MODULE.EMPLOYEES, WRITE_PROFILE),
+    profileController.saveSection(section),
+  );
+}
+
+router.get(
+  ROUTES.EMPLOYEES.DOCUMENT_LIST,
+  requireAccess(MODULE.EMPLOYEES, ACTION.VIEW),
+  profileController.listDocuments,
+);
+
+// The guard runs before the upload is read, so a refused caller never gets
+// to stream a file into memory.
+router.put(
+  ROUTES.EMPLOYEES.DOCUMENT_UPLOAD,
+  requireAnyAccess(MODULE.EMPLOYEES, WRITE_PROFILE),
+  singleFileUpload('file'),
+  profileController.uploadDocument,
+);
+
+router.delete(
+  ROUTES.EMPLOYEES.DOCUMENT_DELETE,
+  requireAccess(MODULE.EMPLOYEES, ACTION.EDIT),
+  profileController.deleteDocument,
 );
 
 export default router;
