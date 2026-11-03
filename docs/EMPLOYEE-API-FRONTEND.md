@@ -94,7 +94,9 @@ Related endpoints (other modules):
 | `403` | Caller's own account was deactivated | `{ "code": "ACCOUNT_INACTIVE" }` |
 | `404` | Employee does not exist or was deleted | `{ "code": "EMPLOYEE_NOT_FOUND" }` (a document that isn't on file: `DOCUMENT_NOT_FOUND`) |
 | `409` | Conflict (duplicate, already exited, has reports…) | `{ "code": "...", ...extra }` |
-| `500` | Server fault | none in production |
+| `500` | Server fault | `{ "requestId": "9f1c…" }`. Show it to the user as a reference ("Something went wrong, ref 9f1c…"): it finds the exact entry in the server error log. |
+
+403 and 409 responses carry `details.requestId` too, next to their `code`: all three are kept in the server error log (see the Error Log API doc). Every response, success or failure, also carries an `X-Request-Id` header (readable from browser code).
 
 ---
 

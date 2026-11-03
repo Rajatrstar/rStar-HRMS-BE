@@ -17,6 +17,7 @@
     "db:seed:access": "node --env-file-if-exists=.env scripts/seed-access.js",
     "db:seed:users": "node --env-file-if-exists=.env scripts/seed-users.js",
     "db:seed:masterdata": "node --env-file-if-exists=.env scripts/seed-master-data.js",
+    "db:seed:errorlogs": "node --env-file-if-exists=.env scripts/seed-error-logs.js",
     "db:grant:masterdata": "node --env-file-if-exists=.env scripts/grant-master-data-access.js",
     "db:create:admin": "node --env-file-if-exists=.env scripts/create-admin.js",
     "dev:node": "node --watch --env-file-if-exists=.env src/index.js",

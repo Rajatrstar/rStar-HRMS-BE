@@ -15,6 +15,34 @@ import { logger } from './utils/logger.js';
 import { assertTemplatesExist } from './utils/template.js';
 import { auditRoutes } from './utils/route-audit.js';
 import { startEmailWorker, stopEmailWorker } from './workers/email-outbox.worker.js';
+import { startErrorLogPurge, stopErrorLogPurge } from './workers/error-log-purge.worker.js';
+import { recordErrorAndWait } from './services/error-log.service.js';
+import { ERROR_LOG_SOURCE, ERROR_LOG_SEVERITY } from './enums/index.js';
+
+/*
+  Last-resort handlers. Node's own behaviour - print and exit - is kept: after
+  an uncaught exception the process is in an unknown state and must not go on
+  serving. The only addition is a row in dbo.tblErrorLog first, waited on for
+  a few seconds at most so a dead database cannot hold a crashed server up.
+*/
+let crashing = false;
+
+async function crash(error, origin) {
+  if (crashing) return;
+  crashing = true;
+
+  logger.error(`Fatal ${origin}, exiting`, error);
+  await recordErrorAndWait({
+    source: ERROR_LOG_SOURCE.PROCESS,
+    severity: ERROR_LOG_SEVERITY.FATAL,
+    error,
+    message: `${origin}: ${error?.message ?? String(error)}`,
+  });
+  process.exit(1);
+}
+
+process.on('uncaughtException', (error) => void crash(error, 'uncaughtException'));
+process.on('unhandledRejection', (reason) => void crash(reason, 'unhandledRejection'));
 
 /**
  * Applies pending migrations, then makes sure the module catalog is in place.
@@ -86,6 +114,7 @@ async function start() {
   }
 
   startEmailWorker();
+  startErrorLogPurge();
 
   const app = createApp();
 
@@ -107,6 +136,7 @@ async function start() {
     // Stop accepting connections, then release the pool.
     server.close(async () => {
       stopEmailWorker();
+      stopErrorLogPurge();
       await closePool();
       logger.info('Shutdown complete');
       process.exit(0);
@@ -123,7 +153,14 @@ async function start() {
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
 }
 
-start().catch((error) => {
+start().catch(async (error) => {
   logger.error('Failed to start the server', error);
+  // Lands only when the database is up - a bad connection string is the
+  // commonest boot failure, and then the console is the record.
+  await recordErrorAndWait({
+    source: ERROR_LOG_SOURCE.STARTUP,
+    severity: ERROR_LOG_SEVERITY.FATAL,
+    error,
+  });
   process.exit(1);
 });

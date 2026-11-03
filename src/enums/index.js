@@ -8,3 +8,4 @@ export * from './organization.enum.js';
 export * from './module.enum.js';
 export * from './master-data.enum.js';
 export * from './error-code.enum.js';
+export * from './error-log.enum.js';

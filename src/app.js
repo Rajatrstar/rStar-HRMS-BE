@@ -8,7 +8,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 
-import { API_PREFIX, UPLOADS_PATH } from './enums/index.js';
+import { API_PREFIX, UPLOADS_PATH, REQUEST_ID_HEADER } from './enums/index.js';
+import { requestContext } from './middlewares/request-context.middleware.js';
 import { MODULE, ACTION } from './enums/module.enum.js';
 import { authenticate } from './middlewares/auth.middleware.js';
 import { requireAccess } from './middlewares/permission.middleware.js';
@@ -26,11 +27,17 @@ export function createApp() {
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
 
+  // First, so every response - including a helmet or CORS refusal - carries
+  // an X-Request-Id, and every later failure knows its id and start time.
+  app.use(requestContext);
+
   app.use(helmet());
   app.use(
     cors({
       origin: env.CORS_ORIGIN === '*' ? '*' : env.CORS_ORIGIN.split(',').map((o) => o.trim()),
       credentials: env.CORS_ORIGIN !== '*',
+      // Without this a browser hides the header from the frontend's code.
+      exposedHeaders: [REQUEST_ID_HEADER],
     }),
   );
   app.use(express.json({ limit: '1mb' }));
