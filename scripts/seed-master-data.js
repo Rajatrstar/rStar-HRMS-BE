@@ -1,7 +1,15 @@
 /**
- * Seeds the five master-data lists from the HRMS MASTERDATA export.
+ * Seeds every master-data list from the HRMS MASTERDATA export.
  *
  *   npm run db:seed:masterdata
+ *
+ * TWO GROUPS, ONE COMMAND. The five original lists - parent departments,
+ * departments, designations, leave types and categories - come from the
+ * per-list .xlsx exports of October 2025. The 23 below them come from the
+ * yellow (dropdown) rows of "Zoho Master data.xlsx", whose own "Dropdown
+ * Options" column IS the list: the options are typed out there, so they are
+ * typed out here. Both groups seed the same way and both are idempotent, so
+ * this stays one command rather than two somebody can forget half of.
  *
  * The values below are the Zoho export of October 2025 - Departments.xlsx,
  * Designation.xlsx, LeaveTypes.xlsx and Category.xlsx - transcribed once and
@@ -34,6 +42,29 @@ import {
   Designation,
   LeaveType,
   Category,
+  Gender,
+  MaritalStatus,
+  Relationship,
+  Skill,
+  EmploymentType,
+  JobRole,
+  EmployeeBand,
+  WorkLocationCountry,
+  WorkMode,
+  BillabilityType,
+  ProjectClient,
+  CostCenter,
+  SourceOfHire,
+  OnboardingStatus,
+  BackgroundVerificationStatus,
+  TaxRegime,
+  GovernmentIdType,
+  DocumentType,
+  DocumentVerificationStatus,
+  AssetType,
+  AssetModel,
+  Qualification,
+  Specialization,
 } from '../src/models/index.js';
 import { logger } from '../src/utils/logger.js';
 
@@ -286,6 +317,222 @@ const CATEGORIES = [
 ];
 
 /**
+ * The employee-form dropdown lists, from the yellow rows of
+ * "Zoho Master data.xlsx". Every value below is transcribed from that sheet's
+ * "Dropdown Options" column, in the order it is written there.
+ *
+ * THREE LISTS ARE DELIBERATELY EMPTY. Projects/clients, cost centers and
+ * asset models are described in the sheet only as "admin-maintained list" -
+ * it names no options, because the options are whatever the company has this
+ * quarter. Seeding a guess would put rows on the screen that somebody then
+ * has to work out whether to trust. They are created empty and filled in on
+ * their own screen.
+ *
+ * WHAT IS NOT HERE, because the sheet's yellow rows already have a home:
+ * Designation and Department (seeded above), Employee Status and WFO Required
+ * (columns on tblEmployeeDetails), System Role (user groups), Office/Seating
+ * Location and Legal Entity (organisation locations and organisations),
+ * Additional Accessories (reads asset types) and the dependent's Relationship
+ * (reads relationships). See db/migrations/010 for the reasoning.
+ */
+const DROPDOWN_LISTS = [
+  {
+    label: 'genders',
+    model: Gender,
+    idProp: 'genderId',
+    values: [
+      "Female", "Male", "Non-binary", "Prefer not to say", "Other",
+    ],
+  },
+  {
+    label: 'marital statuses',
+    model: MaritalStatus,
+    idProp: 'maritalStatusId',
+    values: [
+      "Single", "Married", "Separated", "Divorced", "Widowed", "Prefer not to say",
+    ],
+  },
+  {
+    label: 'relationships',
+    model: Relationship,
+    idProp: 'relationshipId',
+    values: [
+      "Spouse", "Father", "Mother", "Brother", "Sister", "Child", "Other",
+    ],
+  },
+  {
+    label: 'skills',
+    model: Skill,
+    idProp: 'skillId',
+    values: [
+      "AI / Generative AI", "AI Automation", "Application Development", "Business Analysis",
+      "Cloud", "Data & Analytics", "Data Integration", "DevOps", "Cybersecurity",
+      "Dynamics CRM", "HR / People Operations", "IT Transformation", "Marketing",
+      "Project Management", "Quality Assurance", "Recruiting / Talent Acquisition",
+      "Software Engineering", "Technical Support", "Other",
+    ],
+  },
+  {
+    label: 'employment types',
+    model: EmploymentType,
+    idProp: 'employmentTypeId',
+    values: [
+      "Permanent", "On Contract", "Probation", "Trainee", "Intern", "Fixed-term", "Consultant",
+    ],
+  },
+  {
+    label: 'job roles',
+    model: JobRole,
+    idProp: 'jobRoleId',
+    values: [
+      "Individual Contributor", "Team Lead", "People Manager", "Project Manager",
+      "Practice Lead", "Director", "Vice President", "Executive Leadership", "Other",
+    ],
+  },
+  {
+    label: 'employee bands',
+    model: EmployeeBand,
+    idProp: 'employeeBandId',
+    values: [
+      "A1", "A2", "B1", "B2", "B3", "C1", "C2", "C3", "D", "Other",
+    ],
+  },
+  {
+    label: 'work location countries',
+    model: WorkLocationCountry,
+    idProp: 'workLocationCountryId',
+    values: [
+      "India", "US", "Other",
+    ],
+  },
+  {
+    label: 'work modes',
+    model: WorkMode,
+    idProp: 'workModeId',
+    values: [
+      "Office", "Hybrid", "Remote", "Client Site",
+    ],
+  },
+  {
+    label: 'billability types',
+    model: BillabilityType,
+    idProp: 'billabilityTypeId',
+    values: [
+      "Billable", "Non-Billable", "Billable / Non-Billable", "Not Applicable",
+    ],
+  },
+  {
+    label: 'projects/clients',
+    model: ProjectClient,
+    idProp: 'projectClientId',
+    // Admin-maintained: the sheet names no options.
+    values: [],
+  },
+  {
+    label: 'cost centers',
+    model: CostCenter,
+    idProp: 'costCenterId',
+    // Admin-maintained: the sheet names no options.
+    values: [],
+  },
+  {
+    label: 'sources of hire',
+    model: SourceOfHire,
+    idProp: 'sourceOfHireId',
+    values: [
+      "Direct", "Referral", "Recruitment Agency", "Job Portal", "Campus", "Internal Transfer",
+      "Other",
+    ],
+  },
+  {
+    label: 'onboarding statuses',
+    model: OnboardingStatus,
+    idProp: 'onboardingStatusId',
+    values: [
+      "Not Triggered", "Pending", "In Progress", "Completed", "On Hold", "Cancelled",
+    ],
+  },
+  {
+    label: 'background verification statuses',
+    model: BackgroundVerificationStatus,
+    idProp: 'backgroundVerificationStatusId',
+    values: [
+      "Not Initiated", "Initiated", "In Progress", "Completed", "Discrepancy", "On Hold",
+      "Not Applicable",
+    ],
+  },
+  {
+    label: 'tax regimes',
+    model: TaxRegime,
+    idProp: 'taxRegimeId',
+    values: [
+      "New", "Old", "Not Applicable",
+    ],
+  },
+  {
+    label: 'government id types',
+    model: GovernmentIdType,
+    idProp: 'governmentIdTypeId',
+    values: [
+      "Aadhaar", "PAN", "Passport", "SSN", "Other",
+    ],
+  },
+  {
+    label: 'document types',
+    model: DocumentType,
+    idProp: 'documentTypeId',
+    values: [
+      "Offer Letter", "Employment Agreement", "NDA", "Employee Handbook Acknowledgement",
+      "Identity Proof", "Address Proof", "PAN Card", "Aadhaar Card", "Resume",
+      "Education Certificate", "Experience Letter", "Relieving Letter", "Certification",
+      "Other",
+    ],
+  },
+  {
+    label: 'document verification statuses',
+    model: DocumentVerificationStatus,
+    idProp: 'documentVerificationStatusId',
+    values: [
+      "Pending", "Verified", "Rejected", "Expired", "Not Applicable",
+    ],
+  },
+  {
+    label: 'asset types',
+    model: AssetType,
+    idProp: 'assetTypeId',
+    values: [
+      "Laptop", "Desktop", "Monitor", "Mobile Phone", "Tablet", "Headset / Earbuds", "Mouse",
+      "Keyboard", "Other",
+    ],
+  },
+  {
+    label: 'asset models',
+    model: AssetModel,
+    idProp: 'assetModelId',
+    // Admin-maintained: the sheet names no options.
+    values: [],
+  },
+  {
+    label: 'qualifications',
+    model: Qualification,
+    idProp: 'qualificationId',
+    values: [
+      "High School", "Diploma", "Bachelor's Degree", "Master's Degree", "Doctorate",
+      "Professional Certification", "Other",
+    ],
+  },
+  {
+    label: 'specializations',
+    model: Specialization,
+    idProp: 'specializationId',
+    values: [
+      "Computer Science", "Information Technology", "Engineering", "Business Administration",
+      "Data Science / Analytics", "Finance", "Human Resources", "Marketing", "Other",
+    ],
+  },
+];
+
+/**
  * Inserts one row unless a live one already has that name.
  *
  * Two statements rather than one MERGE: this runs once, by hand, against a
@@ -378,6 +625,16 @@ async function run() {
   await seedList('designations', Designation, 'designationId', DESIGNATIONS);
   await seedList('leave types', LeaveType, 'leaveTypeId', LEAVE_TYPES);
   await seedList('categories', Category, 'categoryId', CATEGORIES);
+
+  // The employee-form dropdowns. Same loop, same idempotence; an empty list
+  // says so rather than reporting "0 added" and looking like a failure.
+  for (const list of DROPDOWN_LISTS) {
+    if (list.values.length === 0) {
+      logger.info(`  ${list.label}: admin-maintained, nothing to seed`);
+      continue;
+    }
+    await seedList(list.label, list.model, list.idProp, list.values);
+  }
 
   logger.info('');
   logger.info('Master data is on file. Edit it at /api/v1/organizations/...');

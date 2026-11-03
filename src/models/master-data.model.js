@@ -81,6 +81,222 @@ export const Category = defineModel({
   },
 });
 
+
+/* --------------------------------------------------------------------------
+   The employee-form dropdown lists, from db/migrations/010.
+
+   Same three columns and the same audit block as the five above - the whole
+   point of masterColumns(). Nothing here carries a parent or any other
+   table-specific column, which is why each one is four lines.
+   -------------------------------------------------------------------------- */
+
+/** dbo.tblGender - gender options on the personal details form. */
+export const Gender = defineModel({
+  table: 'dbo.tblGender',
+  columns: {
+    genderId: { column: 'GenderId', type: sql.BigInt, identity: true },
+    ...masterColumns(),
+  },
+});
+
+/** dbo.tblMaritalStatus - marital status options on the personal details form. */
+export const MaritalStatus = defineModel({
+  table: 'dbo.tblMaritalStatus',
+  columns: {
+    maritalStatusId: { column: 'MaritalStatusId', type: sql.BigInt, identity: true },
+    ...masterColumns(),
+  },
+});
+
+/** dbo.tblRelationship - how an emergency contact or a dependent is related to the employee. */
+export const Relationship = defineModel({
+  table: 'dbo.tblRelationship',
+  columns: {
+    relationshipId: { column: 'RelationshipId', type: sql.BigInt, identity: true },
+    ...masterColumns(),
+  },
+});
+
+/** dbo.tblSkill - skills and areas of expertise an employee can be tagged with. */
+export const Skill = defineModel({
+  table: 'dbo.tblSkill',
+  columns: {
+    skillId: { column: 'SkillId', type: sql.BigInt, identity: true },
+    ...masterColumns(),
+  },
+});
+
+/** dbo.tblEmploymentType - the terms an employee is engaged on. */
+export const EmploymentType = defineModel({
+  table: 'dbo.tblEmploymentType',
+  columns: {
+    employmentTypeId: { column: 'EmploymentTypeId', type: sql.BigInt, identity: true },
+    ...masterColumns(),
+  },
+});
+
+/** dbo.tblJobRole - the kind of role an employee holds, independent of their job title. */
+export const JobRole = defineModel({
+  table: 'dbo.tblJobRole',
+  columns: {
+    jobRoleId: { column: 'JobRoleId', type: sql.BigInt, identity: true },
+    ...masterColumns(),
+  },
+});
+
+/** dbo.tblEmployeeBand - internal grade bands. */
+export const EmployeeBand = defineModel({
+  table: 'dbo.tblEmployeeBand',
+  columns: {
+    employeeBandId: { column: 'EmployeeBandId', type: sql.BigInt, identity: true },
+    ...masterColumns(),
+  },
+});
+
+/** dbo.tblWorkLocationCountry - the countries the company employs people in. */
+export const WorkLocationCountry = defineModel({
+  table: 'dbo.tblWorkLocationCountry',
+  columns: {
+    workLocationCountryId: { column: 'WorkLocationCountryId', type: sql.BigInt, identity: true },
+    ...masterColumns(),
+  },
+});
+
+/** dbo.tblWorkMode - where an employee works from. */
+export const WorkMode = defineModel({
+  table: 'dbo.tblWorkMode',
+  columns: {
+    workModeId: { column: 'WorkModeId', type: sql.BigInt, identity: true },
+    ...masterColumns(),
+  },
+});
+
+/** dbo.tblBillabilityType - whether an employee's time is billed to a client. */
+export const BillabilityType = defineModel({
+  table: 'dbo.tblBillabilityType',
+  columns: {
+    billabilityTypeId: { column: 'BillabilityTypeId', type: sql.BigInt, identity: true },
+    ...masterColumns(),
+  },
+});
+
+/** dbo.tblProjectClient - the project or client an employee is assigned to. */
+export const ProjectClient = defineModel({
+  table: 'dbo.tblProjectClient',
+  columns: {
+    projectClientId: { column: 'ProjectClientId', type: sql.BigInt, identity: true },
+    ...masterColumns(),
+  },
+});
+
+/** dbo.tblCostCenter - the cost center an employee's salary is booked against. */
+export const CostCenter = defineModel({
+  table: 'dbo.tblCostCenter',
+  columns: {
+    costCenterId: { column: 'CostCenterId', type: sql.BigInt, identity: true },
+    ...masterColumns(),
+  },
+});
+
+/** dbo.tblSourceOfHire - how a hire reached the company. */
+export const SourceOfHire = defineModel({
+  table: 'dbo.tblSourceOfHire',
+  columns: {
+    sourceOfHireId: { column: 'SourceOfHireId', type: sql.BigInt, identity: true },
+    ...masterColumns(),
+  },
+});
+
+/** dbo.tblOnboardingStatus - where a new joiner has got to in onboarding. */
+export const OnboardingStatus = defineModel({
+  table: 'dbo.tblOnboardingStatus',
+  columns: {
+    onboardingStatusId: { column: 'OnboardingStatusId', type: sql.BigInt, identity: true },
+    ...masterColumns(),
+  },
+});
+
+/** dbo.tblBackgroundVerificationStatus - where a background check has got to. */
+export const BackgroundVerificationStatus = defineModel({
+  table: 'dbo.tblBackgroundVerificationStatus',
+  columns: {
+    backgroundVerificationStatusId: { column: 'BackgroundVerificationStatusId', type: sql.BigInt, identity: true },
+    ...masterColumns(),
+  },
+});
+
+/** dbo.tblTaxRegime - the tax regime an employee has elected. */
+export const TaxRegime = defineModel({
+  table: 'dbo.tblTaxRegime',
+  columns: {
+    taxRegimeId: { column: 'TaxRegimeId', type: sql.BigInt, identity: true },
+    ...masterColumns(),
+  },
+});
+
+/** dbo.tblGovernmentIdType - the kinds of government identity document on file. */
+export const GovernmentIdType = defineModel({
+  table: 'dbo.tblGovernmentIdType',
+  columns: {
+    governmentIdTypeId: { column: 'GovernmentIdTypeId', type: sql.BigInt, identity: true },
+    ...masterColumns(),
+  },
+});
+
+/** dbo.tblDocumentType - the kinds of document an employee record can hold. */
+export const DocumentType = defineModel({
+  table: 'dbo.tblDocumentType',
+  columns: {
+    documentTypeId: { column: 'DocumentTypeId', type: sql.BigInt, identity: true },
+    ...masterColumns(),
+  },
+});
+
+/** dbo.tblDocumentVerificationStatus - where the check on an uploaded document has got to. */
+export const DocumentVerificationStatus = defineModel({
+  table: 'dbo.tblDocumentVerificationStatus',
+  columns: {
+    documentVerificationStatusId: { column: 'DocumentVerificationStatusId', type: sql.BigInt, identity: true },
+    ...masterColumns(),
+  },
+});
+
+/** dbo.tblAssetType - the kinds of company asset issued to employees, and the accessories list. */
+export const AssetType = defineModel({
+  table: 'dbo.tblAssetType',
+  columns: {
+    assetTypeId: { column: 'AssetTypeId', type: sql.BigInt, identity: true },
+    ...masterColumns(),
+  },
+});
+
+/** dbo.tblAssetModel - specific device models that can be issued. */
+export const AssetModel = defineModel({
+  table: 'dbo.tblAssetModel',
+  columns: {
+    assetModelId: { column: 'AssetModelId', type: sql.BigInt, identity: true },
+    ...masterColumns(),
+  },
+});
+
+/** dbo.tblQualification - education levels on the qualification form. */
+export const Qualification = defineModel({
+  table: 'dbo.tblQualification',
+  columns: {
+    qualificationId: { column: 'QualificationId', type: sql.BigInt, identity: true },
+    ...masterColumns(),
+  },
+});
+
+/** dbo.tblSpecialization - fields of study on the qualification form. */
+export const Specialization = defineModel({
+  table: 'dbo.tblSpecialization',
+  columns: {
+    specializationId: { column: 'SpecializationId', type: sql.BigInt, identity: true },
+    ...masterColumns(),
+  },
+});
+
 /**
  * What a master row hands back to a client, after its own id.
  *

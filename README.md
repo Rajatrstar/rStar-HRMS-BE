@@ -25,7 +25,7 @@ npm run db:create:admin  # an administrator who can sign in
 | `npm run db:seed`    | Creates an employee **and** their login — defaults to `admin@rstartec.com` / `admin`. No role |
 | `npm run db:seed:employees` | Creates a couple of sample employees. They have no login and cannot sign in |
 | `npm run db:seed:access` | Syncs the module catalog and the Administrator group |
-| `npm run db:seed:masterdata` | Loads the five master-data lists - parent departments, departments, designations, leave types, categories - from the Zoho export |
+| `npm run db:seed:masterdata` | Loads all 28 master-data lists from the Zoho export - the original five (parent departments, departments, designations, leave types, categories) and the 23 employee-form dropdown lists |
 | `npm run db:grant:masterdata` | Gives HR Admin view/add/edit/delete on the five master-data lists (the system groups already hold everything) |
 | `npm run db:create:admin` | Creates a login **+** profile **+** group — a usable administrator |
 | `npm run db:verify`  | Checks every model in `src/models` against the live schema |
@@ -232,7 +232,7 @@ HRMS belongs to is a decommission, not an operation an endpoint should offer. Bo
 Deleting a location is a soft delete and answers `409 LOCATION_IN_USE` while any
 employee is still assigned to it.
 
-Master data — the five lookup lists every other screen chooses from. They live
+Master data — the 28 lookup lists every other screen chooses from. They live
 under the same group as the rest of organisation setup, beside `/organizations`
 rather than under `/organizations/:organizationId`: a department belongs to the
 company, not to one organisation row — unlike a location, which only means
@@ -246,15 +246,47 @@ anything as part of one.
 | PUT    | `/api/v1/organizations/<list>/:id`        | `<list>.edit`          |
 | DELETE | `/api/v1/organizations/<list>/:id`        | `<list>.delete`        |
 
-`<list>` is one of `parent-departments`, `departments`, `designations`,
-`leave-types` or `categories`. Every row is a name, an optional description and
-`isActive`; a department additionally carries `parentDepartmentId`, and reads
-return the resolved `parentDepartmentName` beside it.
+Every row on every list is a name, an optional description and `isActive`; a
+department additionally carries `parentDepartmentId`, and reads return the
+resolved `parentDepartmentName` beside it. `<list>` is one of:
+
+| Group | `<list>` |
+| ----- | -------- |
+| Organisation structure (`db/migrations/009`) | `parent-departments`, `departments`, `designations`, `leave-types`, `categories` |
+| Personal details (`db/migrations/010`) | `genders`, `marital-statuses`, `relationships` |
+| Professional profile | `skills` |
+| Employment details | `employment-types`, `job-roles`, `employee-bands`, `work-location-countries`, `work-modes`, `billability-types`, `project-clients`, `cost-centers` |
+| Hiring and onboarding | `sources-of-hire`, `onboarding-statuses`, `background-verification-statuses` |
+| Payroll and tax | `tax-regimes`, `government-id-types` |
+| Documents | `document-types`, `document-verification-statuses` |
+| Assets | `asset-types`, `asset-models` |
+| Education | `qualifications`, `specializations` |
+
+The 23 lists in `010` are the **yellow (dropdown) rows of
+`Zoho Master data.xlsx`**, and the sheet's own "Dropdown Options" column is what
+`npm run db:seed:masterdata` loads. Eight yellow rows deliberately have no list
+of their own, because what they name already exists:
+
+| Yellow row | Reads instead |
+| ---------- | ------------- |
+| Designation, Department | `designations`, `departments` — built by `009` |
+| Employee Status | `tblEmployeeDetails.IsActive` |
+| WFO Required | `tblEmployeeDetails.WorkFromOffice`, a `BIT` |
+| System Role | user groups, under Access Control |
+| Office / Seating Location | organisation locations |
+| Legal Entity | organisations |
+| Additional Accessories | `asset-types` — the same values |
+| Relationship (dependent) | `relationships` — the same values |
+
+`project-clients`, `cost-centers` and `asset-models` are created **empty**: the
+sheet calls each one an "admin-maintained list" and names no options, so they
+are filled in on their own screen rather than seeded with a guess.
 
 **Who holds these rights.** Super Admin and Administrator are system groups and
-hold everything implicitly. HR Admin holds View / Add / Edit / Delete on all five
+hold everything implicitly. HR Admin holds View / Add / Edit / Delete on all 28
 lists, written as real rows by `npm run db:grant:masterdata` — run it once on a
-fresh database. Manager and Employee hold nothing on them and are refused with
+fresh database, and again after adding a list, since it reads the registry.
+Manager and Employee hold nothing on them and are refused with
 `403 PERMISSION_DENIED`. None of that is in the code: it is the rights matrix,
 and the group screen can change it without a deploy.
 
@@ -263,8 +295,17 @@ name), and `/departments` also takes `?parentDepartmentId=`. `PUT` is a **full
 replace**, like the organisation endpoints. `DELETE` is a soft delete and refuses
 with a `409` while anything still points at the row — `PARENT_DEPARTMENT_IN_USE`
 for a parent that still has departments, `DEPARTMENT_IN_USE` or
-`DESIGNATION_IN_USE` for one employees are still on. Leave types and categories
-have no dependants yet, so theirs always goes through.
+`DESIGNATION_IN_USE` for one employees are still on. Leave types, categories and
+every list in `010` have no dependants yet, so theirs always goes through — the
+employee columns behind the dropdown fields are still text, and turning each one
+into a foreign key is a mapping decision per column, exactly the debt `009`
+settled for `DepartmentId` and `DesignationId`.
+
+**Adding a list** is a migration, a model, a `MODULE` id, a block of `MESSAGES`
+and one entry in `MASTER_DATA_RESOURCES` — no new service, controller or route.
+`registerMasterDataRoutes` loops the registry, so the five endpoints appear with
+a real `requireAccess` guard on each, and an entry with a missing `moduleId`
+fails at wiring time rather than serving an unguarded endpoint.
 
 Each list is declared **before** `/:organizationId` in `organization.routes.js`:
 Express matches in declaration order, so the other way round a GET of
