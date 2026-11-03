@@ -110,6 +110,26 @@ export const BGV_STATUS = Object.freeze({
   FAILED: 'Failed',
 });
 
+/**
+ * The documents an employee can have uploaded against them.
+ * CK_tblEmployeeDocument_DocumentType - adding one means widening both.
+ * At most one live document of each type per employee.
+ */
+export const EMPLOYEE_DOCUMENT_TYPE = Object.freeze({
+  PAN: 'PAN',
+  AADHAAR: 'AADHAAR',
+});
+
+/**
+ * The repeating profile sections, keyed by the path segment that serves
+ * each one: /employees/:employeeDetailId/<segment>.
+ */
+export const EMPLOYEE_SECTION = Object.freeze({
+  WORK_EXPERIENCE: 'work-experience',
+  EDUCATION: 'education',
+  DEPENDENTS: 'dependents',
+});
+
 /** Whether the employee record itself has been signed off. Suggested only. */
 export const APPROVAL_STATUS = Object.freeze({
   NOT_SUBMITTED: 'Not Submitted',

@@ -184,6 +184,33 @@ export async function list(req, res) {
   });
 }
 
+/** Query string for the manager dropdown. */
+const MANAGER_OPTION_RULES = {
+  search: { maxLength: 100 },
+  excludeEmployeeDetailId: { integer: true },
+  limit: { integer: true, min: 1 },
+};
+
+// A dropdown, not a directory: the user is meant to type, not scroll.
+const DEFAULT_MANAGER_OPTIONS = 20;
+const MAX_MANAGER_OPTIONS = 50;
+
+/** GET /api/v1/employees/managers */
+export async function managerOptions(req, res) {
+  const filters = validateParams(req.query, MANAGER_OPTION_RULES);
+
+  const data = await employeeService.listManagerOptions({
+    ...filters,
+    limit: Math.min(filters.limit ?? DEFAULT_MANAGER_OPTIONS, MAX_MANAGER_OPTIONS),
+  });
+
+  return sendSuccess(res, {
+    statusCode: HTTP_STATUS.OK,
+    message: MESSAGES.MANAGER_OPTIONS_FETCHED,
+    data,
+  });
+}
+
 /** GET /api/v1/employees/:employeeDetailId */
 export async function detail(req, res) {
   const { employeeDetailId } = validateParams(req.params, EMPLOYEE_PARAM);

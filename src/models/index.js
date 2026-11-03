@@ -8,6 +8,7 @@
 export * from './define-model.js';
 export * from './employee-login.model.js';
 export * from './employee-details.model.js';
+export * from './employee-profile.model.js';
 export * from './organization.model.js';
 export * from './master-data.model.js';
 export * from './email-outbox.model.js';

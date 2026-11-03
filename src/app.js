@@ -8,7 +8,11 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 
-import { API_PREFIX } from './enums/index.js';
+import { API_PREFIX, UPLOADS_PATH } from './enums/index.js';
+import { MODULE, ACTION } from './enums/module.enum.js';
+import { authenticate } from './middlewares/auth.middleware.js';
+import { requireAccess } from './middlewares/permission.middleware.js';
+import { EMPLOYEE_UPLOAD_ROOT } from './utils/upload-storage.js';
 import { env, isProduction } from './config/env.js';
 import apiRouter from './routes/index.js';
 import { notFoundHandler } from './middlewares/not-found.middleware.js';
@@ -36,6 +40,28 @@ export function createApp() {
   // The whole API hangs off one prefix, defined once in the enums. The global
   // limiter sits in front of it - after the body parser, because the
   // per-account limiters downstream key on req.body.email.
+  /*
+    Uploaded employee documents - PAN and Aadhaar scans - served from the
+    FileUrl stored against them. Behind a token and View on Employees,
+    because these are exactly the files a public static folder must never
+    hold. Mounted ahead of the API router so its 404 does not answer first.
+
+    A static mount is not a route, so the boot-time route audit cannot see
+    it: the guard here is written out by hand, and must stay.
+  */
+  app.use(
+    `${API_PREFIX}${UPLOADS_PATH.EMPLOYEES}`,
+    apiLimiter,
+    authenticate,
+    requireAccess(MODULE.EMPLOYEES, ACTION.VIEW),
+    express.static(EMPLOYEE_UPLOAD_ROOT, {
+      index: false,
+      dotfiles: 'deny',
+      redirect: false,
+      setHeaders: (res) => res.setHeader('Cache-Control', 'private, no-store'),
+    }),
+  );
+
   app.use(API_PREFIX, apiLimiter, apiRouter);
 
   // Order matters: unmatched route first, then the error handler last.
