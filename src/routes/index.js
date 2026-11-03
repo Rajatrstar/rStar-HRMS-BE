@@ -11,6 +11,7 @@ import authRoutes from './auth.routes.js';
 import organizationRoutes from './organization.routes.js';
 import employeeRoutes from './employee.routes.js';
 import accessRoutes from './access.routes.js';
+import errorLogRoutes from './error-log.routes.js';
 
 const router = Router();
 
@@ -19,5 +20,6 @@ router.use(ROUTE_GROUP.AUTH, authRoutes);
 router.use(ROUTE_GROUP.ORGANIZATIONS, organizationRoutes);
 router.use(ROUTE_GROUP.EMPLOYEES, employeeRoutes);
 router.use(ROUTE_GROUP.ACCESS, accessRoutes);
+router.use(ROUTE_GROUP.ERROR_LOGS, errorLogRoutes);
 
 export default router;

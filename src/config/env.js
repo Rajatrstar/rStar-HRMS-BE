@@ -174,6 +174,12 @@ export const env = Object.freeze({
   UPLOAD_DIR: optional('UPLOAD_DIR', 'uploads'),
   UPLOAD_MAX_FILE_MB: toInt('UPLOAD_MAX_FILE_MB', 5),
 
+  // dbo.tblErrorLog. Only 5xx and background failures are written - see
+  // db/migrations/012_error_log.sql. The off switch is for a test run that
+  // provokes failures on purpose; the console still gets every one.
+  ERROR_LOG_ENABLED: toBool('ERROR_LOG_ENABLED', true),
+  ERROR_LOG_RETENTION_DAYS: toInt('ERROR_LOG_RETENTION_DAYS', 90),
+
   MAIL_POLL_SECONDS: toInt('MAIL_POLL_SECONDS', 15),
   MAIL_BATCH_SIZE: toInt('MAIL_BATCH_SIZE', 25),
   MAIL_MAX_ATTEMPTS: toInt('MAIL_MAX_ATTEMPTS', 5),

@@ -29,6 +29,7 @@ export const MODULE = Object.freeze({
   ADMINISTRATION: 30,
   GROUPS: 31,
   USER_ACCESS: 32,
+  ERROR_LOGS: 33,
 
   MASTER_DATA: 40,
   PARENT_DEPARTMENTS: 41,
@@ -223,6 +224,17 @@ export const MODULE_CATALOG = Object.freeze([
     routePath: '/administration/user-access',
     icon: 'key',
     sortOrder: 20,
+    showInMenu: true,
+  },
+  {
+    moduleId: MODULE.ERROR_LOGS,
+    moduleCode: 'ERROR_LOGS',
+    moduleName: 'Error Logs',
+    description: 'Server and frontend failures: review, resolve, clear',
+    parentModuleId: MODULE.ADMINISTRATION,
+    routePath: '/administration/error-logs',
+    icon: 'alert-triangle',
+    sortOrder: 30,
     showInMenu: true,
   },
 

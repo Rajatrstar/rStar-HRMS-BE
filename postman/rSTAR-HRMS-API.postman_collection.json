@@ -3,7 +3,7 @@
 		"name": "rSTAR HRMS API",
 		"_postman_id": "b7a1f3c2-5d4e-4a6b-9c8d-0e1f2a3b4c5d",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"description": "HRMS backend API, grouped into folders.\n\nHealth   - liveness and readiness, no auth\nAuth     - login, OTP, refresh, password reset\nAdmin    - Organization, Locations and the five master-data lists (permission-guarded)\nEmployees   - onboarding, the employee record, exit and deletion\nAccess Control - groups, their rights matrix and who is in them\n\nORDER MATTERS the first time through: run Auth top to bottom to capture the token, then Admin > Organization before Admin > Locations, because the location requests read the {{organizationId}} that `create organization` stores. Employees, Access Control and the master-data folders under Admin each stand on their own - any of them can be run straight after Auth.\n\nNo bearer token is ever pasted. verify-otp stores it in {{accessToken}} and every request inherits the collection-level Bearer auth that reads it.\n\nSet {{baseUrl}} in the Variables tab, or pick an environment, and go."
+		"description": "HRMS backend API, grouped into folders.\n\nHealth   - liveness and readiness, no auth\nAuth     - login, OTP, refresh, password reset\nAdmin    - Organization, Locations and the five master-data lists (permission-guarded)\nEmployees   - onboarding, the employee record, exit and deletion\nAccess Control - groups, their rights matrix and who is in them\nError Logs - the admin error dashboard and frontend error reporting\n\nORDER MATTERS the first time through: run Auth top to bottom to capture the token, then Admin > Organization before Admin > Locations, because the location requests read the {{organizationId}} that `create organization` stores. Employees, Access Control and the master-data folders under Admin each stand on their own - any of them can be run straight after Auth.\n\nNo bearer token is ever pasted. verify-otp stores it in {{accessToken}} and every request inherits the collection-level Bearer auth that reads it.\n\nSet {{baseUrl}} in the Variables tab, or pick an environment, and go."
 	},
 	"auth": {
 		"type": "bearer",
@@ -28,7 +28,7 @@
 		},
 		{
 			"key": "loginPassword",
-			"value": "admin",
+			"value": "",
 			"type": "string"
 		},
 		{
@@ -246,6 +246,24 @@
 		{
 			"key": "panFileUrl",
 			"value": ""
+		},
+		{
+			"key": "errorLogId",
+			"value": ""
+		},
+		{
+			"key": "errorLogRequestId",
+			"value": ""
+		},
+		{
+			"key": "errorLogFingerprint",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "errorLogTopOccurrences",
+			"value": "",
+			"type": "string"
 		}
 	],
 	"item": [
@@ -13407,6 +13425,1165 @@
 							}
 						}
 					]
+				}
+			]
+		},
+		{
+			"name": "Error Logs",
+			"description": "The admin Error Logs dashboard and the frontend's error reporting.\n\nRun top to bottom. Request 1 reports a frontend error and stores {{errorLogId}}; requests 2-15 read, resolve and finally delete that entry. Requests 16-21 are the dashboard's read-only views and change nothing, so a full run leaves the log as it found it.\n\nSAMPLE DATA: on a development database, npm run db:seed:errorlogs adds about 60 realistic entries over the last 14 days (every source and severity, repeats of one issue, some resolved) so 16-21 have something to show. npm run db:seed:errorlogs -- --clear removes them.\n\nWHAT THE SERVER LOGS BY ITSELF: every 5xx (ERROR), every 403 and 409 (WARN), failed background jobs, crashes and startup failures. 400, 401 and 404 are not logged. Logged API failures return details.requestId - the 'ref' a user can quote - and every response carries X-Request-Id.\n\nACCESS: POST is open to any signed-in user. Everything else is the Error Logs module (id 33): View to read, Edit to resolve or reopen, Delete to delete. The Administrator group has all of it.",
+			"item": [
+				{
+					"name": "1. report a frontend error",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('reported', () => pm.response.to.have.status(201));",
+									"const payload = pm.response.json().data;",
+									"pm.test('returns the new id and the request id', () => {",
+									"  pm.expect(payload.errorLogId).to.be.a('number');",
+									"  pm.expect(payload.requestId).to.match(/^[0-9a-f-]{36}$/);",
+									"});",
+									"pm.collectionVariables.set('errorLogId', payload.errorLogId);",
+									"pm.collectionVariables.set('errorLogRequestId', payload.requestId);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"message\": \"Postman test: Cannot read properties of undefined (reading 'map')\",\n  \"errorName\": \"TypeError\",\n  \"stackTrace\": \"TypeError: Cannot read properties of undefined\\n    at EmployeeTable (app.js:10:5)\\n    at renderWithHooks (react-dom.js:1:1)\",\n  \"pageUrl\": \"https://hrms.example.com/employees/42?tab=docs\",\n  \"route\": \"/employees/:id\",\n  \"context\": {\n    \"appVersion\": \"1.4.0\",\n    \"lastApiCall\": \"GET /employees/42\"\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/error-logs",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"error-logs"
+							]
+						},
+						"description": "What every screen calls when something breaks in the browser: an ErrorBoundary, window.onerror, an unhandled promise. Any signed-in user may call it. Who, from where and with what browser come from the request, not the body.\n\nerrorLogId is null (still 201) when the same error was already reported 10 times this minute - counted, not stored.\n\nDo NOT report failed API calls from the frontend: 5xx, 403 and 409 are logged by the server already."
+					}
+				},
+				{
+					"name": "2. report without a message (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('rejected', () => pm.response.to.have.status(400));",
+									"pm.test('names the field', () => pm.expect(pm.response.json().details).to.have.property('message'));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"errorName\": \"TypeError\",\n  \"context\": [\n    \"not\",\n    \"an\",\n    \"object\"\n  ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/error-logs",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"error-logs"
+							]
+						},
+						"description": "message is required; context must be a JSON object."
+					}
+				},
+				{
+					"name": "3. list error logs",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('fetched', () => pm.response.to.have.status(200));",
+									"const body = pm.response.json();",
+									"pm.test('paged, newest first', () => {",
+									"  pm.expect(body.meta).to.include.keys('total', 'page', 'pageSize', 'totalPages');",
+									"  const times = body.data.map((r) => r.occurredAt);",
+									"  pm.expect(times).to.eql([...times].sort().reverse());",
+									"});",
+									"pm.test('rows are light: no stack trace or body', () => {",
+									"  body.data.forEach((r) => pm.expect(r).to.not.have.property('stackTrace'));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/error-logs?page=1&pageSize=25",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"error-logs"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "pageSize",
+									"value": "25"
+								}
+							]
+						},
+						"description": "Paged list, newest first. Filters (all optional): from, to (YYYY-MM-DD, UTC, inclusive), source, severity, statusCode, statusGroup (4xx|5xx), isResolved, errorCode, fingerprint, employeeDetailId, requestId, search. pageSize max 100. Needs View on Error Logs."
+					}
+				},
+				{
+					"name": "4. open frontend errors",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('fetched', () => pm.response.to.have.status(200));",
+									"pm.test('only unresolved CLIENT rows', () => {",
+									"  pm.response.json().data.forEach((r) => { pm.expect(r.source).to.eql('CLIENT'); pm.expect(r.isResolved).to.eql(false); });",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/error-logs?source=CLIENT&isResolved=false",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"error-logs"
+							],
+							"query": [
+								{
+									"key": "source",
+									"value": "CLIENT"
+								},
+								{
+									"key": "isResolved",
+									"value": "false"
+								}
+							]
+						},
+						"description": "Filters combine. This is the \"open frontend issues\" view."
+					}
+				},
+				{
+					"name": "5. find by request id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('fetched', () => pm.response.to.have.status(200));",
+									"pm.test('exactly the entry that request wrote', () => {",
+									"  const rows = pm.response.json().data;",
+									"  pm.expect(rows).to.have.length(1);",
+									"  pm.expect(rows[0].errorLogId).to.eql(Number(pm.collectionVariables.get('errorLogId')));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/error-logs?requestId={{errorLogRequestId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"error-logs"
+							],
+							"query": [
+								{
+									"key": "requestId",
+									"value": "{{errorLogRequestId}}"
+								}
+							]
+						},
+						"description": "The \"ref\" a user quotes from an error toast. Every logged API failure (5xx, 403, 409) returns details.requestId; every response carries it in the X-Request-Id header."
+					}
+				},
+				{
+					"name": "6. from after to (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('rejected', () => pm.response.to.have.status(400));",
+									"pm.test('points at the range', () => pm.expect(pm.response.json().details).to.have.property('from'));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/error-logs?from=2026-11-05&to=2026-11-01",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"error-logs"
+							],
+							"query": [
+								{
+									"key": "from",
+									"value": "2026-11-05"
+								},
+								{
+									"key": "to",
+									"value": "2026-11-01"
+								}
+							]
+						},
+						"description": "from must not be after to. A requestId that is not a UUID, or an unknown source / severity, is a 400 too."
+					}
+				},
+				{
+					"name": "7. dashboard summary",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('fetched', () => pm.response.to.have.status(200));",
+									"const s = pm.response.json().data;",
+									"pm.test('everything the overview needs', () => {",
+									"  pm.expect(s).to.include.keys('range', 'totals', 'bySource', 'byStatusCode', 'daily', 'topIssues');",
+									"  pm.expect(s.totals.bySeverity).to.include.keys('WARN', 'ERROR', 'FATAL');",
+									"});",
+									"pm.test('defaults to the last 7 days', () => pm.expect(s.range.to).to.eql(new Date().toISOString().slice(0, 10)));",
+									"pm.test('the report just sent counts', () => pm.expect(s.totals.total).to.be.above(0));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/error-logs/summary",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"error-logs",
+								"summary"
+							]
+						},
+						"description": "Totals, split by source and status, a per-day series (only days with entries - fill the gaps with 0) and the 10 most frequent issues by fingerprint. Optional from / to; without them, the last 7 days including today (UTC)."
+					}
+				},
+				{
+					"name": "8. get error log",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('fetched', () => pm.response.to.have.status(200));",
+									"const e = pm.response.json().data;",
+									"pm.test('the full entry', () => {",
+									"  pm.expect(e.stackTrace).to.include('EmployeeTable');",
+									"  pm.expect(e.requestBody).to.have.property('appVersion', '1.4.0');",
+									"  pm.expect(e.url).to.eql('/employees/42?tab=docs');",
+									"  pm.expect(e.routePattern).to.eql('/employees/:id');",
+									"});",
+									"pm.test('how often the same issue happened', () => pm.expect(e.occurrences).to.be.at.least(1));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/error-logs/{{errorLogId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"error-logs",
+								"{{errorLogId}}"
+							]
+						},
+						"description": "Everything in the list row plus stackTrace, sqlErrorNumber, requestBody (JSON, secrets masked; a string if it was cut at 8 KB), ipAddress, userAgent, the resolution fields, and occurrences / firstSeen / lastSeen across the whole fingerprint."
+					}
+				},
+				{
+					"name": "9. resolve",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('updated', () => pm.response.to.have.status(200));",
+									"const e = pm.response.json().data;",
+									"pm.test('resolved, with who and when', () => {",
+									"  pm.expect(e.isResolved).to.eql(true);",
+									"  pm.expect(e.resolvedBy).to.be.a('number');",
+									"  pm.expect(e.resolvedAt).to.be.a('string');",
+									"  pm.expect(e.resolutionNote).to.include('null check');",
+									"});",
+									"pm.test('says how many entries changed', () => pm.expect(e.affectedRows).to.be.at.least(1));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"isResolved\": true,\n  \"resolutionNote\": \"Postman: null check added to EmployeeTable\",\n  \"applyToAllOccurrences\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/error-logs/{{errorLogId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"error-logs",
+								"{{errorLogId}}"
+							]
+						},
+						"description": "isResolved is required. resolutionNote replaces the stored note (leaving it out clears it). applyToAllOccurrences: every entry with the same fingerprint gets the same change. Needs Edit on Error Logs."
+					}
+				},
+				{
+					"name": "10. reopen",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('updated', () => pm.response.to.have.status(200));",
+									"pm.test('who, when and the note are cleared', () => {",
+									"  const e = pm.response.json().data;",
+									"  pm.expect(e.isResolved).to.eql(false);",
+									"  pm.expect(e.resolvedBy).to.eql(null);",
+									"  pm.expect(e.resolutionNote).to.eql(null);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"isResolved\": false\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/error-logs/{{errorLogId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"error-logs",
+								"{{errorLogId}}"
+							]
+						},
+						"description": "Reopening clears ResolvedBy, ResolvedAt and the note."
+					}
+				},
+				{
+					"name": "11. update without isResolved (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('rejected', () => pm.response.to.have.status(400));",
+									"pm.test('names the field', () => pm.expect(pm.response.json().details).to.have.property('isResolved'));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"resolutionNote\": \"missing the flag\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/error-logs/{{errorLogId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"error-logs",
+								"{{errorLogId}}"
+							]
+						},
+						"description": "isResolved is the one required field."
+					}
+				},
+				{
+					"name": "12. delete error log",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('deleted', () => pm.response.to.have.status(200));",
+									"pm.test('says how many entries went', () => pm.expect(pm.response.json().data.deletedCount).to.be.at.least(1));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/error-logs/{{errorLogId}}?allOccurrences=true",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"error-logs",
+								"{{errorLogId}}"
+							],
+							"query": [
+								{
+									"key": "allOccurrences",
+									"value": "true"
+								}
+							]
+						},
+						"description": "Permanent - the log has no soft delete. allOccurrences=true deletes every entry with the same fingerprint. Needs Delete on Error Logs. Prefer resolving: a resolved entry still shows if the bug comes back."
+					}
+				},
+				{
+					"name": "13. delete again (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('nothing left to delete', () => pm.response.to.have.status(404));",
+									"pm.test('says why', () => pm.expect(pm.response.json().details.code).to.eql('ERROR_LOG_NOT_FOUND'));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/error-logs/{{errorLogId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"error-logs",
+								"{{errorLogId}}"
+							]
+						},
+						"description": "404 ERROR_LOG_NOT_FOUND."
+					}
+				},
+				{
+					"name": "14. get deleted error log (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('gone', () => pm.response.to.have.status(404));",
+									"pm.test('says why', () => pm.expect(pm.response.json().details.code).to.eql('ERROR_LOG_NOT_FOUND'));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/error-logs/{{errorLogId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"error-logs",
+								"{{errorLogId}}"
+							]
+						},
+						"description": "Also the answer once the 90-day purge has removed an entry."
+					}
+				},
+				{
+					"name": "15. error logs without token (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('authentication is required', () => pm.response.to.have.status(401));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "noauth"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/error-logs",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"error-logs"
+							]
+						},
+						"description": "Overrides the collection auth with none. Reporting needs a token too, so the login page cannot report."
+					}
+				},
+				{
+					"name": "16. permission denials (403)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('fetched', () => pm.response.to.have.status(200));",
+									"pm.test('only 403 WARN rows', () => {",
+									"  pm.response.json().data.forEach((r) => { pm.expect(r.statusCode).to.eql(403); pm.expect(r.severity).to.eql('WARN'); pm.expect(r.errorCode).to.eql('PERMISSION_DENIED'); });",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/error-logs?statusCode=403&page=1&pageSize=25",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"error-logs"
+							],
+							"query": [
+								{
+									"key": "statusCode",
+									"value": "403"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "pageSize",
+									"value": "25"
+								}
+							]
+						},
+						"description": "Who tried to open what they may not. employeeName says who; routePattern says where. A burst from one person usually means a missing right on their group, not an attack."
+					}
+				},
+				{
+					"name": "17. conflicts (409)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('fetched', () => pm.response.to.have.status(200));",
+									"pm.test('only 409 WARN rows', () => {",
+									"  pm.response.json().data.forEach((r) => { pm.expect(r.statusCode).to.eql(409); pm.expect(r.severity).to.eql('WARN'); });",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/error-logs?statusCode=409&page=1&pageSize=25",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"error-logs"
+							],
+							"query": [
+								{
+									"key": "statusCode",
+									"value": "409"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "pageSize",
+									"value": "25"
+								}
+							]
+						},
+						"description": "Duplicates and concurrent edits (CODE_ALREADY_EXISTS, MODIFIED_ELSEWHERE, ...). errorCode says which."
+					}
+				},
+				{
+					"name": "18. open server errors (5xx)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('fetched', () => pm.response.to.have.status(200));",
+									"pm.test('only unresolved 5xx rows', () => {",
+									"  pm.response.json().data.forEach((r) => { pm.expect(r.statusCode).to.be.within(500, 599); pm.expect(r.isResolved).to.eql(false); });",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/error-logs?statusGroup=5xx&isResolved=false&page=1&pageSize=25",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"error-logs"
+							],
+							"query": [
+								{
+									"key": "statusGroup",
+									"value": "5xx"
+								},
+								{
+									"key": "isResolved",
+									"value": "false"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "pageSize",
+									"value": "25"
+								}
+							]
+						},
+						"description": "The default view for whoever is on call: real server bugs nobody has dealt with yet."
+					}
+				},
+				{
+					"name": "19. dashboard summary - last 14 days",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const day = (offset) => new Date(Date.now() - offset * 86400000).toISOString().slice(0, 10);",
+									"pm.variables.set('summaryFrom', day(13));",
+									"pm.variables.set('summaryTo', day(0));"
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('fetched', () => pm.response.to.have.status(200));",
+									"const s = pm.response.json().data;",
+									"pm.test('covers the range asked for', () => pm.expect(s.range).to.eql({ from: pm.variables.get('summaryFrom'), to: pm.variables.get('summaryTo') }));",
+									"pm.test('top issues are ordered by occurrences', () => {",
+									"  const counts = s.topIssues.map((t) => t.occurrences);",
+									"  pm.expect(counts).to.eql([...counts].sort((a, b) => b - a));",
+									"});",
+									"// Request 20 drills into the busiest issue.",
+									"pm.collectionVariables.set('errorLogFingerprint', s.topIssues[0]?.fingerprint ?? '');",
+									"pm.collectionVariables.set('errorLogTopOccurrences', s.topIssues[0]?.occurrences ?? 0);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/error-logs/summary?from={{summaryFrom}}&to={{summaryTo}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"error-logs",
+								"summary"
+							],
+							"query": [
+								{
+									"key": "from",
+									"value": "{{summaryFrom}}"
+								},
+								{
+									"key": "to",
+									"value": "{{summaryTo}}"
+								}
+							]
+						},
+						"description": "Any range: from and to are UTC days, inclusive. The pre-request script sets them to the last 14 days."
+					}
+				},
+				{
+					"name": "20. every occurrence of the top issue",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// No issue in the last 14 days: nothing to drill into.",
+									"if (!pm.collectionVariables.get('errorLogFingerprint')) pm.execution.skipRequest();"
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('fetched', () => pm.response.to.have.status(200));",
+									"const fp = pm.collectionVariables.get('errorLogFingerprint');",
+									"const rows = pm.response.json().data;",
+									"pm.test('all rows are the same issue', () => rows.forEach((r) => pm.expect(r.fingerprint).to.eql(fp)));",
+									"pm.test('as many as the summary counted', () => pm.expect(pm.response.json().meta.total).to.eql(Number(pm.collectionVariables.get('errorLogTopOccurrences'))));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/error-logs?fingerprint={{errorLogFingerprint}}&page=1&pageSize=100",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"error-logs"
+							],
+							"query": [
+								{
+									"key": "fingerprint",
+									"value": "{{errorLogFingerprint}}"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "pageSize",
+									"value": "100"
+								}
+							]
+						},
+						"description": "Clicking a row in \"top issues\". Resolve them all at once with PUT /error-logs/:id and applyToAllOccurrences: true."
+					}
+				},
+				{
+					"name": "21. search",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('fetched', () => pm.response.to.have.status(200));",
+									"pm.test('every row mentions it', () => {",
+									"  pm.response.json().data.forEach((r) => pm.expect([r.message, r.routePattern, r.url, r.errorName].join(' ').toLowerCase()).to.include('timeout'));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/error-logs?search=timeout&page=1&pageSize=25",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"error-logs"
+							],
+							"query": [
+								{
+									"key": "search",
+									"value": "timeout"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "pageSize",
+									"value": "25"
+								}
+							]
+						},
+						"description": "Partial match on message, route, URL and error name. A pasted UUID belongs in ?requestId= instead (request 5)."
+					}
 				}
 			]
 		}

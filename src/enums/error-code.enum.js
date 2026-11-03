@@ -60,6 +60,9 @@ export const ERROR_CODE = Object.freeze({
   DOCUMENT_NOT_FOUND: 'DOCUMENT_NOT_FOUND',
   /** An upload with no file, or one too large, or of a type not accepted. */
   INVALID_FILE: 'INVALID_FILE',
+  /** The error-log row named in the path does not exist, or was purged. */
+  ERROR_LOG_NOT_FOUND: 'ERROR_LOG_NOT_FOUND',
+
   /* --- Group-based access control (008) ------------------------------- */
 
   /** The group named in the path does not exist, or has been deleted. */

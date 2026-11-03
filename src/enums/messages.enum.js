@@ -375,4 +375,13 @@ export const MESSAGES = Object.freeze({
   SPECIALIZATION_DELETED: 'Specialization deleted',
   SPECIALIZATION_NOT_FOUND: 'That specialization does not exist',
   SPECIALIZATION_NAME_EXISTS: 'A specialization with that name already exists',
+
+  ERROR_LOGS_FETCHED: 'Error logs fetched',
+  ERROR_LOG_FETCHED: 'Error log fetched',
+  ERROR_LOG_SUMMARY_FETCHED: 'Error log summary fetched',
+  ERROR_LOG_REPORTED: 'Error reported',
+  ERROR_LOG_UPDATED: 'Error log updated',
+  ERROR_LOG_DELETED: 'Error log deleted',
+  ERROR_LOG_NOT_FOUND: 'That error log entry does not exist',
+  ERROR_LOG_DATE_RANGE: 'From date cannot be after to date',
 });

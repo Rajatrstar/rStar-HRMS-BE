@@ -26,6 +26,7 @@ export const ROUTE_GROUP = Object.freeze({
   ORGANIZATIONS: '/organizations',
   EMPLOYEES: '/employees',
   ACCESS: '/access',
+  ERROR_LOGS: '/error-logs',
 });
 
 /**
@@ -186,5 +187,23 @@ export const ROUTES = Object.freeze({
     GROUP_MEMBERS: '/groups/:groupId/members',
     GROUP_MEMBERS_ASSIGN: '/groups/:groupId/members',
     EMPLOYEE_GROUP: '/employees/:employeeDetailId/group',
+  }),
+
+  /**
+   * The error log dashboard - dbo.tblErrorLog.
+   *
+   * REPORT is the frontend posting its own failures, and is open to any
+   * signed-in user: a screen that crashed for somebody without admin rights
+   * is exactly the one worth hearing about. Everything else is the
+   * ERROR_LOGS module. SUMMARY must be declared before DETAIL, or
+   * "summary" is read as an id.
+   */
+  ERROR_LOGS: Object.freeze({
+    LIST: '/',
+    SUMMARY: '/summary',
+    REPORT: '/',
+    DETAIL: '/:errorLogId',
+    UPDATE: '/:errorLogId',
+    DELETE: '/:errorLogId',
   }),
 });

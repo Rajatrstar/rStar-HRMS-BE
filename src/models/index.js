@@ -14,3 +14,4 @@ export * from './master-data.model.js';
 export * from './email-outbox.model.js';
 export * from './access-control.model.js';
 export * from './revoked-session.model.js';
+export * from './error-log.model.js';

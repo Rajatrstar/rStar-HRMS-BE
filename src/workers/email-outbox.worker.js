@@ -9,6 +9,8 @@ import { env, mailEnabled } from '../config/env.js';
 import { sendRawMail, closeMailer } from '../utils/mailer.js';
 import { logger } from '../utils/logger.js';
 import { claimBatch, markSent, markRetry, recoverStuck } from '../services/email.service.js';
+import { recordError } from '../services/error-log.service.js';
+import { ERROR_LOG_SOURCE } from '../enums/index.js';
 
 const STUCK_AFTER_MINUTES = 10;
 
@@ -58,6 +60,16 @@ async function deliver(email) {
     if (exhausted) logger.error(line);
     else logger.warn(line);
 
+    // Only the final failure: a retry may still succeed, and the address
+    // stays out of the log row - the EmailId leads to it.
+    if (exhausted) {
+      void recordError({
+        source: ERROR_LOG_SOURCE.JOB,
+        error,
+        message: `Email ${email.emailId} not delivered after ${email.attemptCount} attempts: ${error.message}`,
+      });
+    }
+
     return exhausted ? 'failed' : 'retry';
   }
 }
@@ -89,6 +101,7 @@ async function tick() {
   } catch (error) {
     // Never let a bad tick kill the interval - the next one should still run.
     logger.error('[mail] outbox tick failed', error);
+    void recordError({ source: ERROR_LOG_SOURCE.JOB, error, message: `Email outbox tick failed: ${error.message}` });
   } finally {
     running = false;
   }
