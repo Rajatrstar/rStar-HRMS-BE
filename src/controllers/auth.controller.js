@@ -81,6 +81,23 @@ export async function resetPassword(req, res) {
   });
 }
 
+/**
+ * POST /api/v1/auth/set-password - step 2 for a login on an invite's
+ * temporary password. Signs the user in on success, like verify-otp.
+ */
+export async function setPassword(req, res) {
+  const { email, otp, newPassword } = validateBody(req.body, {
+    email: { required: true, email: true, lowercase: true, maxLength: 256 },
+    otp: { required: true, digits: true, minLength: env.OTP_LENGTH, maxLength: env.OTP_LENGTH },
+    // Same rules as reset-password, for the same reasons.
+    newPassword: { required: true, trim: false, minLength: 8, maxLength: 72 },
+  });
+
+  const data = await authService.setInitialPassword(email, otp, newPassword);
+
+  return sendSuccess(res, { statusCode: HTTP_STATUS.OK, message: MESSAGES.PASSWORD_SET_SUCCESS, data });
+}
+
 /** POST /api/v1/auth/refresh */
 export async function refresh(req, res) {
   const { refreshToken } = validateBody(req.body, {

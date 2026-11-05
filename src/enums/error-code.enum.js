@@ -20,6 +20,13 @@ export const ERROR_CODE = Object.freeze({
   PERMISSION_DENIED: 'PERMISSION_DENIED',
   /** The employee profile exists but is inactive or soft-deleted. */
   ACCOUNT_INACTIVE: 'ACCOUNT_INACTIVE',
+  /**
+   * The password is still the temporary one an invite issued. The client
+   * sends the user to /auth/set-password instead of /auth/verify-otp.
+   */
+  PASSWORD_CHANGE_REQUIRED: 'PASSWORD_CHANGE_REQUIRED',
+  /** Inviting somebody who already has a login with their own password. */
+  LOGIN_ALREADY_EXISTS: 'LOGIN_ALREADY_EXISTS',
 
   /** Optimistic concurrency: the row moved between load and save. */
   MODIFIED_ELSEWHERE: 'MODIFIED_ELSEWHERE',

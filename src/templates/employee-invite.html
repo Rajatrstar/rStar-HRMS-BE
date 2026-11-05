@@ -1,0 +1,39 @@
+---
+subject: rSTAR HRMS login details for {{employeeName}}
+---
+<!doctype html>
+<html lang="en">
+  <body style="margin:0;padding:24px;background:#f4f5f7;font-family:Segoe UI,Arial,sans-serif;color:#1f2933;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:8px;">
+      <tr>
+        <td style="padding:32px;">
+          <p style="margin:0 0 16px;font-size:16px;">Hello,</p>
+
+          <p style="margin:0 0 24px;font-size:15px;line-height:22px;">
+            A login account has been created for <strong>{{employeeName}}</strong>
+            ({{employeeCode}}). Please share these details with them.
+          </p>
+
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px;font-size:15px;line-height:24px;">
+            <tr>
+              <td style="padding-right:16px;color:#52606d;">Login email</td>
+              <td style="font-weight:600;">{{loginEmail}}</td>
+            </tr>
+            <tr>
+              <td style="padding-right:16px;color:#52606d;">Temporary password</td>
+              <td style="font-family:Consolas,monospace;font-size:17px;font-weight:600;color:#0b5fff;">{{temporaryPassword}}</td>
+            </tr>
+          </table>
+
+          <p style="margin:0 0 24px;font-size:14px;line-height:20px;color:#52606d;">
+            On first sign-in at <a href="{{{loginUrl}}}" style="color:#0b5fff;">{{loginUrl}}</a>
+            they will be asked for the emailed verification code and to choose
+            their own password. The temporary password stops working once they do.
+          </p>
+
+          <p style="margin:0;font-size:13px;color:#7b8794;">rSTAR HRMS</p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

@@ -31,6 +31,8 @@ router.post(
   authController.forgotPassword,
 );
 router.post(ROUTES.AUTH.RESET_PASSWORD, credentialLimiter, authController.resetPassword);
+// Checks an OTP, so it is capped like verify-otp.
+router.post(ROUTES.AUTH.SET_PASSWORD, credentialLimiter, authController.setPassword);
 // No per-account tier: a refresh token carries no email to key on, and the
 // token's own signature check is the gate.
 router.post(ROUTES.AUTH.REFRESH, authController.refresh);

@@ -4,6 +4,10 @@
  * Login is two steps:
  *   1. login(email, password)   -> password checked, OTP stored and "sent"
  *   2. verifyOtp(email, otp)    -> OTP checked, access + refresh tokens issued
+ *      or, when login() answered mustChangePassword: true (an invite's
+ *      temporary password),
+ *      setInitialPassword(email, otp, newPassword) -> the same, plus the
+ *      employee's own password stored and the flag cleared
  *
  * Nothing here touches req or res, so each function is equally callable from a
  * controller, a script, or a future scheduled job.
@@ -43,6 +47,7 @@ function findByEmail(email) {
       'hashPassword',
       'otp',
       'otpExpiresTime',
+      'mustChangePassword',
     ])
       .split(', ')
       .map((column) => `l.${column}`)
@@ -99,7 +104,12 @@ export async function login(email, password) {
   // the moment a new login starts.
   const { otp, expiresAt } = await issueOtpFor(account);
 
-  return otpResponse(account.email, expiresAt, otp);
+  // Tells the client which step 2 to show: verify-otp, or set-password for a
+  // login still on the temporary password an invite issued.
+  return {
+    ...otpResponse(account.email, expiresAt, otp),
+    mustChangePassword: Boolean(account.mustChangePassword),
+  };
 }
 
 /**
@@ -109,6 +119,79 @@ export async function login(email, password) {
  * be used exactly once.
  */
 export async function verifyOtp(email, otp) {
+  const account = await checkedOtpAccount(email, otp);
+
+  // Still on an invite's temporary password: the OTP is right, but the only
+  // way in is set-password. Refused AFTER the OTP check, so this cannot be
+  // used to learn which accounts are fresh invites. The OTP is left in place
+  // so the client can move straight to set-password with the same code.
+  if (account.mustChangePassword) {
+    throw ApiError.forbidden(MESSAGES.PASSWORD_CHANGE_REQUIRED, {
+      code: ERROR_CODE.PASSWORD_CHANGE_REQUIRED,
+    });
+  }
+
+  // One shot: clear the code and stamp the login in the same statement.
+  await mutate(
+    `UPDATE ${EmployeeLogin.table}
+        SET Otp = NULL,
+            OtpExpiresTime = NULL,
+            LastLoginedAt = SYSUTCDATETIME(),
+            ModifiedAt = SYSUTCDATETIME()
+      WHERE EmployeeId = @employeeId`,
+    EmployeeLogin.params({ employeeId: account.employeeId }),
+  );
+
+  return signedIn(account);
+}
+
+/**
+ * First sign-in after an invite: the login OTP plus the employee's own
+ * password, in place of verify-otp.
+ *
+ * The new hash lands, MustChangePassword clears and the OTP is spent in one
+ * statement, then the token pair is issued - so choosing the password IS
+ * signing in, with no second login to make.
+ */
+export async function setInitialPassword(email, otp, newPassword) {
+  const account = await checkedOtpAccount(email, otp);
+
+  if (!account.mustChangePassword) {
+    throw ApiError.badRequest(MESSAGES.PASSWORD_CHANGE_NOT_REQUIRED);
+  }
+
+  // HR has seen the temporary password; keeping it would defeat the point.
+  if (await verifyPassword(newPassword, account.hashPassword)) {
+    throw ApiError.badRequest(MESSAGES.PASSWORD_SAME_AS_TEMPORARY);
+  }
+
+  const hash = await hashPassword(newPassword);
+
+  await mutate(
+    `UPDATE ${EmployeeLogin.table}
+        SET HashPassword = @hash,
+            MustChangePassword = 0,
+            Otp = NULL,
+            OtpExpiresTime = NULL,
+            LastLoginedAt = SYSUTCDATETIME(),
+            ModifiedAt = SYSUTCDATETIME()
+      WHERE EmployeeId = @employeeId`,
+    {
+      hash: EmployeeLogin.param('hashPassword', hash),
+      ...EmployeeLogin.params({ employeeId: account.employeeId }),
+    },
+  );
+
+  logger.info(`Initial password set for ${account.email} (EmployeeId ${account.employeeId})`);
+
+  return signedIn(account);
+}
+
+/**
+ * The OTP checks verify-otp and set-password share. Returns the account once
+ * the code is proved, still holding it - the caller decides what spends it.
+ */
+async function checkedOtpAccount(email, otp) {
   const account = await findByEmail(email);
 
   // Same vague error as a bad OTP: a valid email with no login in progress
@@ -130,17 +213,10 @@ export async function verifyOtp(email, otp) {
   // requests, and an exit can land between them.
   assertEmployeeUsable(account);
 
-  // One shot: clear the code and stamp the login in the same statement.
-  await mutate(
-    `UPDATE ${EmployeeLogin.table}
-        SET Otp = NULL,
-            OtpExpiresTime = NULL,
-            LastLoginedAt = SYSUTCDATETIME(),
-            ModifiedAt = SYSUTCDATETIME()
-      WHERE EmployeeId = @employeeId`,
-    EmployeeLogin.params({ employeeId: account.employeeId }),
-  );
+  return account;
+}
 
+function signedIn(account) {
   // Number(), because the driver hands BIGINT back as a string and
   // `employee.employeeDetailId === 3` would otherwise be false for a client.
   // Same reason src/services/organization.service.js converts its ids.
@@ -348,9 +424,12 @@ export async function resetPassword(email, otp, newPassword) {
 
   const hash = await hashPassword(newPassword);
 
+  // MustChangePassword clears too: a password the employee chose is what an
+  // invite's flag was waiting for.
   await mutate(
     `UPDATE ${EmployeeLogin.table}
         SET HashPassword = @hash,
+            MustChangePassword = 0,
             Otp = NULL,
             OtpExpiresTime = NULL,
             ModifiedAt = SYSUTCDATETIME()
@@ -480,7 +559,11 @@ export async function getProfile(employeeDetailId) {
   // The two standing columns are the check's business, not the client's.
   const { employeeIsActive, employeeDeletedAt, ...profile } = account;
 
-  return { ...profile, employeeDetailId: Number(account.employeeDetailId) };
+  return {
+    ...profile,
+    employeeDetailId: Number(account.employeeDetailId),
+    mustChangePassword: Boolean(account.mustChangePassword),
+  };
 }
 
 /** Used by the seed script and, later, by employee onboarding. */

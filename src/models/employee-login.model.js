@@ -31,6 +31,10 @@ export const EmployeeLogin = defineModel({
 
     lastLoginedAt: { column: 'LastLoginedAt', type: sql.DateTime2, nullable: true },
 
+    // 1 while the password is the temporary one an invite issued. See
+    // db/migrations/014_employee_login_must_change_password.sql.
+    mustChangePassword: { column: 'MustChangePassword', type: sql.Bit },
+
     createdAt: { column: 'CreatedAt', type: sql.DateTime2 },
     modifiedAt: { column: 'ModifiedAt', type: sql.DateTime2 },
   },
@@ -42,6 +46,7 @@ export const EMPLOYEE_PUBLIC_PROPS = Object.freeze([
   'employeeDetailId',
   'email',
   'lastLoginedAt',
+  'mustChangePassword',
   'createdAt',
   'modifiedAt',
 ]);

@@ -139,6 +139,14 @@ export const env = Object.freeze({
   MAIL_FROM_NAME: optional('MAIL_FROM_NAME', 'rSTAR HRMS'),
   MAIL_FROM_ADDRESS: optional('MAIL_FROM_ADDRESS', ''),
 
+  // Employee invites (POST /employees/:id/invite). The login details go to
+  // HR, who passes them on - not to the new employee, whose work mailbox may
+  // not exist yet. One fixed address for now; it will become the inviting HR
+  // user's own address.
+  INVITE_NOTIFY_EMAIL: optional('INVITE_NOTIFY_EMAIL', 'atinder.kumar@rstartec.com'),
+  // The sign-in page linked from the invite email.
+  APP_LOGIN_URL: optional('APP_LOGIN_URL', 'http://localhost:3000/login'),
+
   // Rate limiting. Off switch included because an integration test suite that
   // fires hundreds of requests in a second would otherwise throttle itself.
   RATE_LIMIT_ENABLED: toBool('RATE_LIMIT_ENABLED', true),

@@ -44,6 +44,8 @@ export const ROUTES = Object.freeze({
     RESEND_OTP: '/resend-otp',
     FORGOT_PASSWORD: '/forgot-password',
     RESET_PASSWORD: '/reset-password',
+    // First sign-in after an invite: OTP + the employee's own password.
+    SET_PASSWORD: '/set-password',
     REFRESH: '/refresh',
     LOGOUT: '/logout',
     ME: '/me',
@@ -147,6 +149,9 @@ export const ROUTES = Object.freeze({
     DETAIL: '/:employeeDetailId',
     UPDATE: '/:employeeDetailId',
     DEACTIVATE: '/:employeeDetailId/deactivate',
+    // Creates the login with a temporary password and mails it to HR. Also
+    // the resend, until the employee has set their own password.
+    INVITE: '/:employeeDetailId/invite',
     DELETE: '/:employeeDetailId',
 
     /**

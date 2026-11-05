@@ -36,6 +36,12 @@ export const MESSAGES = Object.freeze({
   EMPLOYEE_NOT_VERIFIED: 'No active employee matches that email and date of birth',
   EMPLOYEE_HAS_NO_LOGIN: 'This employee has no login account',
   PASSWORD_RESET_SUCCESS: 'Password updated. Please log in with your new password',
+
+  // First sign-in after an invite: the temporary password must be replaced.
+  PASSWORD_CHANGE_REQUIRED: 'You must set a new password before signing in',
+  PASSWORD_CHANGE_NOT_REQUIRED: 'This account already has its own password',
+  PASSWORD_SAME_AS_TEMPORARY: 'Choose a password different from the temporary one',
+  PASSWORD_SET_SUCCESS: 'Password set. Login successful',
   VALIDATION_FAILED: 'The submitted data is invalid',
 
   // Access control. The denial wording is deliberately generic about WHAT was
@@ -67,6 +73,11 @@ export const MESSAGES = Object.freeze({
   EXIT_STATUS_NEEDS_DEACTIVATE: 'To exit an employee, use Exit rather than changing their status',
   EXITED_NEEDS_EXIT_STATUS: 'An exited employee can only hold an exit status',
   MANAGER_OPTIONS_FETCHED: 'Managers fetched',
+  EMPLOYEE_INVITE_SENT: 'Login account created. The login details have been emailed to HR',
+  EMPLOYEE_INVITE_RESENT: 'A new temporary password has been emailed to HR',
+  EMPLOYEE_INVITE_INACTIVE: 'An exited employee cannot be invited',
+  EMPLOYEE_ALREADY_HAS_LOGIN: 'This employee has already set up their login',
+  LOGIN_EMAIL_EXISTS: 'Another login account already uses this email',
 
   // Employee profile sections and documents.
   WORK_EXPERIENCE_FETCHED: 'Work experience fetched',

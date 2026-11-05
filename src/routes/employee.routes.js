@@ -71,6 +71,14 @@ router.patch(
   employeeController.deactivate,
 );
 
+// Add, like CREATE: the wizard's "Send invite" is the second half of adding
+// somebody. Declared before DETAIL for the same reason DEACTIVATE is.
+router.post(
+  ROUTES.EMPLOYEES.INVITE,
+  requireAccess(MODULE.EMPLOYEES, ACTION.ADD),
+  employeeController.invite,
+);
+
 router.get(
   ROUTES.EMPLOYEES.DETAIL,
   requireAccess(MODULE.EMPLOYEES, ACTION.VIEW),
