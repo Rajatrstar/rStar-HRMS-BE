@@ -12,6 +12,8 @@ import organizationRoutes from './organization.routes.js';
 import employeeRoutes from './employee.routes.js';
 import accessRoutes from './access.routes.js';
 import errorLogRoutes from './error-log.routes.js';
+import attendanceRoutes from './attendance.routes.js';
+import leaveRoutes from './leave.routes.js';
 
 const router = Router();
 
@@ -21,5 +23,7 @@ router.use(ROUTE_GROUP.ORGANIZATIONS, organizationRoutes);
 router.use(ROUTE_GROUP.EMPLOYEES, employeeRoutes);
 router.use(ROUTE_GROUP.ACCESS, accessRoutes);
 router.use(ROUTE_GROUP.ERROR_LOGS, errorLogRoutes);
+router.use(ROUTE_GROUP.ATTENDANCE, attendanceRoutes);
+router.use(ROUTE_GROUP.LEAVE, leaveRoutes);
 
 export default router;

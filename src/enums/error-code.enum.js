@@ -94,4 +94,135 @@ export const ERROR_CODE = Object.freeze({
   DEPARTMENT_IN_USE: 'DEPARTMENT_IN_USE',
   /** Deleting a designation employees still hold. */
   DESIGNATION_IN_USE: 'DESIGNATION_IN_USE',
+
+  /* --- Shifts (015) ----------------------------------------------------- */
+
+  SHIFT_NOT_FOUND: 'SHIFT_NOT_FOUND',
+  /** Deleting a shift employees are still assigned to. */
+  SHIFT_IN_USE: 'SHIFT_IN_USE',
+  SHIFT_ASSIGNMENT_NOT_FOUND: 'SHIFT_ASSIGNMENT_NOT_FOUND',
+  /**
+   * Two live assignments whose date ranges overlap. Checked in the service
+   * rather than by a constraint - SQL Server cannot express "no overlapping
+   * ranges" without a trigger, and a 409 naming the clashing row is more
+   * use than a silent rejection.
+   */
+  SHIFT_ASSIGNMENT_OVERLAP: 'SHIFT_ASSIGNMENT_OVERLAP',
+  /** Nothing to judge the day against: no shift covers that date. */
+  NO_SHIFT_ASSIGNED: 'NO_SHIFT_ASSIGNED',
+
+  /* --- Attendance (016) -------------------------------------------------- */
+
+  ATTENDANCE_DAY_NOT_FOUND: 'ATTENDANCE_DAY_NOT_FOUND',
+  /** Checking in twice without a check-out between. */
+  ALREADY_CHECKED_IN: 'ALREADY_CHECKED_IN',
+  /** Checking out with no open check-in. */
+  NOT_CHECKED_IN: 'NOT_CHECKED_IN',
+  /** A date range that runs backwards, or one too wide to serve. */
+  INVALID_DATE_RANGE: 'INVALID_DATE_RANGE',
+  DATE_RANGE_TOO_WIDE: 'DATE_RANGE_TOO_WIDE',
+  PUNCH_IN_FUTURE: 'PUNCH_IN_FUTURE',
+
+  /* --- Regularization (016) ---------------------------------------------- */
+
+  REGULARIZATION_NOT_FOUND: 'REGULARIZATION_NOT_FOUND',
+  /** Raised after the configured window - 24 hours by default - had passed. */
+  REGULARIZATION_WINDOW_CLOSED: 'REGULARIZATION_WINDOW_CLOSED',
+  /** A pending or approved request already covers that day. */
+  REGULARIZATION_ALREADY_OPEN: 'REGULARIZATION_ALREADY_OPEN',
+  REGULARIZATION_NOT_PENDING: 'REGULARIZATION_NOT_PENDING',
+
+  /* --- Holidays (017) ----------------------------------------------------- */
+
+  HOLIDAY_NOT_FOUND: 'HOLIDAY_NOT_FOUND',
+  HOLIDAY_EXISTS: 'HOLIDAY_EXISTS',
+  HOLIDAY_NEEDS_LOCATION: 'HOLIDAY_NEEDS_LOCATION',
+  RESTRICTED_OPT_IN_NOT_FOUND: 'RESTRICTED_OPT_IN_NOT_FOUND',
+  /** The one-per-calendar-year rule from section 07. */
+  RESTRICTED_QUOTA_USED: 'RESTRICTED_QUOTA_USED',
+  /** No restricted-holiday mapping covers this employee's cohort. */
+  RESTRICTED_NOT_ELIGIBLE: 'RESTRICTED_NOT_ELIGIBLE',
+  /** Opting in to a holiday that is NORMAL rather than RESTRICTED. */
+  RESTRICTED_WRONG_TYPE: 'RESTRICTED_WRONG_TYPE',
+  RESTRICTED_MAPPING_NOT_FOUND: 'RESTRICTED_MAPPING_NOT_FOUND',
+
+  /* --- Exemptions and alerts (016) ---------------------------------------- */
+
+  EXEMPTION_NOT_FOUND: 'EXEMPTION_NOT_FOUND',
+  ALERT_SETTING_NOT_FOUND: 'ALERT_SETTING_NOT_FOUND',
+  ALERT_SETTING_EXISTS: 'ALERT_SETTING_EXISTS',
+
+  /* --- Leave cycles and policy (018) -------------------------------------- */
+
+  LEAVE_CYCLE_NOT_FOUND: 'LEAVE_CYCLE_NOT_FOUND',
+  LEAVE_CYCLE_EXISTS: 'LEAVE_CYCLE_EXISTS',
+  /** Writing into a cycle somebody has settled. */
+  LEAVE_CYCLE_IS_CLOSED: 'LEAVE_CYCLE_IS_CLOSED',
+  /** No cycle of the policy's type covers the date applied for. */
+  LEAVE_CYCLE_MISSING: 'LEAVE_CYCLE_MISSING',
+
+  LEAVE_POLICY_NOT_FOUND: 'LEAVE_POLICY_NOT_FOUND',
+  LEAVE_POLICY_EXISTS: 'LEAVE_POLICY_EXISTS',
+  /** No policy row applies to this employee for this category. */
+  LEAVE_POLICY_MISSING: 'LEAVE_POLICY_MISSING',
+
+  SANDWICH_RULE_NOT_FOUND: 'SANDWICH_RULE_NOT_FOUND',
+  SANDWICH_RULE_IN_USE: 'SANDWICH_RULE_IN_USE',
+  LEAVE_OVERRIDE_NOT_FOUND: 'LEAVE_OVERRIDE_NOT_FOUND',
+  LEAVE_MAPPING_NOT_FOUND: 'LEAVE_MAPPING_NOT_FOUND',
+  LEAVE_MAPPING_EXISTS: 'LEAVE_MAPPING_EXISTS',
+
+  /* --- Leave requests (019) ------------------------------------------------ */
+
+  LEAVE_REQUEST_NOT_FOUND: 'LEAVE_REQUEST_NOT_FOUND',
+  LEAVE_REQUEST_NOT_PENDING: 'LEAVE_REQUEST_NOT_PENDING',
+  /** Applied-for dates collide with an existing request. */
+  LEAVE_REQUEST_OVERLAP: 'LEAVE_REQUEST_OVERLAP',
+  LEAVE_INSUFFICIENT_BALANCE: 'LEAVE_INSUFFICIENT_BALANCE',
+  LEAVE_NOT_AVAILABLE_ON_PROBATION: 'LEAVE_NOT_AVAILABLE_ON_PROBATION',
+  /** No tblLeaveMapping row offers this category to this employee. */
+  LEAVE_NOT_MAPPED: 'LEAVE_NOT_MAPPED',
+  LEAVE_HALF_DAY_NOT_ALLOWED: 'LEAVE_HALF_DAY_NOT_ALLOWED',
+  /** The whole range is week-offs and holidays, so there is nothing to charge. */
+  LEAVE_NO_WORKING_DAYS: 'LEAVE_NO_WORKING_DAYS',
+  LEAVE_BACKDATED_NOT_ALLOWED: 'LEAVE_BACKDATED_NOT_ALLOWED',
+  LEAVE_NOTICE_REQUIRED: 'LEAVE_NOTICE_REQUIRED',
+
+  /**
+   * Approving or rejecting your own request.
+   *
+   * Separate from SELF_ACTION_BLOCKED, which is about an employee record. A
+   * manager who is also somebody's report can legitimately act on their
+   * team's leave and never on their own, and the two refusals need
+   * different wording.
+   */
+  LEAVE_SELF_APPROVAL: 'LEAVE_SELF_APPROVAL',
+  /**
+   * Row-level authorisation, and the reason the module right alone is not
+   * enough: holding TEAM_LEAVE:EDIT says you may approve leave, not whose.
+   */
+  NOT_AN_APPROVER: 'NOT_AN_APPROVER',
+
+  /* --- Balances (019) ------------------------------------------------------ */
+
+  /** An ADJUSTMENT with no reason. The one ledger entry that demands one. */
+  LEAVE_ADJUSTMENT_NEEDS_REMARKS: 'LEAVE_ADJUSTMENT_NEEDS_REMARKS',
+  LEAVE_ADJUSTMENT_WOULD_GO_NEGATIVE: 'LEAVE_ADJUSTMENT_WOULD_GO_NEGATIVE',
+
+  /* --- Comp-off (020) ------------------------------------------------------ */
+
+  COMP_OFF_NOT_FOUND: 'COMP_OFF_NOT_FOUND',
+  COMP_OFF_ALREADY_REQUESTED: 'COMP_OFF_ALREADY_REQUESTED',
+  COMP_OFF_NOT_PENDING: 'COMP_OFF_NOT_PENDING',
+  /** Crediting a request the manager has not approved. */
+  COMP_OFF_NOT_APPROVED: 'COMP_OFF_NOT_APPROVED',
+  COMP_OFF_ALREADY_CREDITED: 'COMP_OFF_ALREADY_CREDITED',
+  COMP_OFF_FUTURE_DATE: 'COMP_OFF_FUTURE_DATE',
+  /** Claiming a comp-off for an ordinary working day. */
+  COMP_OFF_WORKING_DAY: 'COMP_OFF_WORKING_DAY',
+
+  /* --- Probation and confirmation (014) ------------------------------------ */
+
+  ALREADY_CONFIRMED: 'ALREADY_CONFIRMED',
+  PROBATION_END_BEFORE_JOINING: 'PROBATION_END_BEFORE_JOINING',
 });

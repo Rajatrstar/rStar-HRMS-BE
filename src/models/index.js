@@ -15,3 +15,11 @@ export * from './email-outbox.model.js';
 export * from './access-control.model.js';
 export * from './revoked-session.model.js';
 export * from './error-log.model.js';
+
+/* Attendance and leave - db/migrations/014 to 020. */
+export * from './shift.model.js';
+export * from './attendance.model.js';
+export * from './holiday.model.js';
+export * from './leave-policy.model.js';
+export * from './leave-request.model.js';
+export * from './comp-off.model.js';

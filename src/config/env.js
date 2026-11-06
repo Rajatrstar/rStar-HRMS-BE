@@ -183,6 +183,61 @@ export const env = Object.freeze({
   MAIL_POLL_SECONDS: toInt('MAIL_POLL_SECONDS', 15),
   MAIL_BATCH_SIZE: toInt('MAIL_BATCH_SIZE', 25),
   MAIL_MAX_ATTEMPTS: toInt('MAIL_MAX_ATTEMPTS', 5),
+
+  /* --- Attendance and leave - db/migrations/014 to 020 ------------------ */
+
+  /**
+   * How long after a day ends it may still be regularized. The requirement
+   * says 24 hours, "configurable by admin".
+   *
+   * Captured onto each request as SubmissionDeadline when it is raised, so
+   * changing this never retrospectively expires - or revives - a request
+   * somebody already submitted. See regularization.service.js.
+   */
+  REGULARIZATION_WINDOW_HOURS: toInt('REGULARIZATION_WINDOW_HOURS', 24),
+
+  /**
+   * The nightly close: reads yesterday's punches, writes each day's
+   * verdict, marks holidays and week-offs, and marks everyone exempt as
+   * present by default.
+   *
+   * A LOOK-BACK OF MORE THAN ONE DAY is deliberate. A run that was missed -
+   * a deployment, an outage, a machine asleep - must be recoverable without
+   * anybody writing a backfill script, and re-closing a day that is already
+   * closed is harmless because the job is idempotent.
+   */
+  ATTENDANCE_CLOSE_ENABLED: toBool('ATTENDANCE_CLOSE_ENABLED', true),
+  ATTENDANCE_CLOSE_HOUR_UTC: toInt('ATTENDANCE_CLOSE_HOUR_UTC', 20),
+  ATTENDANCE_CLOSE_LOOKBACK_DAYS: toInt('ATTENDANCE_CLOSE_LOOKBACK_DAYS', 3),
+
+  /**
+   * The missed-check-in sweep. How often the worker wakes; the cadence it
+   * actually alerts at comes from dbo.tblAttendanceAlertSetting, per
+   * location, because that is what the requirement made configurable.
+   */
+  ATTENDANCE_ALERT_ENABLED: toBool('ATTENDANCE_ALERT_ENABLED', true),
+  ATTENDANCE_ALERT_POLL_SECONDS: toInt('ATTENDANCE_ALERT_POLL_SECONDS', 300),
+
+  /**
+   * The nightly leave jobs: monthly accrual, probation confirmation, and
+   * expiring regularization requests nobody acted on.
+   *
+   * Accrual is idempotent - it checks the ledger for an entry of the same
+   * month before writing one - so running it twice grants nothing twice.
+   * That is what makes a catch-up run safe.
+   */
+  LEAVE_ACCRUAL_ENABLED: toBool('LEAVE_ACCRUAL_ENABLED', true),
+  LEAVE_ACCRUAL_HOUR_UTC: toInt('LEAVE_ACCRUAL_HOUR_UTC', 21),
+
+  /**
+   * The employee the automatic jobs record themselves as.
+   *
+   * Nullable, and NULL is handled: the history row's ChangeType already
+   * says AUTO_CONFIRM, so a missing actor loses nothing. Set it to a real
+   * service account's EmployeeDetailId where one exists, so the audit trail
+   * names something rather than nothing.
+   */
+  SYSTEM_ACTOR_EMPLOYEE_ID: toInt('SYSTEM_ACTOR_EMPLOYEE_ID', 0) || null,
 });
 
 export const isProduction = env.NODE_ENV === 'production';

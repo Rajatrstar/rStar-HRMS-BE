@@ -9,3 +9,5 @@ export * from './module.enum.js';
 export * from './master-data.enum.js';
 export * from './error-code.enum.js';
 export * from './error-log.enum.js';
+export * from './attendance.enum.js';
+export * from './leave.enum.js';
