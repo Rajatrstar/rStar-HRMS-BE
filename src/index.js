@@ -16,6 +16,15 @@ import { assertTemplatesExist } from './utils/template.js';
 import { auditRoutes } from './utils/route-audit.js';
 import { startEmailWorker, stopEmailWorker } from './workers/email-outbox.worker.js';
 import { startErrorLogPurge, stopErrorLogPurge } from './workers/error-log-purge.worker.js';
+import {
+  startAttendanceClose,
+  stopAttendanceClose,
+} from './workers/attendance-close.worker.js';
+import {
+  startAttendanceAlerts,
+  stopAttendanceAlerts,
+} from './workers/attendance-alert.worker.js';
+import { startLeaveNightly, stopLeaveNightly } from './workers/leave-nightly.worker.js';
 import { recordErrorAndWait } from './services/error-log.service.js';
 import { ERROR_LOG_SOURCE, ERROR_LOG_SEVERITY } from './enums/index.js';
 
@@ -116,6 +125,15 @@ async function start() {
   startEmailWorker();
   startErrorLogPurge();
 
+  /*
+    Attendance and leave - db/migrations/014 to 020. Each has its own off
+    switch in the environment, because a second instance of this process
+    should run the API without also running the nightly jobs twice.
+  */
+  startAttendanceClose();
+  startAttendanceAlerts();
+  startLeaveNightly();
+
   const app = createApp();
 
   // Refuses to start if any API route is missing its access guard. Deliberately
@@ -137,6 +155,9 @@ async function start() {
     server.close(async () => {
       stopEmailWorker();
       stopErrorLogPurge();
+      stopAttendanceClose();
+      stopAttendanceAlerts();
+      stopLeaveNightly();
       await closePool();
       logger.info('Shutdown complete');
       process.exit(0);

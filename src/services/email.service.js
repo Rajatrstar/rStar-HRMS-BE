@@ -67,6 +67,47 @@ export async function queueTemplatedMail({ to, cc, template, data }, run) {
 }
 
 /**
+ * Queues mail whose body is already written, with no template behind it.
+ *
+ * THE EXCEPTION, NOT THE RULE. Every other caller goes through
+ * queueTemplatedMail() so that the wording of an email is a file somebody
+ * can review rather than a string literal in a service. This exists for the
+ * attendance reminder, whose body is assembled from an employee's shift
+ * times and a reminder count - and which must be able to ship before an
+ * attendance template exists.
+ *
+ * TemplateCode is recorded all the same, so the outbox still reports what
+ * kind of mail a row is and "how many check-in reminders went out last
+ * week" stays answerable.
+ *
+ * Suppressed by DefaultOTP for the same reason as the templated path: rows
+ * left behind by a suppressed send would be delivered by a later restart
+ * with the flag off.
+ */
+export async function queueRawMail({ to, cc, subject, html, text, templateCode = 'RAW' }, run) {
+  if (suppressOutboundMail) {
+    logger.info(
+      `[mail:suppressed] DefaultOTP is on - to=${addressList(to)} subject="${subject}"\n` +
+        `${text ?? '(no text part)'}`,
+    );
+    return null;
+  }
+
+  const params = EmailOutbox.params({
+    templateCode,
+    to: addressList(to),
+    cc: cc ? addressList(cc) : null,
+    subject,
+    html,
+    text: text ?? null,
+    maxAttempts: env.MAIL_MAX_ATTEMPTS,
+  });
+
+  const rows = run ? await run(INSERT_SQL, params) : await query(INSERT_SQL, params);
+  return rows[0]?.emailId;
+}
+
+/**
  * Atomically takes up to `batchSize` due rows and marks them Sending.
  *
  * One statement does the select and the claim together, so two processes can

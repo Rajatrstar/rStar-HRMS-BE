@@ -27,6 +27,8 @@ export const ROUTE_GROUP = Object.freeze({
   EMPLOYEES: '/employees',
   ACCESS: '/access',
   ERROR_LOGS: '/error-logs',
+  ATTENDANCE: '/attendance',
+  LEAVE: '/leave',
 });
 
 /**
@@ -116,6 +118,9 @@ export const ROUTES = Object.freeze({
         ASSET_MODELS: '/asset-models',
         QUALIFICATIONS: '/qualifications',
         SPECIALIZATIONS: '/specializations',
+
+        /* The attendance correction reasons - db/migrations/016. */
+        REGULARIZATION_TYPES: '/regularization-types',
       }),
 
       /** The list itself: GET and POST. Empty, so the path is the resource. */
@@ -210,5 +215,193 @@ export const ROUTES = Object.freeze({
     DETAIL: '/:errorLogId',
     UPDATE: '/:errorLogId',
     DELETE: '/:errorLogId',
+  }),
+
+  /**
+   * Attendance - db/migrations/015 and 016.
+   *
+   * THE ORDER OF THE KEYS IN THIS OBJECT IS NOT THE ORDER THE ROUTES ARE
+   * DECLARED IN, but the route file follows it, and the literal paths must
+   * come before the parameterised ones there. /attendance/me would
+   * otherwise be read as a punch for employee id "me" - the same trap
+   * ORGANIZATIONS.TYPES carries a note about.
+   *
+   * SELF-SERVICE IS A SEPARATE PATH, not the same endpoint with an optional
+   * id. /attendance/me can never be made to answer for somebody else, which
+   * is a property of the URL rather than of a check inside the handler -
+   * and the two are guarded by different modules, MY_ATTENDANCE and
+   * TEAM_ATTENDANCE, so the rights matrix can tell them apart too.
+   */
+  ATTENDANCE: Object.freeze({
+    /* --- Self service: MODULE.MY_ATTENDANCE ---------------------------- */
+    /** Today's row: am I checked in, since when, what is my shift. */
+    ME_TODAY: '/me/today',
+    /** My calendar for a month: ?from=&to=. */
+    ME_CALENDAR: '/me/calendar',
+    ME_SUMMARY: '/me/summary',
+    CHECK_IN: '/me/check-in',
+    CHECK_OUT: '/me/check-out',
+    /** The punches behind one of my days, for the detail drawer. */
+    ME_DAY: '/me/day/:attendanceDate',
+
+    /* --- Manager and HR: MODULE.TEAM_ATTENDANCE ------------------------ */
+    /** The daily grid: ?date=&locationId=&status=. */
+    TEAM_DAY: '/team/day',
+    TEAM_CALENDAR: '/team/calendar',
+    /** Absent, late, missing a punch - the morning list. */
+    TEAM_EXCEPTIONS: '/team/exceptions',
+    EMPLOYEE_CALENDAR: '/employees/:employeeDetailId/calendar',
+    EMPLOYEE_DAY: '/employees/:employeeDetailId/day/:attendanceDate',
+
+    /* --- Regularization: MODULE.REGULARIZATION ------------------------- */
+    REGULARIZATION_MINE: '/regularizations/me',
+    REGULARIZATION_CREATE: '/regularizations',
+    REGULARIZATION_PENDING: '/regularizations/pending',
+    REGULARIZATION_DETAIL: '/regularizations/:regularizationRequestId',
+    REGULARIZATION_APPROVE: '/regularizations/:regularizationRequestId/approve',
+    REGULARIZATION_REJECT: '/regularizations/:regularizationRequestId/reject',
+    REGULARIZATION_CANCEL: '/regularizations/:regularizationRequestId/cancel',
+
+    /* --- Shifts: MODULE.SHIFTS ----------------------------------------- */
+    SHIFT_LIST: '/shifts',
+    SHIFT_CREATE: '/shifts',
+    SHIFT_DETAIL: '/shifts/:shiftId',
+    SHIFT_UPDATE: '/shifts/:shiftId',
+    SHIFT_DELETE: '/shifts/:shiftId',
+    /** The week-off pattern is replaced as a whole list, never row by row. */
+    SHIFT_WEEK_OFFS: '/shifts/:shiftId/week-offs',
+    SHIFT_WEEK_OFFS_SAVE: '/shifts/:shiftId/week-offs',
+
+    ASSIGNMENT_LIST: '/shift-assignments',
+    ASSIGNMENT_CREATE: '/shift-assignments',
+    ASSIGNMENT_UPDATE: '/shift-assignments/:employeeShiftId',
+    ASSIGNMENT_DELETE: '/shift-assignments/:employeeShiftId',
+    EMPLOYEE_SHIFT: '/employees/:employeeDetailId/shift',
+
+    /* --- Holidays: MODULE.HOLIDAY_CALENDAR ----------------------------- */
+    /** ?year=&locationId=&holidayTypeId=. Readable by everybody. */
+    HOLIDAY_LIST: '/holidays',
+    HOLIDAY_CREATE: '/holidays',
+    HOLIDAY_TYPES: '/holidays/types',
+    /** The restricted list this employee may choose from, and their pick. */
+    HOLIDAY_RESTRICTED_OPTIONS: '/holidays/restricted/options',
+    HOLIDAY_RESTRICTED_MINE: '/holidays/restricted/me',
+    HOLIDAY_RESTRICTED_OPT_IN: '/holidays/restricted/opt-in',
+    HOLIDAY_RESTRICTED_PENDING: '/holidays/restricted/pending',
+    HOLIDAY_RESTRICTED_DECIDE: '/holidays/restricted/:restrictedHolidayOptInId/decide',
+    HOLIDAY_RESTRICTED_CANCEL: '/holidays/restricted/:restrictedHolidayOptInId/cancel',
+    /** Which cohort gets the restricted list, and how many picks. */
+    RESTRICTED_MAPPING_LIST: '/holidays/restricted-mappings',
+    RESTRICTED_MAPPING_CREATE: '/holidays/restricted-mappings',
+    RESTRICTED_MAPPING_UPDATE: '/holidays/restricted-mappings/:restrictedHolidayMappingId',
+    RESTRICTED_MAPPING_DELETE: '/holidays/restricted-mappings/:restrictedHolidayMappingId',
+    HOLIDAY_DETAIL: '/holidays/:holidayId',
+    HOLIDAY_UPDATE: '/holidays/:holidayId',
+    HOLIDAY_DELETE: '/holidays/:holidayId',
+
+    /* --- Exemptions: MODULE.ATTENDANCE_EXEMPTIONS ---------------------- */
+    EXEMPTION_LIST: '/exemptions',
+    EXEMPTION_CREATE: '/exemptions',
+    EXEMPTION_UPDATE: '/exemptions/:attendanceExemptionId',
+    EXEMPTION_DELETE: '/exemptions/:attendanceExemptionId',
+
+    /* --- Alerts: MODULE.ATTENDANCE_ALERTS ------------------------------ */
+    ALERT_SETTING_LIST: '/alert-settings',
+    ALERT_SETTING_CREATE: '/alert-settings',
+    ALERT_SETTING_UPDATE: '/alert-settings/:attendanceAlertSettingId',
+    ALERT_SETTING_DELETE: '/alert-settings/:attendanceAlertSettingId',
+  }),
+
+  /**
+   * Leave - db/migrations/017 to 020.
+   *
+   * Same self / team / admin split as ATTENDANCE above, and the same
+   * declaration-order trap: /leave/me must be declared before any
+   * /leave/:something.
+   */
+  LEAVE: Object.freeze({
+    /* --- Self service: MODULE.MY_LEAVE --------------------------------- */
+    /** The dashboard of section 10: one tile per category, per cycle. */
+    ME_DASHBOARD: '/me/dashboard',
+    /** What I may apply for right now, with the rules attached. */
+    ME_TYPES: '/me/types',
+    /** The charge preview: how many days, how many sandwich, how many LWP. */
+    ME_PREVIEW: '/me/preview',
+    ME_REQUESTS: '/me/requests',
+    ME_LEDGER: '/me/ledger',
+    ME_BALANCE: '/me/balance',
+
+    REQUEST_CREATE: '/requests',
+    REQUEST_DETAIL: '/requests/:leaveRequestId',
+    REQUEST_CANCEL: '/requests/:leaveRequestId/cancel',
+    REQUEST_WITHDRAW: '/requests/:leaveRequestId/withdraw',
+
+    /* --- Approvals: MODULE.TEAM_LEAVE ---------------------------------- */
+    PENDING: '/requests/pending',
+    REQUEST_APPROVE: '/requests/:leaveRequestId/approve',
+    REQUEST_REJECT: '/requests/:leaveRequestId/reject',
+    TEAM_CALENDAR: '/team/calendar',
+    TEAM_REQUESTS: '/team/requests',
+
+    /* --- Cycles and policy: MODULE.LEAVE_POLICY ------------------------ */
+    CYCLE_LIST: '/cycles',
+    CYCLE_CREATE: '/cycles',
+    CYCLE_UPDATE: '/cycles/:leaveCycleId',
+    CYCLE_CLOSE: '/cycles/:leaveCycleId/close',
+
+    POLICY_LIST: '/policies',
+    POLICY_CREATE: '/policies',
+    POLICY_DETAIL: '/policies/:leavePolicyId',
+    POLICY_UPDATE: '/policies/:leavePolicyId',
+    POLICY_DELETE: '/policies/:leavePolicyId',
+
+    SANDWICH_RULE_LIST: '/sandwich-rules',
+    SANDWICH_RULE_CREATE: '/sandwich-rules',
+    SANDWICH_RULE_UPDATE: '/sandwich-rules/:sandwichRuleId',
+    SANDWICH_RULE_DELETE: '/sandwich-rules/:sandwichRuleId',
+
+    /** Per-employee overrides - "customize leave policy for certain employees". */
+    OVERRIDE_LIST: '/overrides',
+    OVERRIDE_CREATE: '/overrides',
+    OVERRIDE_UPDATE: '/overrides/:employeeLeavePolicyId',
+    OVERRIDE_DELETE: '/overrides/:employeeLeavePolicyId',
+
+    /* --- Mapping: MODULE.LEAVE_MAPPING --------------------------------- */
+    MAPPING_LIST: '/mappings',
+    MAPPING_CREATE: '/mappings',
+    MAPPING_UPDATE: '/mappings/:leaveMappingId',
+    MAPPING_DELETE: '/mappings/:leaveMappingId',
+
+    /* --- Balances: MODULE.LEAVE_BALANCE -------------------------------- */
+    /** The manage-balance grid: every employee, every category, one cycle. */
+    BALANCE_LIST: '/balances',
+    EMPLOYEE_BALANCE: '/balances/:employeeDetailId',
+    EMPLOYEE_LEDGER: '/balances/:employeeDetailId/ledger',
+    /** A hand correction. Writes an ADJUSTMENT row; remarks are mandatory. */
+    BALANCE_ADJUST: '/balances/:employeeDetailId/adjust',
+    /** Granting days in bulk - the "add leaves" screen. */
+    BALANCE_GRANT: '/balances/grant',
+
+    /* --- Comp-off: MODULE.COMP_OFF ------------------------------------- */
+    COMP_OFF_MINE: '/comp-off/me',
+    COMP_OFF_CREATE: '/comp-off',
+    COMP_OFF_PENDING: '/comp-off/pending',
+    /** HR's outstanding list: approved by the manager, not yet credited. */
+    COMP_OFF_AWAITING_CREDIT: '/comp-off/awaiting-credit',
+    COMP_OFF_APPROVE: '/comp-off/:compOffRequestId/approve',
+    COMP_OFF_REJECT: '/comp-off/:compOffRequestId/reject',
+    COMP_OFF_CANCEL: '/comp-off/:compOffRequestId/cancel',
+    /** The HR act that actually grants the day. Never a job. */
+    COMP_OFF_CREDIT: '/comp-off/:compOffRequestId/credit',
+    COMP_OFF_CREDITS: '/comp-off/credits',
+
+    /* --- Confirmation: MODULE.EMPLOYMENT_STATUS ------------------------ */
+    CONFIRMATION_DUE: '/confirmation/due',
+    CONFIRMATION_HISTORY: '/confirmation/:employeeDetailId/history',
+    CONFIRMATION_CONFIRM: '/confirmation/:employeeDetailId/confirm',
+    CONFIRMATION_EXTEND: '/confirmation/:employeeDetailId/extend',
+
+    /* --- Payroll: MODULE.LWP_REPORT ------------------------------------ */
+    LWP_REPORT: '/reports/lwp',
   }),
 });

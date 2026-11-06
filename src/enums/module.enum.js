@@ -62,6 +62,44 @@ export const MODULE = Object.freeze({
   ASSET_MODELS: 66,
   QUALIFICATIONS: 67,
   SPECIALIZATIONS: 68,
+
+  /* The regularization reason list - db/migrations/016. */
+  REGULARIZATION_TYPES: 69,
+
+  /*
+    Attendance - db/migrations/015-016.
+
+    MY_ATTENDANCE and TEAM_ATTENDANCE are two modules rather than one with a
+    scope, because this access model has no scope: a group holds an action
+    on a module, full stop (see access-control.service.js). "Everyone may
+    punch and see their own calendar; managers may also see their team's" is
+    therefore expressed as two screens, each granted separately - which is
+    also how it looks in the menu, so the rights matrix and the navigation
+    agree about what exists.
+
+    The row-level half - a manager may approve only their own reports - is
+    NOT an access right. It is a business rule, and it lives in the service
+    where it can name the employee it refused.
+  */
+  ATTENDANCE_MANAGEMENT: 70,
+  MY_ATTENDANCE: 71,
+  TEAM_ATTENDANCE: 72,
+  REGULARIZATION: 73,
+  SHIFTS: 74,
+  HOLIDAY_CALENDAR: 75,
+  ATTENDANCE_EXEMPTIONS: 76,
+  ATTENDANCE_ALERTS: 77,
+
+  /* Leave - db/migrations/017-020. Same self / team / admin split. */
+  LEAVE_MANAGEMENT: 80,
+  MY_LEAVE: 81,
+  TEAM_LEAVE: 82,
+  LEAVE_POLICY: 83,
+  LEAVE_MAPPING: 84,
+  LEAVE_BALANCE: 85,
+  COMP_OFF: 86,
+  EMPLOYMENT_STATUS: 87,
+  LWP_REPORT: 88,
 });
 
 /**
@@ -556,6 +594,220 @@ export const MODULE_CATALOG = Object.freeze([
     routePath: '/master-data/specializations',
     icon: 'bookmark',
     sortOrder: 280,
+    showInMenu: true,
+  },
+  {
+    moduleId: MODULE.REGULARIZATION_TYPES,
+    moduleCode: 'REGULARIZATION_TYPES',
+    moduleName: 'Regularization Types',
+    description: 'The reasons an attendance correction can be raised for',
+    parentModuleId: MODULE.MASTER_DATA,
+    routePath: '/master-data/regularization-types',
+    icon: 'edit',
+    sortOrder: 290,
+    showInMenu: true,
+  },
+
+  /* ---------------------------------------------------------------------
+     Attendance.
+     --------------------------------------------------------------------- */
+
+  {
+    moduleId: MODULE.ATTENDANCE_MANAGEMENT,
+    moduleCode: 'ATTENDANCE_MANAGEMENT',
+    moduleName: 'Attendance',
+    description: 'Check-in, calendars, corrections, shifts and holidays',
+    parentModuleId: null,
+    routePath: null,
+    icon: 'clock',
+    sortOrder: 50,
+    showInMenu: true,
+  },
+  {
+    /*
+      Granted to everybody. An employee who cannot reach this screen cannot
+      punch, and cannot see their own attendance - which makes every other
+      screen in the module pointless for them.
+    */
+    moduleId: MODULE.MY_ATTENDANCE,
+    moduleCode: 'MY_ATTENDANCE',
+    moduleName: 'My Attendance',
+    description: 'Check in and out, and see your own calendar and exceptions',
+    parentModuleId: MODULE.ATTENDANCE_MANAGEMENT,
+    routePath: '/attendance/me',
+    icon: 'user-check',
+    sortOrder: 10,
+    showInMenu: true,
+  },
+  {
+    moduleId: MODULE.TEAM_ATTENDANCE,
+    moduleCode: 'TEAM_ATTENDANCE',
+    moduleName: 'Team Attendance',
+    description: 'The daily grid and exception list for a manager’s reports',
+    parentModuleId: MODULE.ATTENDANCE_MANAGEMENT,
+    routePath: '/attendance/team',
+    icon: 'users',
+    sortOrder: 20,
+    showInMenu: true,
+  },
+  {
+    moduleId: MODULE.REGULARIZATION,
+    moduleCode: 'REGULARIZATION',
+    moduleName: 'Regularization',
+    description: 'Raise an attendance correction, and approve the ones raised to you',
+    parentModuleId: MODULE.ATTENDANCE_MANAGEMENT,
+    routePath: '/attendance/regularization',
+    icon: 'edit-3',
+    sortOrder: 30,
+    showInMenu: true,
+  },
+  {
+    moduleId: MODULE.SHIFTS,
+    moduleCode: 'SHIFTS',
+    moduleName: 'Shifts',
+    description: 'Shift timings per location, week-off patterns and assignment',
+    parentModuleId: MODULE.ATTENDANCE_MANAGEMENT,
+    routePath: '/attendance/shifts',
+    icon: 'sunrise',
+    sortOrder: 40,
+    showInMenu: true,
+  },
+  {
+    moduleId: MODULE.HOLIDAY_CALENDAR,
+    moduleCode: 'HOLIDAY_CALENDAR',
+    moduleName: 'Holiday Calendar',
+    description: 'Holidays per location and year, including the restricted list',
+    parentModuleId: MODULE.ATTENDANCE_MANAGEMENT,
+    routePath: '/attendance/holidays',
+    icon: 'calendar',
+    sortOrder: 50,
+    showInMenu: true,
+  },
+  {
+    moduleId: MODULE.ATTENDANCE_EXEMPTIONS,
+    moduleCode: 'ATTENDANCE_EXEMPTIONS',
+    moduleName: 'Attendance Exemptions',
+    description: 'Who is marked present by default, and why',
+    parentModuleId: MODULE.ATTENDANCE_MANAGEMENT,
+    routePath: '/attendance/exemptions',
+    icon: 'shield-off',
+    sortOrder: 60,
+    showInMenu: true,
+  },
+  {
+    moduleId: MODULE.ATTENDANCE_ALERTS,
+    moduleCode: 'ATTENDANCE_ALERTS',
+    moduleName: 'Attendance Alerts',
+    description: 'How often a missed check-in is chased, and for how long',
+    parentModuleId: MODULE.ATTENDANCE_MANAGEMENT,
+    routePath: '/attendance/alerts',
+    icon: 'bell',
+    sortOrder: 70,
+    showInMenu: true,
+  },
+
+  /* ---------------------------------------------------------------------
+     Leave.
+     --------------------------------------------------------------------- */
+
+  {
+    moduleId: MODULE.LEAVE_MANAGEMENT,
+    moduleCode: 'LEAVE_MANAGEMENT',
+    moduleName: 'Leave',
+    description: 'Balances, applications, approvals, policy and comp-off',
+    parentModuleId: null,
+    routePath: null,
+    icon: 'calendar-check',
+    sortOrder: 60,
+    showInMenu: true,
+  },
+  {
+    // Granted to everybody, for the same reason as MY_ATTENDANCE.
+    moduleId: MODULE.MY_LEAVE,
+    moduleCode: 'MY_LEAVE',
+    moduleName: 'My Leave',
+    description: 'Your balance dashboard, applications and history',
+    parentModuleId: MODULE.LEAVE_MANAGEMENT,
+    routePath: '/leave/me',
+    icon: 'calendar',
+    sortOrder: 10,
+    showInMenu: true,
+  },
+  {
+    moduleId: MODULE.TEAM_LEAVE,
+    moduleCode: 'TEAM_LEAVE',
+    moduleName: 'Team Leave',
+    description: 'Approve leave, and see who is off and when',
+    parentModuleId: MODULE.LEAVE_MANAGEMENT,
+    routePath: '/leave/team',
+    icon: 'user-check',
+    sortOrder: 20,
+    showInMenu: true,
+  },
+  {
+    moduleId: MODULE.LEAVE_POLICY,
+    moduleCode: 'LEAVE_POLICY',
+    moduleName: 'Leave Policy',
+    description: 'Policy rows, leave cycles, sandwich rules and per-employee overrides',
+    parentModuleId: MODULE.LEAVE_MANAGEMENT,
+    routePath: '/leave/policy',
+    icon: 'book-open',
+    sortOrder: 30,
+    showInMenu: true,
+  },
+  {
+    moduleId: MODULE.LEAVE_MAPPING,
+    moduleCode: 'LEAVE_MAPPING',
+    moduleName: 'Leave Mapping',
+    description: 'Which categories a cohort is offered, and the restricted-holiday mapping',
+    parentModuleId: MODULE.LEAVE_MANAGEMENT,
+    routePath: '/leave/mapping',
+    icon: 'git-merge',
+    sortOrder: 40,
+    showInMenu: true,
+  },
+  {
+    moduleId: MODULE.LEAVE_BALANCE,
+    moduleCode: 'LEAVE_BALANCE',
+    moduleName: 'Manage Balances',
+    description: 'The ledger, hand corrections and adding leave to a balance',
+    parentModuleId: MODULE.LEAVE_MANAGEMENT,
+    routePath: '/leave/balances',
+    icon: 'sliders',
+    sortOrder: 50,
+    showInMenu: true,
+  },
+  {
+    moduleId: MODULE.COMP_OFF,
+    moduleCode: 'COMP_OFF',
+    moduleName: 'Compensatory Off',
+    description: 'Comp-off requests, and the HR queue of approved-but-uncredited days',
+    parentModuleId: MODULE.LEAVE_MANAGEMENT,
+    routePath: '/leave/comp-off',
+    icon: 'repeat',
+    sortOrder: 60,
+    showInMenu: true,
+  },
+  {
+    moduleId: MODULE.EMPLOYMENT_STATUS,
+    moduleCode: 'EMPLOYMENT_STATUS',
+    moduleName: 'Probation & Confirmation',
+    description: 'Who is due for confirmation, and extending or confirming by hand',
+    parentModuleId: MODULE.LEAVE_MANAGEMENT,
+    routePath: '/leave/confirmation',
+    icon: 'award',
+    sortOrder: 70,
+    showInMenu: true,
+  },
+  {
+    moduleId: MODULE.LWP_REPORT,
+    moduleCode: 'LWP_REPORT',
+    moduleName: 'LWP Report',
+    description: 'Employee-wise leave without pay, for payroll',
+    parentModuleId: MODULE.LEAVE_MANAGEMENT,
+    routePath: '/leave/lwp-report',
+    icon: 'file-minus',
+    sortOrder: 80,
     showInMenu: true,
   },
 ]);

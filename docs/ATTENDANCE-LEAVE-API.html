@@ -1,0 +1,2866 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="A flow-by-flow guide to the rSTAR HRMS attendance and leave API: every curl, what it does, and what it returns.">
+<title>Attendance &amp; Leave API</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a field guide — sticky section rail, one reading column, full-width code. */
+:root{
+  --bg:#eef1f4;
+  --sheet:#ffffff;
+  --sunk:#f4f6f8;
+  --term:#101820;
+  --term-ink:#dbe4ec;
+  --ink:#141d26;
+  --ink-2:#4a5a6b;
+  --ink-3:#7e8d9c;
+  --line:#c3cdd7;
+  --line-soft:#dde4ea;
+  --att:#a8451a;
+  --att-bg:#fbeee7;
+  --lv:#0b6f68;
+  --lv-bg:#e4f2f0;
+  --sys:#3c4f9c;
+  --sys-bg:#e8ebf7;
+  --ok:#1f7a45;
+  --ok-bg:#e3f2e9;
+  --stop:#a32330;
+  --stop-bg:#fae9eb;
+  --warn:#8a6100;
+  --warn-bg:#faf0d8;
+  --f-disp:"Archivo",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"Cascadia Mono",monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0d141b; --sheet:#151e27; --sunk:#111922; --term:#0a1016; --term-ink:#cfdae4;
+  --ink:#e6edf3; --ink-2:#a8b7c4; --ink-3:#7b8b99;
+  --line:#3a4854; --line-soft:#26313b;
+  --att:#f0a177; --att-bg:#33211a; --lv:#5fc9bf; --lv-bg:#12302e; --sys:#9fb0ee; --sys-bg:#1d2340;
+  --ok:#6cd298; --ok-bg:#133024; --stop:#f0919b; --stop-bg:#35191d; --warn:#e2bb5c; --warn-bg:#302713;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0d141b; --sheet:#151e27; --sunk:#111922; --term:#0a1016; --term-ink:#cfdae4;
+  --ink:#e6edf3; --ink-2:#a8b7c4; --ink-3:#7b8b99;
+  --line:#3a4854; --line-soft:#26313b;
+  --att:#f0a177; --att-bg:#33211a; --lv:#5fc9bf; --lv-bg:#12302e; --sys:#9fb0ee; --sys-bg:#1d2340;
+  --ok:#6cd298; --ok-bg:#133024; --stop:#f0919b; --stop-bg:#35191d; --warn:#e2bb5c; --warn-bg:#302713;
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;margin:0}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--sheet);z-index:40}
+.wrap{max-width:1060px;margin:0 auto;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:0 72px}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--sys);outline-offset:2px;border-radius:3px}
+
+.mast{padding-block:46px 30px;border-bottom:3px solid var(--ink)}
+.eyebrow{font-family:var(--f-mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-3);margin:0 0 14px}
+h1{font-family:var(--f-disp);font-weight:800;font-size:clamp(32px,6.4vw,54px);line-height:1.04;letter-spacing:-.025em;margin:0;text-wrap:balance}
+h1 em{font-style:normal;color:var(--att)}
+h1 i{font-style:normal;color:var(--lv)}
+.dek{margin:18px 0 0;max-width:64ch;font-size:17px;color:var(--ink-2)}
+.meta{display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:22px;font-family:var(--f-mono);font-size:11.5px;color:var(--ink-3);letter-spacing:.04em}
+.meta b{color:var(--ink-2);font-weight:500}
+
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;background:var(--sheet);border-bottom:1px solid var(--line);
+  margin-inline:calc(-1 * max(16px,env(safe-area-inset-left,0px))) calc(-1 * max(16px,env(safe-area-inset-right,0px)))}
+nav.rail ol{display:flex;gap:2px;list-style:none;margin:0;padding:8px max(16px,env(safe-area-inset-left,0px));overflow-x:auto;scrollbar-width:thin}
+nav.rail a{display:block;white-space:nowrap;font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-2);text-decoration:none;padding:6px 10px;border-radius:4px}
+nav.rail a:hover{background:var(--sunk);color:var(--ink)}
+nav.rail a.att{color:var(--att)} nav.rail a.lv{color:var(--lv)}
+
+section{padding-block:50px 8px;scroll-margin-top:72px}
+.sec-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+.sec-num{font-family:var(--f-mono);font-size:12px;font-weight:600;letter-spacing:.1em;color:var(--ink-3);
+  border:1px solid var(--line);border-radius:3px;padding:3px 7px}
+h2{font-family:var(--f-disp);font-weight:700;font-size:clamp(21px,3.6vw,29px);letter-spacing:-.018em;margin:0;text-wrap:balance}
+section.att h2{color:var(--att)} section.lv h2{color:var(--lv)}
+.lede{color:var(--ink-2);max-width:68ch;margin:10px 0 26px}
+h3{font-family:var(--f-disp);font-weight:600;font-size:16px;margin:34px 0 14px;padding-bottom:6px;border-bottom:1px solid var(--line-soft)}
+h4{font-family:var(--f-disp);font-weight:600;font-size:15.5px;margin:0 0 6px}
+p{margin:0 0 14px;max-width:68ch}
+code{font-family:var(--f-mono);font-size:.87em;background:var(--sunk);border:1px solid var(--line-soft);border-radius:3px;padding:1px 5px}
+
+/* --- a step --- */
+.step{background:var(--sheet);border:1px solid var(--line);border-radius:10px;padding:16px 16px 6px;margin:0 0 16px;min-width:0}
+.step-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:9px}
+.verb{font-family:var(--f-mono);font-size:10px;font-weight:600;letter-spacing:.08em;padding:3px 7px;border-radius:3px;color:#fff;flex:0 0 auto}
+.verb.get{background:#2f6f3e} .verb.post{background:#1d4e89} .verb.put{background:#8a6100} .verb.delete{background:#9c2430}
+.route{font-family:var(--f-mono);font-size:11.5px;background:transparent;border:0;padding:0;color:var(--ink-2);word-break:break-all}
+.does{font-size:13.8px;color:var(--ink-2);margin:0 0 11px}
+.step .does code{font-size:11.6px}
+
+pre{margin:0 0 12px;overflow-x:auto;border-radius:7px}
+pre.curl{background:var(--term);color:var(--term-ink);padding:13px 14px;border:1px solid var(--line)}
+pre.curl code{background:transparent;border:0;padding:0;color:inherit;font-size:12.2px;line-height:1.65;white-space:pre}
+.resp{margin:0 0 12px}
+.resp-head{font-family:var(--f-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-bottom:5px;font-weight:600}
+.resp-head span{margin-left:6px;padding:1px 5px;border-radius:3px;font-weight:600}
+.code-2xx{background:var(--ok-bg);color:var(--ok)}
+.code-4xx{background:var(--stop-bg);color:var(--stop)}
+.resp pre{background:var(--sunk);border:1px solid var(--line-soft);padding:12px 13px}
+.resp pre code{background:transparent;border:0;padding:0;font-size:11.8px;line-height:1.6;white-space:pre;color:var(--ink-2)}
+
+.note-line,.warn-line{font-size:13.2px;line-height:1.55;margin:0 0 12px;padding:9px 12px;border-radius:0 6px 6px 0;max-width:none}
+.note-line{border-left:3px solid var(--sys);background:var(--sys-bg);color:var(--ink-2)}
+.warn-line{border-left:3px solid var(--warn);background:var(--warn-bg);color:var(--ink-2)}
+.note-line code,.warn-line code{font-size:11.4px}
+
+.callout{border-left:3px solid var(--lv);background:var(--lv-bg);padding:14px 16px;border-radius:0 7px 7px 0;margin:0 0 22px;font-size:13.8px;color:var(--ink-2);max-width:72ch}
+.callout b{color:var(--ink)}
+.callout ul{margin:9px 0;padding-left:18px}
+.callout li{margin-bottom:5px}
+
+.two-up{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(265px,1fr));margin:0 0 20px}
+.two-up>div{min-width:0}
+.guard-card{border:1px solid var(--line);border-top:3px solid var(--sys);border-radius:8px;background:var(--sheet);padding:14px 15px}
+.gc-h{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--sys);font-weight:600;margin-bottom:7px}
+.guard-card p{font-size:13.2px;color:var(--ink-2);margin:0}
+
+.chain-grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));margin:0 0 22px}
+.chain-col{border:1px solid var(--line);border-radius:9px;background:var(--sheet);padding:14px 16px 6px;min-width:0}
+.chain-col .ch{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;margin-bottom:10px;padding-bottom:6px;border-bottom:1.5px solid var(--line)}
+.chain-col.att .ch{color:var(--att);border-bottom-color:var(--att)}
+.chain-col.lv .ch{color:var(--lv);border-bottom-color:var(--lv)}
+.chain-list{list-style:none;counter-reset:ch;margin:0;padding:0}
+.chain-list li{counter-increment:ch;display:flex;gap:11px;align-items:flex-start;margin-bottom:12px}
+.chain-list li::before{content:counter(ch);font-family:var(--f-mono);font-size:10.5px;font-weight:600;color:var(--sheet);background:var(--ink-3);
+  width:20px;height:20px;flex:0 0 20px;border-radius:50%;display:grid;place-items:center;margin-top:2px}
+.chain-list b{display:block;font-size:13.8px;color:var(--ink)}
+.chain-list span{display:block;font-size:12.8px;color:var(--ink-2);line-height:1.5}
+
+.ledger-flow{display:flex;flex-direction:column;gap:9px;margin:0 0 14px}
+.lf{display:grid;grid-template-columns:92px 1fr;gap:4px 14px;align-items:baseline;border:1px solid var(--line);border-radius:7px;background:var(--sheet);padding:11px 14px}
+.lf-step{font-family:var(--f-mono);font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--lv)}
+.lf-row{font-size:13.5px}
+.lf-row code{font-size:11.6px}
+.lf-row em{font-style:normal;font-family:var(--f-mono);font-size:10.5px;color:var(--ink-3)}
+.lf-say{grid-column:2;font-size:12.6px;color:var(--ink-2)}
+
+.tbl-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:9px;background:var(--sheet);margin:0 0 20px}
+table{border-collapse:collapse;width:100%;min-width:600px;font-size:13px}
+th{text-align:left;font-family:var(--f-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);
+  font-weight:600;padding:10px 13px;border-bottom:1.5px solid var(--line);background:var(--sunk);white-space:nowrap}
+td{padding:10px 13px;border-bottom:1px solid var(--line-soft);vertical-align:top;color:var(--ink-2);line-height:1.5}
+tbody tr:last-child td{border-bottom:0}
+.grp td{background:var(--sunk);color:var(--ink);font-family:var(--f-mono);font-size:11.5px;font-weight:600}
+.mono{font-family:var(--f-mono);font-size:11.3px;word-break:break-all}
+.num{font-variant-numeric:tabular-nums;text-align:center;font-family:var(--f-mono);font-size:11.5px}
+.tot{font-family:var(--f-mono);font-weight:600;color:var(--ink);text-align:center;font-variant-numeric:tabular-nums}
+table.idx td:nth-child(2){color:var(--ink)}
+td.right{font-family:var(--f-mono);font-size:10.5px;color:var(--sys);white-space:nowrap}
+td.right .acts{display:block;color:var(--ink-3);letter-spacing:.04em;margin-top:2px}
+.fn{font-size:12.8px;color:var(--ink-3)}
+
+footer{margin-top:56px;padding-top:22px;border-top:1px solid var(--line);font-family:var(--f-mono);font-size:11px;color:var(--ink-3);letter-spacing:.04em;line-height:1.9}
+
+@media (max-width:460px){
+  .step{padding:13px 12px 4px}
+  pre.curl code,.resp pre code{font-size:11.4px}
+  .lf{grid-template-columns:1fr}
+  .lf-say{grid-column:1}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<style>
+/* The reset the artifact platform supplies; here it has to be explicit. */
+:root{color-scheme:light;box-sizing:border-box}
+html{scroll-behavior:smooth}
+img{max-width:100%}
+[hidden]{display:none!important}
+
+@media print{
+  nav.rail{display:none}
+  body{background:#fff;font-size:10.5pt}
+  .wrap{max-width:none}
+  section{break-inside:auto;padding-block:22px 4px}
+  .step,.callout,.chain-col,.guard-card,.lf{break-inside:avoid}
+  pre{break-inside:avoid;white-space:pre-wrap;word-break:break-word}
+  pre.curl{background:#f4f6f8;color:#101820;border:1px solid #c3cdd7}
+  pre.curl code{color:#101820}
+  h2,h3,h4{break-after:avoid}
+  footer{break-before:avoid}
+}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+
+<header class="mast">
+  <p class="eyebrow">rSTAR HRMS · API guide · Attendance &amp; Leave</p>
+  <h1>Every <em>attendance</em> and <i>leave</i> call, and what it does</h1>
+  <p class="dek">A walk through the module one flow at a time. Each step shows the curl, what the call actually does, and — for the ones worth seeing — the real response it returned. The curls are generated from the Postman collection, which is generated from the route files, so nothing here is retyped.</p>
+  <div class="meta">
+    <span><b>Base</b> /api/v1</span>
+    <span><b>Auth</b> Bearer token on every call</span>
+    <span><b>Endpoints</b> 109</span>
+    <span><b>Collection</b> postman/rSTAR-HRMS-API.postman_collection.json</span>
+  </div>
+</header>
+
+<nav class="rail" aria-label="Sections">
+  <ol>
+    <li><a class="" href="#start">00 Start</a></li>
+    <li><a class="" href="#order">01 Setup order</a></li>
+    <li><a class="att" href="#punch">02 Punching</a></li>
+    <li><a class="att" href="#reading">03 My calendar</a></li>
+    <li><a class="att" href="#team">04 Team views</a></li>
+    <li><a class="att" href="#shifts">05 Shifts</a></li>
+    <li><a class="att" href="#holidays">06 Holidays</a></li>
+    <li><a class="att" href="#floating">07 Floating</a></li>
+    <li><a class="att" href="#exempt">08 Exemptions &amp; alerts</a></li>
+    <li><a class="att" href="#regular">09 Regularization</a></li>
+    <li><a class="lv" href="#leave-setup">10 Leave setup</a></li>
+    <li><a class="lv" href="#employee-view">11 Dashboard</a></li>
+    <li><a class="lv" href="#apply">12 Apply flow</a></li>
+    <li><a class="lv" href="#lwp">13 LWP</a></li>
+    <li><a class="lv" href="#approvals">14 Approvals</a></li>
+    <li><a class="lv" href="#corrections">15 Corrections</a></li>
+    <li><a class="lv" href="#compoff">16 Comp-off</a></li>
+    <li><a class="lv" href="#confirm">17 Confirmation</a></li>
+    <li><a class="" href="#errors">18 Errors</a></li>
+    <li><a class="" href="#index">19 Index</a></li>
+  </ol>
+</nav>
+
+
+<section id="start" class="">
+  <div class="sec-head"><span class="sec-num">00</span><h2>Before you start</h2></div>
+  <p class="lede">Two shell variables carry through every example on this page. Set them once and every curl below is copy-paste.</p>
+  
+<pre class="curl"><code>BASE=http://localhost:5000/api/v1
+TOKEN=&lt;paste the accessToken from the login below&gt;</code></pre>
+
+<h3>Getting a token</h3>
+<p>Login is two steps: the password returns an OTP, the OTP returns the tokens. In development, set <code>DEFAULT_OTP=true</code> in <code>.env</code> and the OTP is always <code>123456</code> with no email sent.</p>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/auth/login</code>
+  </div>
+  <h4>Step 1 — prove the password</h4>
+  <p class="does">Checks the password and emails a one-time code. It does <em>not</em> return a token; nothing is signed in yet.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{ "email": "you@rstartec.com", "password": "..." }'</code></pre>
+  
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/auth/verify-otp</code>
+  </div>
+  <h4>Step 2 — exchange the code for tokens</h4>
+  <p class="does">Returns <code>accessToken</code> (15 minutes) and <code>refreshToken</code> (7 days). Put the access token in <code>$TOKEN</code>.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/auth/verify-otp" \
+  -H "Content-Type: application/json" \
+  -d '{ "email": "you@rstartec.com", "otp": "123456" }'</code></pre>
+  
+  <p class="note-line">Every curl on this page sends <code>-H "Authorization: Bearer $TOKEN"</code>. A 401 almost always means the 15 minutes ran out — call <code>/auth/refresh</code> or log in again.</p>
+  
+</div>
+
+<h3>Every response has the same shape</h3>
+<p>Success and failure both come back in one envelope, so a client can parse them the same way. <code>data</code> is <code>null</code> rather than absent when there is nothing to return.</p>
+
+<div class="two-up">
+  <div>
+    <div class="resp-head">Success</div>
+    <pre class="curl"><code>{
+  "success": true,
+  "statusCode": 200,
+  "message": "Leave balance fetched",
+  "data": { ... },
+  "meta": { "total": 12 }     // only when it paginates
+}</code></pre>
+  </div>
+  <div>
+    <div class="resp-head">Failure</div>
+    <pre class="curl"><code>{
+  "success": false,
+  "statusCode": 409,
+  "message": "You already have leave applied for on one or more of those dates",
+  "data": null,
+  "details": { "code": "LEAVE_REQUEST_OVERLAP", ... }
+}</code></pre>
+  </div>
+</div>
+
+<p><strong>Branch on <code>details.code</code>, never on the message.</strong> The code is a stable contract; the message is wording somebody will improve one day. Section 20 lists the codes you will actually hit.</p>
+</section>
+
+<section id="order" class="">
+  <div class="sec-head"><span class="sec-num">01</span><h2>The order things have to exist in</h2></div>
+  <p class="lede">Most "why did this 400?" moments are a missing prerequisite rather than a bad request. This is the dependency chain, and it is worth reading once.</p>
+  
+<div class="chain-grid">
+  <div class="chain-col att">
+    <div class="ch">Attendance</div>
+    <ol class="chain-list">
+      <li><b>A location</b><span>Employees point at one. Holidays and shifts hang off it.</span></li>
+      <li><b>A shift</b><span>With week-offs. Until one exists, nothing knows which days are working days — so every day looks absent.</span></li>
+      <li><b>Holidays for the year</b><span>Per location. The nightly close marks them; the leave charge skips them.</span></li>
+      <li><b>Then people can punch</b><span>Check-in resolves a shift, decides which day the punch belongs to, and writes the day.</span></li>
+    </ol>
+  </div>
+  <div class="chain-col lv">
+    <div class="ch">Leave</div>
+    <ol class="chain-list">
+      <li><b>A leave cycle</b><span>One FINANCIAL and one CALENDAR covering today. Without one, applying fails with <code>LEAVE_CYCLE_MISSING</code>.</span></li>
+      <li><b>A leave type</b><span>Master data — already seeded.</span></li>
+      <li><b>A policy</b><span>How the category behaves: accrual, quota, half days, sandwich rule.</span></li>
+      <li><b>A mapping</b><span>Who is offered it. No mapping, no category on the apply screen — <code>LEAVE_NOT_MAPPED</code>.</span></li>
+      <li><b>A balance</b><span>From accrual, or granted by hand. Then people can apply.</span></li>
+    </ol>
+  </div>
+</div>
+
+<p><code>npm run db:seed:attendance</code> does the whole right-hand column and the shifts, as a starting point for HR to edit. It deliberately does <em>not</em> create holidays — those differ per country and per year.</p>
+
+<div class="callout">
+  <b>Policy and mapping are two different questions,</b> and keeping them apart is the one piece of the leave model worth understanding before you touch the API.
+  <ul>
+    <li><b>Mapping</b> — <em>is this category offered to this person at all?</em> Matched on location, employment type, gender and tenure.</li>
+    <li><b>Policy</b> — <em>if it is, how does it behave?</em> Accrual, quota, half days, approvals, sandwich rule.</li>
+  </ul>
+  Maternity leave offered to women in India with a year's service is a <b>mapping</b>. That it accrues nothing and needs HR's signature as well as the manager's is a <b>policy</b>. One policy can serve several mapped cohorts, which is why they are not one table.
+</div>
+</section>
+
+<section id="punch" class="att">
+  <div class="sec-head"><span class="sec-num">02</span><h2>A day in the life</h2></div>
+  <p class="lede">Three calls cover the whole daily loop. The time always comes from the server — never from the request body — because an attendance record whose time the user chooses records nothing.</p>
+  
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/attendance/me/check-in</code>
+  </div>
+  <h4>Check in</h4>
+  <p class="does">Resolves your shift, works out which attendance day the punch belongs to, creates that day if it is not there yet, and appends an <code>IN</code> punch.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/attendance/me/check-in" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "WEB"
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">201</span></div><pre><code>{
+  "attendanceDayId": 1,
+  "employeeDetailId": 2,
+  "attendanceDate": "2026-11-06",
+  "shiftId": 3,
+  "attendanceStatusId": 5,
+  "firstCheckInAt": "2026-11-06T05:22:26.696Z",
+  "lastCheckOutAt": null,
+  "workedMinutes": 0,
+  "lateMinutes": 0,
+  "earlyOutMinutes": null,
+  "isDefaultPresent": false,
+  "isRegularized": false,
+  "holidayId": null,
+  "leaveRequestId": null,
+  "remarks": null,
+  "modifiedAt": "2026-11-06T05:22:26.951Z",
+  "punches": [
+    {
+      "punchId": 1,
+      "attendanceDayId": 1,
+      "punchType": "IN",
+      "punchAt": "2026-11-06T05:22:26.696Z",
+      "source": "WEB",
+      "remarks": null,
+      "createdAt": "2026-11-06T05:22:26.904Z"
+    }
+  ]
+}</code></pre></div>
+  <p class="note-line">Note <code>attendanceStatusId: 5</code> — MISSING_PUNCH. One punch is an open session, not a present day. It becomes PRESENT on check-out.</p>
+  <p class="warn-line"><b>Midnight matters.</b> On a shift that crosses midnight, a punch earlier in the day than the shift start belongs to the <em>previous</em> calendar day. The decision is made once, here, and frozen onto the punch — never re-derived later.</p>
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/attendance/me/today</code>
+  </div>
+  <h4>Am I checked in?</h4>
+  <p class="does">What the punch button needs: your shift, whether today is a week off, whether you are exempt from punching, and <code>isCheckedIn</code>.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/attendance/me/today" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>{
+  "attendanceDate": "2026-11-06",
+  "isCheckedIn": true,
+  "isWeekOff": false,
+  "isExempt": false,
+  "shift": {
+    "shiftCode": "QA3986",
+    "startTime": "10:00",
+    "endTime": "19:00"
+  }
+}</code></pre></div>
+  <p class="note-line"><code>isCheckedIn</code> is computed from the punches, not stored. A stored flag would be a second copy of a fact the punches already hold, and the two would disagree the first time anything else wrote a punch.</p>
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/attendance/me/check-out</code>
+  </div>
+  <h4>Check out</h4>
+  <p class="does">Appends an <code>OUT</code> punch and re-grades the day: pairs the punches, subtracts the unpaid break, compares against the shift’s full-day and half-day minutes, and sets the status.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/attendance/me/check-out" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{}'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>{
+  "attendanceStatusId": 2,
+  "firstCheckInAt": "2026-11-06T05:22:26.696Z",
+  "lastCheckOutAt": "2026-11-06T05:22:27.557Z",
+  "workedMinutes": 0,
+  "lateMinutes": 0
+}</code></pre></div>
+  <p class="note-line">In this capture the two punches are seconds apart, so <code>workedMinutes</code> is 0 after the 60-minute break is deducted — and the day grades as ABSENT. That is the arithmetic working, not a bug.</p>
+  
+</div>
+
+<h3>The two states a client gets wrong</h3>
+<p>Both are answered before anything is written, so neither can leave a half-finished day behind.</p>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/attendance/me/check-in</code>
+  </div>
+  <h4>Checking in twice</h4>
+  <p class="does">Refused with <code>ALREADY_CHECKED_IN</code> (409) while a session is open.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/attendance/me/check-in" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "WEB"
+  }'</code></pre>
+  
+  
+  
+</div>
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/attendance/me/check-out</code>
+  </div>
+  <h4>Checking out with nothing open</h4>
+  <p class="does">Refused with <code>NOT_CHECKED_IN</code> (400).</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/attendance/me/check-out" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{}'</code></pre>
+  
+  
+  
+</div>
+</section>
+
+<section id="reading" class="att">
+  <div class="sec-head"><span class="sec-num">03</span><h2>Reading your own attendance</h2></div>
+  <p class="lede">The calendar is the one response whose shape needs explaining, because it returns days that have no row in the database.</p>
+  
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/attendance/me/calendar?from=2026-10-23&amp;to=2026-11-06</code>
+  </div>
+  <h4>My calendar for a range</h4>
+  <p class="does"><b>Every date in the range comes back</b>, including days nothing was recorded for. A calendar with gaps would force the client to work out what a missing day meant — and to resolve shifts and holidays to do it.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/attendance/me/calendar?from=2026-10-23&amp;to=2026-11-06" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>[
+  {
+    "attendanceDate": "2026-10-23",
+    "employeeDetailId": 2,
+    "shiftId": 1,
+    "attendanceStatusId": null,
+    "holidayId": null,
+    "holidayName": null,
+    "firstCheckInAt": null,
+    "lastCheckOutAt": null,
+    "workedMinutes": null,
+    "lateMinutes": null,
+    "isRecorded": false
+  },
+  {
+    "attendanceDate": "2026-10-24",
+    "employeeDetailId": 2,
+    "shiftId": 1,
+    "attendanceStatusId": 8,
+    "holidayId": null,
+    "holidayName": null,
+    "firstCheckInAt": null,
+    "lastCheckOutAt": null,
+    "workedMinutes": null,
+    "lateMinutes": null,
+    "isRecorded": false
+  },
+  "… 13 more"
+]</code></pre></div>
+  <p class="note-line">Watch <code>isRecorded</code>. <code>true</code> is a real row. <code>false</code> is derived here from the shift pattern and the holiday list — the day <em>was</em> a week off or a holiday, and no row was ever needed.</p>
+  <p class="warn-line">Capped at 366 days. A wider range is refused with <code>DATE_RANGE_TOO_WIDE</code> rather than quietly truncated.</p>
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/attendance/me/summary?from=2026-10-23&amp;to=2026-11-06</code>
+  </div>
+  <h4>Counts by status</h4>
+  <p class="does">Totals per status for the range, plus worked minutes and late days. What the summary tiles read.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/attendance/me/summary?from=2026-10-23&amp;to=2026-11-06" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>{
+  "fromDate": "2026-10-23",
+  "toDate": "2026-11-06",
+  "byStatus": [
+    {
+      "attendanceStatusId": 2,
+      "statusCode": "ABSENT",
+      "statusName": "Absent",
+      "dayCount": 1,
+      "workedMinutes": 0,
+      "lateDays": 0
+    }
+  ],
+  "totalRecordedDays": 1
+}</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/attendance/me/day/2026-11-06</code>
+  </div>
+  <h4>One day, with its punches</h4>
+  <p class="does">The detail drawer: the day’s verdict plus every punch behind it, in order, with the source each came from.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/attendance/me/day/2026-11-06" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>{
+  "attendanceDate": "2026-11-06",
+  "attendanceStatusId": 2,
+  "workedMinutes": 0,
+  "punches": [
+    {
+      "punchId": 1,
+      "attendanceDayId": 1,
+      "punchType": "IN",
+      "punchAt": "2026-11-06T05:22:26.696Z",
+      "source": "WEB",
+      "remarks": null,
+      "createdAt": "2026-11-06T05:22:26.904Z"
+    },
+    {
+      "punchId": 2,
+      "attendanceDayId": 1,
+      "punchType": "OUT",
+      "punchAt": "2026-11-06T05:22:27.557Z",
+      "source": "WEB",
+      "remarks": null,
+      "createdAt": "2026-11-06T05:22:27.715Z"
+    }
+  ]
+}</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/attendance/statuses</code>
+  </div>
+  <h4>The status legend</h4>
+  <p class="does">The nine statuses with their names and colours. Serve the legend from here rather than keeping a copy in the frontend, or the two will disagree.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/attendance/statuses" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>[
+  {
+    "attendanceStatusId": 1,
+    "statusCode": "PRESENT",
+    "statusName": "Present",
+    "description": "Worked at least the shift's full-day minutes.",
+    "countsAsPresent": true,
+    "colorHex": "#15803d",
+    "sortOrder": 10
+  },
+  {
+    "attendanceStatusId": 2,
+    "statusCode": "ABSENT",
+    "statusName": "Absent",
+    "description": "No punches, no leave, no holiday and not a week off.",
+    "countsAsPresent": false,
+    "colorHex": "#b91c1c",
+    "sortOrder": 20
+  },
+  "… 7 more"
+]</code></pre></div>
+  
+  
+</div>
+</section>
+
+<section id="team" class="att">
+  <div class="sec-head"><span class="sec-num">04</span><h2>What a manager sees</h2></div>
+  <p class="lede">Two modules, not one with a scope. <code>MY_ATTENDANCE</code> covers <code>/me</code>; <code>TEAM_ATTENDANCE</code> covers <code>/team</code> and <code>/employees/:id</code>. Which rows come back is decided from the rights the caller holds — a manager sees their own reports, HR sees everybody.</p>
+  
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/attendance/team/day?date=2026-11-06</code>
+  </div>
+  <h4>The day grid</h4>
+  <p class="does">One row per employee for one date. <b>Employees with no attendance row are included</b>, with a null status — "who has not punched yet" is the question the grid exists to answer, and an inner join would drop exactly those people.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/attendance/team/day?date=2026-11-06" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>{
+  "attendanceDate": "2026-11-06",
+  "rows": [
+    {
+      "employeeDetailId": 2,
+      "employeeCode": "EMP001",
+      "firstName": "Arun",
+      "lastName": "Kumar",
+      "workLocationId": "1",
+      "managerId": "1",
+      "attendanceDayId": 1,
+      "attendanceStatusId": 2,
+      "statusCode": "ABSENT",
+      "firstCheckInAt": "2026-11-06T05:22:26.696Z",
+      "lastCheckOutAt": "2026-11-06T05:22:27.557Z",
+      "workedMinutes": 0,
+      "lateMinutes": 0,
+      "isDefaultPresent": false,
+      "isRegularized": false
+    },
+    {
+      "employeeDetailId": 1,
+      "employeeCode": "MGR001",
+      "firstName": "Meera",
+      "lastName": "Nair",
+      "workLocationId": "1",
+      "managerId": null,
+      "attendanceDayId": null,
+      "attendanceStatusId": null,
+      "statusCode": null,
+      "firstCheckInAt": null,
+      "lastCheckOutAt": null,
+      "workedMinutes": null,
+      "lateMinutes": null,
+      "isDefaultPresent": null,
+      "isRegularized": null
+    },
+    "… 1 more"
+  ]
+}</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/attendance/team/exceptions?date=2026-11-05</code>
+  </div>
+  <h4>The morning exception list</h4>
+  <p class="does">Absent, late, missing-punch and half days only. Deliberately <em>not</em> "everything that is not present" — a holiday, a week off and approved leave are all correct states that need no decision, and including them would bury the handful of rows that do.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/attendance/team/exceptions?date=2026-11-05" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>{
+  "attendanceDate": "2026-11-05",
+  "rows": []
+}</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/attendance/employees/42/calendar?from=2026-10-23&amp;to=2026-11-06</code>
+  </div>
+  <h4>One employee's calendar</h4>
+  <p class="does">The same shape as your own calendar, for somebody in scope.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/attendance/employees/42/calendar?from=2026-10-23&amp;to=2026-11-06" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  
+  
+  
+</div>
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/attendance/employees/42/day/2026-11-06</code>
+  </div>
+  <h4>One employee's day</h4>
+  <p class="does">The detail drawer for somebody else’s day, punches included.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/attendance/employees/42/day/2026-11-06" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  
+  
+  
+</div>
+</section>
+
+<section id="shifts" class="att">
+  <div class="sec-head"><span class="sec-num">05</span><h2>Setting up shifts</h2></div>
+  <p class="lede">A shift is <b>effective-dated</b>: its timings are never edited in place, because last month’s attendance was judged against last month’s hours. Changing 09:00 to 09:30 means a new row from the date it applies, not an edit.</p>
+  
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/attendance/shifts?onDate=2026-11-06</code>
+  </div>
+  <h4>What shifts exist</h4>
+  <p class="does">Add <code>?onDate=</code> to see only the ones in force that day. A shift with <code>locationId: null</code> is the company-wide default.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/attendance/shifts?onDate=2026-11-06" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>[
+  {
+    "shiftId": 2,
+    "shiftCode": "EVE",
+    "startTime": "15:00",
+    "endTime": "00:00",
+    "crossesMidnight": true,
+    "effectiveFrom": "2026-04-01"
+  },
+  {
+    "shiftId": 1,
+    "shiftCode": "GEN",
+    "startTime": "09:00",
+    "endTime": "18:00",
+    "crossesMidnight": false,
+    "effectiveFrom": "2026-04-01"
+  }
+]</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/attendance/shifts</code>
+  </div>
+  <h4>Create a shift</h4>
+  <p class="does">Times are <code>HH:mm</code>. <code>fullDayMinutes</code> and <code>halfDayMinutes</code> are what the close job compares worked time against — stored per shift rather than derived, because a part-day shift may count a full day on fewer hours.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/attendance/shifts" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "shiftCode": "EVE2",
+    "shiftName": "Evening shift",
+    "startTime": "10:00",
+    "endTime": "19:00",
+    "breakMinutes": 60,
+    "graceInMinutes": 15,
+    "graceOutMinutes": 15,
+    "fullDayMinutes": 480,
+    "halfDayMinutes": 240,
+    "effectiveFrom": "2026-11-06"
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">201</span></div><pre><code>{
+  "shiftId": 3,
+  "shiftCode": "QA3986",
+  "crossesMidnight": false,
+  "effectiveFrom": "2026-11-06"
+}</code></pre></div>
+  <p class="note-line"><code>crossesMidnight</code> is <b>derived, not accepted</b>. Whether 15:00–00:00 crosses midnight is arithmetic, not a decision — send it and it is ignored.</p>
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb put">PUT</span>
+    <code class="route">/attendance/shifts/3/week-offs</code>
+  </div>
+  <h4>Set the week-off pattern</h4>
+  <p class="does">The <b>whole pattern at once</b>, not row by row. The screen is a grid of checkboxes and the user’s intent is "these are the week-offs now"; expressing that as adds and deletes means a half-applied diff can leave a pattern nobody chose.</p>
+  <pre class="curl"><code>curl -s -X PUT "$BASE/attendance/shifts/3/week-offs" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "weekOffs": [
+      {
+        "dayOfWeek": 1
+      },
+      {
+        "dayOfWeek": 7,
+        "weekOfMonth": 2
+      },
+      {
+        "dayOfWeek": 7,
+        "weekOfMonth": 4
+      }
+    ]
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>[
+  {
+    "shiftWeekOffId": 5,
+    "shiftId": 3,
+    "dayOfWeek": 1,
+    "weekOfMonth": null
+  },
+  {
+    "shiftWeekOffId": 6,
+    "shiftId": 3,
+    "dayOfWeek": 7,
+    "weekOfMonth": 2
+  },
+  "… 1 more"
+]</code></pre></div>
+  <p class="note-line"><code>dayOfWeek</code> is 1 = Sunday … 7 = Saturday. <code>weekOfMonth</code> omitted means every week; <code>2</code> and <code>4</code> is how "alternate Saturday off" is expressed — which is why this is a table and not seven bit columns.</p>
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/attendance/shift-assignments</code>
+  </div>
+  <h4>Put an employee on a shift</h4>
+  <p class="does">Also effective-dated. Leave <code>effectiveTo</code> out for an open-ended assignment.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/attendance/shift-assignments" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "employeeDetailId": 42,
+    "shiftId": 3,
+    "effectiveFrom": "2036-11-02"
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">201</span></div><pre><code>{
+  "employeeShiftId": 1,
+  "employeeDetailId": 2,
+  "shiftId": 3,
+  "effectiveFrom": "2036-11-03",
+  "effectiveTo": null,
+  "modifiedAt": "2026-11-06T05:22:26.058Z"
+}</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/attendance/shift-assignments</code>
+  </div>
+  <h4>Overlapping assignments are refused</h4>
+  <p class="does">Two live assignments whose date ranges overlap are rejected with <code>SHIFT_ASSIGNMENT_OVERLAP</code>, and the response <b>names the row it clashed with</b> so the message can say which.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/attendance/shift-assignments" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "employeeDetailId": 42,
+    "shiftId": 3,
+    "effectiveFrom": "2036-11-02"
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-4xx">409</span></div><pre><code>{
+  "success": false,
+  "statusCode": 409,
+  "message": "This employee already has a shift covering those dates",
+  "data": null,
+  "details": {
+    "code": "SHIFT_ASSIGNMENT_OVERLAP",
+    "conflictsWith": {
+      "employeeShiftId": 1,
+      "shiftId": 3,
+      "effectiveFrom": "2036-11-03",
+      "effectiveTo": null
+    },
+    "requestId": "668ace2d-0554-47f5-9bad-e80acf3db815"
+  }
+}</code></pre></div>
+  
+  <p class="warn-line">This check lives in the service, not in a constraint: SQL Server cannot express "no overlapping ranges" without a trigger, and a trigger that silently rejects a save is harder to debug than a 409 that names the conflict.</p>
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/attendance/employees/42/shift?onDate=2026-11-06</code>
+  </div>
+  <h4>Resolve the shift for a date</h4>
+  <p class="does">The lookup every punch and every nightly close performs. Falls back to the location-wide shift, then the company-wide one, when nothing is assigned — which is what makes the system usable before anybody has assigned anything.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/attendance/employees/42/shift?onDate=2026-11-06" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>{
+  "shiftId": 3,
+  "shiftCode": "QA3986",
+  "startTime": "10:00",
+  "endTime": "19:00",
+  "weekOffs": [
+    {
+      "shiftWeekOffId": 5,
+      "shiftId": 3,
+      "dayOfWeek": 1,
+      "weekOfMonth": null
+    },
+    {
+      "shiftWeekOffId": 6,
+      "shiftId": 3,
+      "dayOfWeek": 7,
+      "weekOfMonth": 2
+    },
+    "… 1 more"
+  ]
+}</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb delete">DELETE</span>
+    <code class="route">/attendance/shifts/3</code>
+  </div>
+  <h4>Delete a shift</h4>
+  <p class="does">A soft delete, and <b>refused while anybody is still assigned</b> (<code>SHIFT_IN_USE</code>). Attendance rows point at the shift they were judged by, so it is never hard-deleted.</p>
+  <pre class="curl"><code>curl -s -X DELETE "$BASE/attendance/shifts/3" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  
+  
+  
+</div>
+</section>
+
+<section id="holidays" class="att">
+  <div class="sec-head"><span class="sec-num">06</span><h2>The holiday calendar</h2></div>
+  <p class="lede">A holiday and the places that observe it are two tables. New Year’s Day is <em>one</em> holiday observed in both offices — storing the location on the holiday would mean two rows that drift apart the first time somebody edits one.</p>
+  
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/attendance/holidays/types</code>
+  </div>
+  <h4>The two types</h4>
+  <p class="does"><code>NORMAL</code> is a day the office is closed. <code>RESTRICTED</code> is a day from a curated list that each employee may pick from — an opt-in, not a closure. <code>requiresOptIn</code> tells them apart without hard-coding an id.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/attendance/holidays/types" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>[
+  {
+    "holidayTypeId": 1,
+    "typeCode": "NORMAL",
+    "typeName": "Normal Holiday",
+    "description": "A day the office is closed. Applies to everyone at the location.",
+    "requiresOptIn": false,
+    "isActive": true
+  },
+  {
+    "holidayTypeId": 2,
+    "typeCode": "RESTRICTED",
+    "typeName": "Restricted Holiday",
+    "description": "A day from a curated list. Each employee may choose their own, within the quota.",
+    "requiresOptIn": true,
+    "isActive": true
+  }
+]</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/attendance/holidays?year=2026</code>
+  </div>
+  <h4>The calendar</h4>
+  <p class="does">Filter by <code>year</code>, <code>locationId</code>, <code>typeId</code> or a date range. Each row carries <code>locationIds</code>, so the grid shows one line per holiday with its offices rather than one line per pairing.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/attendance/holidays?year=2026" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>[]</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/attendance/holidays</code>
+  </div>
+  <h4>Declare a holiday</h4>
+  <p class="does"><code>locationIds</code> is required and must not be empty — a holiday observed nowhere is invisible to every read path.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/attendance/holidays" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "holidayName": "Diwali",
+    "holidayDate": "2026-11-13",
+    "holidayTypeId": 1,
+    "description": "Added for the 2026 calendar",
+    "locationIds": [1]
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">201</span></div><pre><code>{
+  "holidayId": 1,
+  "holidayName": "QA Holiday 543986",
+  "holidayDate": "2026-12-26",
+  "holidayTypeId": 1,
+  "holidayYear": 2026,
+  "description": "Created by the Postman run",
+  "isActive": true,
+  "modifiedAt": "2026-11-06T05:22:29.859Z",
+  "locationIds": [
+    1
+  ]
+}</code></pre></div>
+  <p class="note-line"><code>holidayYear</code> is <b>derived from the date</b>, never taken from the body. It exists because filtering on <code>YEAR(HolidayDate)</code> is not sargable and would turn the calendar screen into a table scan.</p>
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/attendance/holidays</code>
+  </div>
+  <h4>A holiday nobody observes</h4>
+  <p class="does">Refused with <code>HOLIDAY_NEEDS_LOCATION</code> rather than created and lost.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/attendance/holidays" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "holidayName": "Diwali",
+    "holidayDate": "2026-11-13",
+    "holidayTypeId": 1,
+    "locationIds": []
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-4xx">400</span></div><pre><code>{
+  "statusCode": 400,
+  "message": "A holiday must be observed at at least one location",
+  "details": {
+    "code": "HOLIDAY_NEEDS_LOCATION"
+  }
+}</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb delete">DELETE</span>
+    <code class="route">/attendance/holidays/11</code>
+  </div>
+  <h4>Cancel a holiday</h4>
+  <p class="does">A soft delete. Attendance rows from before the cancellation point at it and must still resolve to a name.</p>
+  <pre class="curl"><code>curl -s -X DELETE "$BASE/attendance/holidays/11" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  
+  
+  
+</div>
+</section>
+
+<section id="floating" class="att">
+  <div class="sec-head"><span class="sec-num">07</span><h2>The floating holiday</h2></div>
+  <p class="lede">Exactly one per <b>calendar</b> year — while CL/SL and EL run on the financial year. The two reset three months apart, which is the whole reason a cycle is a row with a type rather than a year number.</p>
+  
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/attendance/holidays/restricted-mappings</code>
+  </div>
+  <h4>Who gets the list, and how many picks</h4>
+  <p class="does">"Restricted mapping" means mapping the restricted holidays <b>to employees</b> — which cohort may choose, and how many choices they get. It is not a blackout rule.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/attendance/holidays/restricted-mappings" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>[
+  {
+    "restrictedHolidayMappingId": 1,
+    "locationId": null,
+    "employmentType": null,
+    "leaveCycleId": 3,
+    "pickQuota": 1,
+    "isActive": true,
+    "modifiedAt": "2026-11-06T05:22:10.262Z"
+  }
+]</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/attendance/holidays/restricted-mappings</code>
+  </div>
+  <h4>Map a cohort</h4>
+  <p class="does">Both <code>locationId</code> and <code>employmentType</code> omitted means everybody. <code>pickQuota</code> is 1 per the HR policy — a column, so two picks next year is configuration rather than a release.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/attendance/holidays/restricted-mappings" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "leaveCycleId": 1,
+    "employmentType": "Contract",
+    "pickQuota": 1
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">201</span></div><pre><code>{
+  "restrictedHolidayMappingId": 2,
+  "locationId": null,
+  "employmentType": "Contract",
+  "leaveCycleId": 3,
+  "pickQuota": 1,
+  "isActive": true,
+  "modifiedAt": "2026-11-06T05:22:30.669Z"
+}</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/attendance/holidays/restricted/options</code>
+  </div>
+  <h4>What can I pick?</h4>
+  <p class="does">Everything the pick screen needs in one call: the quota, how many you have used, how many remain, your current selection and the list to choose from. Assembling that from four endpoints is how a screen comes to show "1 of 1 used" while the list is still loading.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/attendance/holidays/restricted/options" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>{
+  "pickQuota": 1,
+  "used": 0,
+  "remaining": 1,
+  "selection": null,
+  "options": [
+    {
+      "holidayId": 2,
+      "holidayName": "QA Restricted 543986",
+      "holidayDate": "2026-12-24",
+      "holidayTypeId": 2,
+      "holidayYear": 2026,
+      "description": null,
+      "isActive": true,
+      "modifiedAt": "2026-11-06T05:22:30.403Z",
+      "holidayTypeCode": "RESTRICTED",
+      "holidayTypeName": "Restricted Holiday",
+      "locationIds": [
+        1
+      ]
+    }
+  ]
+}</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/attendance/holidays/restricted/opt-in</code>
+  </div>
+  <h4>Make the pick</h4>
+  <p class="does">Lands as <code>PENDING</code> for approval. The cycle is resolved from the <em>holiday’s</em> year, not today’s — picking next March’s Holi in December counts against next year’s quota.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/attendance/holidays/restricted/opt-in" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "holidayId": 12,
+    "reason": "Festival at home"
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">201</span></div><pre><code>{
+  "restrictedHolidayOptInId": 1,
+  "employeeDetailId": 2,
+  "holidayId": 2,
+  "leaveCycleId": 3,
+  "status": "PENDING",
+  "reason": "Picked by the Postman run",
+  "approvedBy": null,
+  "approvedAt": null,
+  "approverRemarks": null,
+  "createdAt": "2026-11-06T05:22:31.223Z",
+  "modifiedAt": "2026-11-06T05:22:31.223Z"
+}</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/attendance/holidays/restricted/opt-in</code>
+  </div>
+  <h4>A second pick is refused</h4>
+  <p class="does">Refused with <code>RESTRICTED_QUOTA_USED</code>.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/attendance/holidays/restricted/opt-in" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "holidayId": 11
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-4xx">400</span></div><pre><code>{
+  "statusCode": 400,
+  "message": "That holiday is not a restricted holiday",
+  "details": {
+    "code": "RESTRICTED_WRONG_TYPE"
+  }
+}</code></pre></div>
+  
+  <p class="warn-line">Enforced by a <b>unique index</b>, not only by the check — so a double-submit, a retry or a second browser tab fails at the database rather than quietly granting two. The index is filtered to the live statuses, so a <em>rejected</em> pick frees the slot and the employee can choose again.</p>
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb put">PUT</span>
+    <code class="route">/attendance/holidays/restricted/5/decide</code>
+  </div>
+  <h4>Approve or reject</h4>
+  <p class="does">Send <code>{"approve": true}</code> or <code>false</code>. A rejection frees the year’s slot.</p>
+  <pre class="curl"><code>curl -s -X PUT "$BASE/attendance/holidays/restricted/5/decide" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "approve": true,
+    "remarks": "Approved"
+  }'</code></pre>
+  
+  
+  
+</div>
+</section>
+
+<section id="exempt" class="att">
+  <div class="sec-head"><span class="sec-num">08</span><h2>Present by default, and chasing a missed punch</h2></div>
+  <p class="lede">Two small admin surfaces that decide what the nightly jobs do.</p>
+  
+<h3>Exemptions — people who do not punch</h3>
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/attendance/exemptions</code>
+  </div>
+  <h4>Grant an exemption</h4>
+  <p class="does">The nightly close marks these people PRESENT with <code>isDefaultPresent: true</code>, so "present" and "presumed present" stay distinguishable on the exception report.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/attendance/exemptions" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "employeeDetailId": 42,
+    "effectiveFrom": "2036-11-02",
+    "effectiveTo": "2037-01-31",
+    "reason": "Field role - attendance captured by the client system"
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">201</span></div><pre><code>{
+  "attendanceExemptionId": 1,
+  "employeeDetailId": 2,
+  "effectiveFrom": "2036-11-03T00:00:00.000Z",
+  "effectiveTo": "2037-02-01T00:00:00.000Z",
+  "reason": "Granted by the Postman run - a reason is mandatory",
+  "grantedBy": 2,
+  "modifiedAt": "2026-11-06T05:22:32.097Z"
+}</code></pre></div>
+  <p class="note-line"><code>reason</code> is <b>required</b>. The grant is per employee rather than per location on purpose: "the US office" is a fact about where somebody sits, but "we do not ask this person to punch" is a decision somebody made and should have to justify.</p>
+  
+</div>
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/attendance/exemptions</code>
+  </div>
+  <h4>Without a reason</h4>
+  <p class="does">Refused with a field-level 400 naming <code>reason</code>.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/attendance/exemptions" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "employeeDetailId": 42
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-4xx">400</span></div><pre><code>{
+  "statusCode": 400,
+  "message": "The submitted data is invalid",
+  "details": {
+    "reason": "Reason is required"
+  }
+}</code></pre></div>
+  
+  
+</div>
+
+<h3>Alerts — the missed check-in sweep</h3>
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/attendance/alert-settings</code>
+  </div>
+  <h4>The cadence</h4>
+  <p class="does">The requirement was "every 10 minutes for 2 hours, starting 9 minutes after the shift begins, configurable". All four numbers are columns, per location.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/attendance/alert-settings" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>[
+  {
+    "attendanceAlertSettingId": 1,
+    "locationId": null,
+    "alertType": "MISSED_CHECK_IN",
+    "delayMinutes": 9,
+    "intervalMinutes": 10,
+    "windowMinutes": 120,
+    "sweepTime": null,
+    "skipWhenOnLeave": true,
+    "skipOnHoliday": true,
+    "skipWhenExempt": true,
+    "notifyManagerAfter": 6,
+    "isActive": true,
+    "modifiedAt": "2026-11-06T05:22:10.280Z"
+  }
+]</code></pre></div>
+  <p class="note-line">The worker’s own interval only decides how often it <em>looks</em>. Whether an alert is due is computed from this setting and the employee’s shift — which is what makes the cadence configurable without a deploy.</p>
+  
+</div>
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/attendance/alert-settings</code>
+  </div>
+  <h4>Add a rule</h4>
+  <p class="does">One rule per location per alert type. <code>skipWhenOnLeave</code>, <code>skipOnHoliday</code> and <code>skipWhenExempt</code> are what stop somebody on approved leave being chased.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/attendance/alert-settings" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "alertType": "MISSED_CHECK_OUT",
+    "delayMinutes": 30,
+    "intervalMinutes": 15,
+    "windowMinutes": 90,
+    "skipWhenOnLeave": true,
+    "skipOnHoliday": true,
+    "skipWhenExempt": true,
+    "notifyManagerAfter": 4
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">201</span></div><pre><code>{
+  "attendanceAlertSettingId": 2,
+  "locationId": null,
+  "alertType": "MISSED_CHECK_OUT",
+  "delayMinutes": 30,
+  "intervalMinutes": 15,
+  "windowMinutes": 90,
+  "sweepTime": null,
+  "skipWhenOnLeave": true,
+  "skipOnHoliday": true,
+  "skipWhenExempt": true,
+  "notifyManagerAfter": 4,
+  "isActive": true,
+  "modifiedAt": "2026-11-06T05:22:32.585Z"
+}</code></pre></div>
+  
+  
+</div>
+<p class="note-line"><b>No configuration means silence.</b> If no setting matches, nothing is sent — an alert cadence nobody chose firing at the whole company is worse than no alerts.</p>
+</section>
+
+<section id="regular" class="att">
+  <div class="sec-head"><span class="sec-num">09</span><h2>Fixing a day that was recorded wrongly</h2></div>
+  <p class="lede">Punches are never edited. A wrong punch is corrected through a request that keeps the original, records what the day was before, and names who approved the change — which is the difference between an attendance system and a spreadsheet.</p>
+  
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/organizations/regularization-types</code>
+  </div>
+  <h4>The reason list</h4>
+  <p class="does">Ordinary master data under <code>/organizations</code> — nothing branches on which reason a correction carries, so HR adding "system outage" is not a release.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/organizations/regularization-types" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>[
+  {
+    "regularizationTypeId": 4,
+    "name": "Early exit",
+    "description": "Left early for a reason that was agreed.",
+    "isActive": true,
+    "modifiedAt": "2026-11-06T05:22:01.649Z"
+  },
+  {
+    "regularizationTypeId": 3,
+    "name": "Late arrival",
+    "description": "Arrived late for a reason that was agreed.",
+    "isActive": true,
+    "modifiedAt": "2026-11-06T05:22:01.649Z"
+  },
+  "… 2 more"
+]</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/attendance/regularizations</code>
+  </div>
+  <h4>Raise a correction</h4>
+  <p class="does">Within the window — 24 hours by default, measured from the <em>end</em> of the day being corrected. Either time may be omitted; a missing check-out is a correction to one end only.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/attendance/regularizations" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "attendanceDate": "2026-11-05",
+    "regularizationTypeId": 1,
+    "requestedCheckInAt": "2026-11-05T09:05:00.000Z",
+    "requestedCheckOutAt": "2026-11-05T18:10:00.000Z",
+    "reason": "Worked from the client site and forgot to punch."
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">201</span></div><pre><code>{
+  "regularizationRequestId": 1,
+  "employeeDetailId": 2,
+  "attendanceDate": "2026-11-05",
+  "attendanceDayId": null,
+  "regularizationTypeId": 4,
+  "requestedCheckInAt": "2026-11-05T09:05:00.000Z",
+  "requestedCheckOutAt": "2026-11-05T18:10:00.000Z",
+  "reason": "Worked from the client site and forgot to punch.",
+  "status": "PENDING",
+  "submissionDeadline": "2026-11-06T23:59:59.000Z",
+  "previousAttendanceStatusId": null,
+  "newAttendanceStatusId": null,
+  "approvedBy": null,
+  "approvedAt": null,
+  "approverRemarks": null,
+  "createdAt": "2026-11-06T05:22:32.990Z",
+  "modifiedAt": "2026-11-06T05:22:32.990Z"
+}</code></pre></div>
+  <p class="note-line"><code>submissionDeadline</code> is <b>captured onto the row</b>, not computed on read. If HR widened the window next month, a computed deadline would retrospectively revive every expired request — and narrowing it would expire ones submitted in good time.</p>
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/attendance/regularizations/pending</code>
+  </div>
+  <h4>The approver queue</h4>
+  <p class="does">Oldest first, with the employee’s name joined in. A manager sees their reports; HR sees everybody.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/attendance/regularizations/pending" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb put">PUT</span>
+    <code class="route">/attendance/regularizations/9/approve</code>
+  </div>
+  <h4>Approve</h4>
+  <p class="does">Writes the missing punches with <code>source: SYSTEM</code> and the approver as <code>createdBy</code>, then hands the day back to the same grading code every other day goes through.</p>
+  <pre class="curl"><code>curl -s -X PUT "$BASE/attendance/regularizations/9/approve" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "remarks": "Approved"
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-4xx">403</span></div><pre><code>{
+  "success": false,
+  "statusCode": 403,
+  "message": "You cannot approve your own regularization request",
+  "data": null,
+  "details": {
+    "code": "LEAVE_SELF_APPROVAL",
+    "requestId": "6f436856-1c1b-4df9-a5d3-05393411efce"
+  }
+}</code></pre></div>
+  <p class="note-line"><code>previousAttendanceStatusId</code> is what makes the approval auditable. Without it, approving overwrites the status and nothing is left to distinguish "my absence was wrongly recorded" from "it was correctly recorded and then quietly changed".</p>
+  <p class="warn-line"><b>You cannot approve your own.</b> Refused with <code>LEAVE_SELF_APPROVAL</code> whatever rights you hold — the module right says you may approve corrections, not whose.</p>
+</div>
+</section>
+
+<section id="leave-setup" class="lv">
+  <div class="sec-head"><span class="sec-num">10</span><h2>The leave setup chain</h2></div>
+  <p class="lede">Cycles, then policies, then mappings. Each one is a prerequisite for the next, and skipping one produces an error that names it.</p>
+  
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/leave/cycles</code>
+  </div>
+  <h4>The cycles</h4>
+  <p class="does"><b>Two run at once.</b> CL/SL and EL sit on the financial year; the floating holiday sits on the calendar year. A balance means nothing without knowing which cycle it belongs to.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/leave/cycles" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>[
+  {
+    "leaveCycleId": 2,
+    "cycleType": "FINANCIAL",
+    "cycleLabel": "FY 2027-28",
+    "startDate": "2027-04-01",
+    "endDate": "2028-03-31",
+    "isClosed": false,
+    "closedAt": null,
+    "modifiedAt": "2026-11-06T05:22:09.990Z"
+  },
+  {
+    "leaveCycleId": 4,
+    "cycleType": "CALENDAR",
+    "cycleLabel": "CY 2027",
+    "startDate": "2027-01-01",
+    "endDate": "2027-12-31",
+    "isClosed": false,
+    "closedAt": null,
+    "modifiedAt": "2026-11-06T05:22:10.001Z"
+  },
+  "… 2 more"
+]</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/leave/cycles</code>
+  </div>
+  <h4>Open a year</h4>
+  <p class="does">Unique per type and start date. Open next year before March, or an application in March for April dates fails with <code>LEAVE_CYCLE_MISSING</code>.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/leave/cycles" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "cycleType": "FINANCIAL",
+    "cycleLabel": "FY 2039-40",
+    "startDate": "2039-04-01",
+    "endDate": "2040-03-31"
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">201</span></div><pre><code>{
+  "leaveCycleId": 5,
+  "cycleType": "FINANCIAL",
+  "cycleLabel": "FY 2039-40",
+  "startDate": "2039-04-01",
+  "endDate": "2040-03-31",
+  "isClosed": false,
+  "closedAt": null,
+  "modifiedAt": "2026-11-06T05:22:40.933Z"
+}</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb put">PUT</span>
+    <code class="route">/leave/cycles/7/close</code>
+  </div>
+  <h4>Close a year</h4>
+  <p class="does">One-way. After this, a backdated application cannot land in a year payroll has settled; a correction goes through an ADJUSTMENT in the <em>current</em> cycle, which is visible on the ledger.</p>
+  <pre class="curl"><code>curl -s -X PUT "$BASE/leave/cycles/7/close" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  
+  
+  <p class="warn-line">Closing does <b>not</b> lapse unused balance. Carry-forward is a policy question and belongs to the rollover job, which can be re-run — folding it into an irreversible close would make a mistake in the carry-forward rules unrecoverable.</p>
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/leave/sandwich-rules</code>
+  </div>
+  <h4>Sandwich rules</h4>
+  <p class="does">All three modes from the requirement, selectable per policy. Which one a company uses is a policy argument, not a technical one.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/leave/sandwich-rules" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>[
+  {
+    "sandwichRuleId": 2,
+    "ruleName": "Charged when absent both sides",
+    "mode": "COUNT_WHEN_BOTH_FLANKS",
+    "locationId": null,
+    "includeHolidays": false,
+    "description": "A week off is charged when the employee is also absent before and after it. Friday and Monday off costs 4 days; Friday alone still costs 1.",
+    "isActive": true,
+    "modifiedAt": "2026-11-06T05:22:10.036Z"
+  },
+  {
+    "sandwichRuleId": 3,
+    "ruleName": "Every day charged",
+    "mode": "COUNT_ALWAYS",
+    "locationId": null,
+    "includeHolidays": false,
+    "description": "Every day inside the range is charged, whichever side it falls.",
+    "isActive": true,
+    "modifiedAt": "2026-11-06T05:22:10.040Z"
+  },
+  "… 1 more"
+]</code></pre></div>
+  
+  
+</div>
+
+<div class="tbl-scroll"><table>
+<thead><tr><th>Mode</th><th>Friday + Monday off</th><th>Friday alone</th></tr></thead>
+<tbody>
+<tr><td><code>IGNORE_WEEKOFF</code></td><td class="tot">2 days</td><td class="tot">1 day</td></tr>
+<tr><td><code>COUNT_WHEN_BOTH_FLANKS</code></td><td class="tot">4 days</td><td class="tot">1 day</td></tr>
+<tr><td><code>COUNT_ALWAYS</code></td><td class="tot">4 days</td><td class="tot">1 day</td></tr>
+</tbody></table></div>
+<p class="fn">The flanking test looks for a charged working day on each side of the gap <em>within the requested range</em> — not in the calendar at large — because the rule is about one continuous absence, not two unrelated applications either side of a weekend.</p>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/leave/policies?onDate=2026-11-06</code>
+  </div>
+  <h4>The policies</h4>
+  <p class="does">How each category behaves. Note <code>tracksBalance: false</code> and <code>isPaid: false</code> on Leave Without Pay — that pair is the HR document’s prohibition expressed as data: a category that tracks no balance can have nothing deducted from it.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/leave/policies?onDate=2026-11-06" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>[
+  {
+    "leavePolicyId": 1,
+    "leaveTypeName": "Casual &amp; Sick Leave",
+    "cycleType": "FINANCIAL",
+    "isPaid": true,
+    "tracksBalance": true,
+    "accrualFrequency": "MONTHLY",
+    "accrualDays": 1,
+    "accrualAnchor": "MONTH_START",
+    "availableDuringProbation": true,
+    "visibleDuringProbation": true
+  },
+  {
+    "leavePolicyId": 4,
+    "leaveTypeName": "Comp Off- IN",
+    "cycleType": "NONE",
+    "isPaid": true,
+    "tracksBalance": true,
+    "accrualFrequency": "NONE",
+    "accrualDays": 0,
+    "accrualAnchor": "MONTH_START",
+    "availableDuringProbation": true,
+    "visibleDuringProbation": true
+  }
+]</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/leave/policies</code>
+  </div>
+  <h4>Add a policy</h4>
+  <p class="does">Send only what you mean to set — omitted columns take their database default. A revised policy should be a <em>new effective-dated row</em>, not an edit, so last year’s approved leave keeps the rules it was charged under.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/leave/policies" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "leaveTypeId": 5,
+    "employmentType": "Contract",
+    "cycleType": "FINANCIAL",
+    "availableDuringProbation": true,
+    "visibleDuringProbation": true,
+    "isPaid": true,
+    "tracksBalance": true,
+    "accrualFrequency": "MONTHLY",
+    "accrualDays": 1,
+    "accrualAnchor": "MONTH_START",
+    "annualQuota": 12,
+    "allowHalfDay": true,
+    "minNoticeDays": 0,
+    "requiresSecondApproval": false,
+    "effectiveFrom": "2026-11-06"
+  }'</code></pre>
+  
+  <p class="note-line"><code>accrualAnchor</code> is where the one unresolved HR question lives: <code>CYCLE_START</code>, <code>MONTH_START</code>, <code>PROBATION_END</code> or <code>JOINING_DATE</code>. All four are implemented, so answering it is an UPDATE rather than a rewrite.</p>
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/leave/mappings</code>
+  </div>
+  <h4>Offer it to a cohort</h4>
+  <p class="does">Every criterion is optional and null means "do not filter on this". <code>gender</code> and <code>minTenureMonths</code> are what maternity and paternity need.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/leave/mappings" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "leaveTypeId": 5,
+    "gender": "Female",
+    "minTenureMonths": 12,
+    "availableDuringProbation": false
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">201</span></div><pre><code>{
+  "leaveMappingId": 7,
+  "leaveTypeId": 5,
+  "locationId": null,
+  "employmentType": null,
+  "gender": "Female",
+  "minTenureMonths": 12,
+  "availableDuringProbation": false,
+  "isActive": true,
+  "modifiedAt": "2026-11-06T05:22:42.935Z"
+}</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/leave/overrides</code>
+  </div>
+  <h4>One person’s exception</h4>
+  <p class="does">"Customize the policy for certain employees". An override borrows the whole rulebook and replaces one or two numbers, so a later change to the policy still reaches the people who have an exception.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/leave/overrides" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "employeeDetailId": 42,
+    "leavePolicyId": 2,
+    "overrideAnnualQuota": 15,
+    "effectiveFrom": "2026-11-06",
+    "reason": "Retention agreement signed 2026-10-01"
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">201</span></div><pre><code>{
+  "employeeLeavePolicyId": 1,
+  "employeeDetailId": 2,
+  "leavePolicyId": 7,
+  "overrideAnnualQuota": 15,
+  "overrideAccrualDays": null,
+  "effectiveFrom": "2026-11-06",
+  "effectiveTo": null,
+  "reason": "Retention agreement - a reason is mandatory on an override",
+  "isActive": true,
+  "modifiedAt": "2026-11-06T05:22:43.357Z"
+}</code></pre></div>
+  <p class="note-line"><code>reason</code> is required. An exception nobody has to justify is one nobody reviews.</p>
+  
+</div>
+</section>
+
+<section id="employee-view" class="lv">
+  <div class="sec-head"><span class="sec-num">11</span><h2>What the employee sees</h2></div>
+  <p class="lede">Two calls back the whole self-service screen, and both are driven from the same resolver the apply path uses — so the tiles and the apply form cannot disagree about entitlement.</p>
+  
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/leave/me/types</code>
+  </div>
+  <h4>What can I apply for?</h4>
+  <p class="does">Every mapped category with its effective rules, <b>including the ones that are not available</b> and why. A category that is merely hidden gives a user nothing to ask HR about.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/leave/me/types" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>[
+  {
+    "leaveTypeName": "Casual &amp; Sick Leave",
+    "isAvailable": true,
+    "isVisible": true,
+    "unavailableReason": null
+  },
+  {
+    "leaveTypeName": "Comp Off- IN",
+    "isAvailable": true,
+    "isVisible": true,
+    "unavailableReason": null
+  },
+  {}
+]</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/leave/me/dashboard</code>
+  </div>
+  <h4>The dashboard</h4>
+  <p class="does">One tile per visible category, each naming the cycle it belongs to. An employee reading "5 days remaining" needs to know whether that resets on 1 April or 1 January — the two are three months apart.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/leave/me/dashboard" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>{
+  "confirmationStatus": "CONFIRMED",
+  "cycles": {
+    "financial": {
+      "leaveCycleId": 1,
+      "cycleType": "FINANCIAL",
+      "cycleLabel": "FY 2026-27",
+      "startDate": "2026-04-01",
+      "endDate": "2027-03-31",
+      "isClosed": false,
+      "closedAt": null,
+      "modifiedAt": "2026-11-06T05:22:09.964Z"
+    },
+    "calendar": {
+      "leaveCycleId": 3,
+      "cycleType": "CALENDAR",
+      "cycleLabel": "CY 2026",
+      "startDate": "2026-01-01",
+      "endDate": "2026-12-31",
+      "isClosed": false,
+      "closedAt": null,
+      "modifiedAt": "2026-11-06T05:22:09.994Z"
+    }
+  },
+  "tiles": [
+    {
+      "leaveTypeName": "Casual &amp; Sick Leave",
+      "cycleType": "FINANCIAL",
+      "isAvailable": true,
+      "tracksBalance": true,
+      "balance": {
+        "availableDays": 0,
+        "balanceDays": 0
+      }
+    },
+    {
+      "leaveTypeName": "Comp Off- IN",
+      "cycleType": "NONE",
+      "isAvailable": true,
+      "tracksBalance": true,
+      "balance": null
+    },
+    {
+      "balance": null
+    }
+  ]
+}</code></pre></div>
+  <p class="note-line">On probation, Earned Leave still appears — visible, unavailable, at zero, with a reason. <code>visibleDuringProbation</code> and <code>availableDuringProbation</code> are two separate flags precisely so a category can be shown as information rather than offered.</p>
+  
+</div>
+</section>
+
+<section id="apply" class="lv">
+  <div class="sec-head"><span class="sec-num">12</span><h2>Applying for leave, and what it does to the balance</h2></div>
+  <p class="lede">This is the flow worth understanding properly. <b>There is no stored balance anywhere.</b> Every figure is a sum over an append-only ledger, and each step below writes a row to it.</p>
+  
+<div class="ledger-flow">
+  <div class="lf"><span class="lf-step">Apply</span><span class="lf-row"><code>HOLD +3</code> <em>IsHold = 1</em></span><span class="lf-say">reserved, not yet spent</span></div>
+  <div class="lf"><span class="lf-step">Approve</span><span class="lf-row"><code>REVERSAL −3</code> <em>IsHold = 1</em> &nbsp;+&nbsp; <code>DEBIT −3</code></span><span class="lf-say">hold cleared, days charged</span></div>
+  <div class="lf"><span class="lf-step">Reject</span><span class="lf-row"><code>REVERSAL −3</code> <em>IsHold = 1</em></span><span class="lf-say">hold cleared, nothing charged</span></div>
+  <div class="lf"><span class="lf-step">Withdraw</span><span class="lf-row"><code>REVERSAL +3</code></span><span class="lf-say">days given back after approval</span></div>
+</div>
+<p class="fn">A hold is a <b>flag</b>, not a negative number. <code>balanceDays</code> ignores held rows; <code>availableDays</code> is the balance minus them. A negative held value would be subtracted twice the first time anybody summed the column.</p>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/leave/me/balance?leaveTypeId=5&amp;leaveCycleId=1</code>
+  </div>
+  <h4>Before: the balance</h4>
+  <p class="does">Four figures, and they answer different questions. <code>balanceDays</code> is what the ledger adds up to; <code>availableDays</code> is that minus anything held; <code>lwpDaysConsumed</code> sits alongside and never offsets the others.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/leave/me/balance?leaveTypeId=5&amp;leaveCycleId=1" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>{
+  "employeeDetailId": 2,
+  "leaveTypeId": 5,
+  "leaveCycleId": 1,
+  "accruedDays": 0,
+  "consumedDays": 0,
+  "lwpDaysConsumed": 0,
+  "heldDays": 0,
+  "balanceDays": 5,
+  "availableDays": 5
+}</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/leave/me/preview</code>
+  </div>
+  <h4>Preview — exactly the calculation apply will run</h4>
+  <p class="does">How many days, how many of them added by the sandwich rule, and how many would fall through to unpaid. Same code as the apply path, so the confirmation dialog shows the number that gets charged.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/leave/me/preview" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "leaveTypeId": 5,
+    "fromDate": "2026-11-09",
+    "toDate": "2026-11-11",
+    "dayPart": "FULL"
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>{
+  "leaveTypeName": "Casual &amp; Sick Leave",
+  "totalDays": 3,
+  "sandwichDays": 0,
+  "workingDays": 3,
+  "paidDays": 3,
+  "lwpDays": 0,
+  "sandwichMode": "IGNORE_WEEKOFF",
+  "days": [
+    {
+      "date": "2026-11-09",
+      "isWeekOff": false,
+      "isHoliday": false,
+      "holidayName": null,
+      "isWorkingDay": true,
+      "charged": true,
+      "dayType": "WORKING",
+      "chargedDays": 1,
+      "isLWP": false
+    },
+    {
+      "date": "2026-11-10",
+      "isWeekOff": false,
+      "isHoliday": false,
+      "holidayName": null,
+      "isWorkingDay": true,
+      "charged": true,
+      "dayType": "WORKING",
+      "chargedDays": 1,
+      "isLWP": false
+    },
+    "… 1 more"
+  ]
+}</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/leave/requests</code>
+  </div>
+  <h4>Apply</h4>
+  <p class="does">Writes the request, one row per date, and the <code>HOLD</code> — all in one transaction, because a request without its hold is a day the employee can spend twice.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/leave/requests" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "leaveTypeId": 5,
+    "fromDate": "2026-11-09",
+    "toDate": "2026-11-11",
+    "dayPart": "FULL",
+    "reason": "Family function",
+    "contactDuringLeave": "+91 90000 00000"
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">201</span></div><pre><code>{
+  "leaveRequestId": 1,
+  "status": "PENDING_MANAGER",
+  "totalDays": 3,
+  "sandwichDays": 0,
+  "paidDays": 3,
+  "lwpDays": 0,
+  "currentApproverId": 1
+}</code></pre></div>
+  <p class="note-line">Every request starts with the reporting manager, including ones that also need HR. Going straight to HR for maternity leave would mean the manager learns their report is off for six months from the team calendar.</p>
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/leave/me/balance?leaveTypeId=5&amp;leaveCycleId=1</code>
+  </div>
+  <h4>After: the hold is visible</h4>
+  <p class="does">The balance has <b>not</b> moved — nothing is spent until somebody approves. What changed is <code>heldDays</code>, and therefore <code>availableDays</code>.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/leave/me/balance?leaveTypeId=5&amp;leaveCycleId=1" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>{
+  "employeeDetailId": 2,
+  "leaveTypeId": 5,
+  "leaveCycleId": 1,
+  "accruedDays": 0,
+  "consumedDays": 0,
+  "lwpDaysConsumed": 0,
+  "heldDays": 3,
+  "balanceDays": 5,
+  "availableDays": 2
+}</code></pre></div>
+  <p class="note-line">Balance 5, held 3, available 2. Apply again for the same dates and you get <code>LEAVE_REQUEST_OVERLAP</code>; apply for different dates and only the 2 available days are paid.</p>
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/leave/me/ledger?leaveCycleId=1</code>
+  </div>
+  <h4>The ledger — where every figure comes from</h4>
+  <p class="does">Read top to bottom this is the whole story of the balance: an opening grant of 5, then a hold of 3 against a specific request. Nothing is stored as a total.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/leave/me/ledger?leaveCycleId=1" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>[
+  {
+    "leaveLedgerId": 2,
+    "employeeDetailId": 2,
+    "leaveTypeId": 5,
+    "leaveCycleId": 1,
+    "entryType": "HOLD",
+    "days": 3,
+    "isHold": true,
+    "sourceType": "LEAVE_REQUEST",
+    "sourceId": 1,
+    "effectiveDate": "2026-11-09",
+    "remarks": "Applied 2026-11-09 to 2026-11-11",
+    "createdAt": "2026-11-06T05:22:44.471Z",
+    "leaveTypeName": "Casual &amp; Sick Leave"
+  },
+  {
+    "leaveLedgerId": 1,
+    "employeeDetailId": 2,
+    "leaveTypeId": 5,
+    "leaveCycleId": 1,
+    "entryType": "ADJUSTMENT",
+    "days": 5,
+    "isHold": false,
+    "sourceType": "ADJUSTMENT",
+    "sourceId": null,
+    "effectiveDate": "2026-11-06",
+    "remarks": "Opening balance for the Postman run",
+    "createdAt": "2026-11-06T05:22:43.691Z",
+    "leaveTypeName": "Casual &amp; Sick Leave"
+  }
+]</code></pre></div>
+  <p class="note-line">Each row names its <code>sourceType</code> and <code>sourceId</code>, so "why is my balance 2?" is answerable by reading rows rather than by guessing.</p>
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/leave/requests/21</code>
+  </div>
+  <h4>The request, its days and its trail</h4>
+  <p class="does">One row per date — which were sandwich days, which fell through to unpaid, which were half — plus every decision taken on it, in order.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/leave/requests/21" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>{
+  "status": "PENDING_MANAGER",
+  "totalDays": 3,
+  "days": [
+    {
+      "leaveRequestDayId": 1,
+      "leaveRequestId": 1,
+      "leaveDate": "2026-11-09",
+      "dayType": "WORKING",
+      "dayPart": "FULL",
+      "isLWP": false,
+      "chargedDays": 1
+    },
+    {
+      "leaveRequestDayId": 2,
+      "leaveRequestId": 1,
+      "leaveDate": "2026-11-10",
+      "dayType": "WORKING",
+      "dayPart": "FULL",
+      "isLWP": false,
+      "chargedDays": 1
+    },
+    "… 1 more"
+  ],
+  "approvals": [
+    {
+      "leaveApprovalId": 1,
+      "leaveRequestId": 1,
+      "approvalLevel": 1,
+      "approverId": 2,
+      "approverRole": "EMPLOYEE",
+      "action": "SUBMITTED",
+      "remarks": "Applied by the Postman run",
+      "actedAt": "2026-11-06T05:22:44.483Z",
+      "approverFirstName": "Arun",
+      "approverLastName": "Kumar"
+    }
+  ]
+}</code></pre></div>
+  
+  
+</div>
+</section>
+
+<section id="lwp" class="lv">
+  <div class="sec-head"><span class="sec-num">13</span><h2>When the balance runs out</h2></div>
+  <p class="lede">Leave Without Pay is not a balance to spend — it is a count of days consumed, and it is what every other category falls through to.</p>
+  
+<p>The split is applied <b>day by day, earliest first</b>, because payroll deducts for particular dates and not for a total. Somebody with one day left who applies Monday to Wednesday is paid for Monday and unpaid for the other two — which is both what they would expect and what the payslip has to say.</p>
+
+<div class="callout">
+  <b>The one explicit prohibition in the HR document:</b> LWP must never be deducted from a paid leave balance. In the ledger that means an <code>LWP_DEBIT</code> row is counted in its own bucket — <code>lwpDaysConsumed</code> — and never reduces <code>balanceDays</code>. A paid balance cannot go negative as a result of unpaid leave.
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/leave/requests</code>
+  </div>
+  <h4>Overlapping dates</h4>
+  <p class="does">Refused with <code>LEAVE_REQUEST_OVERLAP</code>, naming the request it clashed with. Only live requests count — a rejected or cancelled one frees its dates.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/leave/requests" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "leaveTypeId": 5,
+    "fromDate": "2026-11-09",
+    "toDate": "2026-11-11",
+    "reason": "Second attempt at the same dates"
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-4xx">409</span></div><pre><code>{
+  "statusCode": 409,
+  "message": "You already have leave applied for on one or more of those dates",
+  "details": {
+    "code": "LEAVE_REQUEST_OVERLAP",
+    "conflictsWith": {
+      "leaveRequestId": 1,
+      "fromDate": "2026-11-09",
+      "toDate": "2026-11-11"
+    },
+    "requestId": "4566f34e-4b0b-46e7-b845-4e62b1b4aeeb"
+  }
+}</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/leave/reports/lwp?from=2026-11-01&amp;to=2026-11-30</code>
+  </div>
+  <h4>The payroll report</h4>
+  <p class="does">Employee-wise unpaid days for a period. Read from the per-date rows rather than the ledger, because a month boundary cuts through a request and the ledger entry is filed against the request’s start date.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/leave/reports/lwp?from=2026-11-01&amp;to=2026-11-30" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>[]</code></pre></div>
+  
+  
+</div>
+</section>
+
+<section id="approvals" class="lv">
+  <div class="sec-head"><span class="sec-num">14</span><h2>Who may approve what</h2></div>
+  <p class="lede">Approval is guarded twice, and both halves are needed. The module right says you may approve leave; it cannot say <em>whose</em>.</p>
+  
+<div class="two-up">
+  <div class="guard-card">
+    <div class="gc-h">The module right</div>
+    <p>Checked by the route guard, before the handler runs. <code>TEAM_LEAVE:EDIT</code> means "this group may approve leave". Set on the group screen, changed without a deploy.</p>
+  </div>
+  <div class="guard-card">
+    <div class="gc-h">The row-level rule</div>
+    <p>Checked in the service. Refuses an approver who is not the employee’s manager, and refuses anybody approving their own request — whatever rights they hold.</p>
+  </div>
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/leave/requests/pending</code>
+  </div>
+  <h4>The queue</h4>
+  <p class="does">A manager sees their own reports; somebody who also holds the HR-side modules sees everybody. Which one you get is decided from the rights you hold, not from a parameter.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/leave/requests/pending" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb put">PUT</span>
+    <code class="route">/leave/requests/21/approve</code>
+  </div>
+  <h4>Approve</h4>
+  <p class="does">Clears the hold, writes the <code>DEBIT</code>, writes any <code>LWP_DEBIT</code>, records the decision, and marks the attendance days as ON_LEAVE.</p>
+  <pre class="curl"><code>curl -s -X PUT "$BASE/leave/requests/21/approve" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "remarks": "Approved"
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-4xx">403</span></div><pre><code>{
+  "success": false,
+  "statusCode": 403,
+  "message": "You cannot approve your own leave request",
+  "data": null,
+  "details": {
+    "code": "LEAVE_SELF_APPROVAL",
+    "requestId": "3b2048be-0647-40b4-8200-b6240298a085"
+  }
+}</code></pre></div>
+  
+  <p class="warn-line">In a single-token run this returns <b>403 <code>LEAVE_SELF_APPROVAL</code></b>, which is the rule working. Run it with a manager’s token against a report’s request to see the 200.</p>
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb put">PUT</span>
+    <code class="route">/leave/requests/21/reject</code>
+  </div>
+  <h4>Reject</h4>
+  <p class="does">Releases the hold and charges nothing. The dates become free for a new application.</p>
+  <pre class="curl"><code>curl -s -X PUT "$BASE/leave/requests/21/reject" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "remarks": "Not enough cover that week"
+  }'</code></pre>
+  
+  
+  
+</div>
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb put">PUT</span>
+    <code class="route">/leave/requests/21/cancel</code>
+  </div>
+  <h4>Cancel — before a decision</h4>
+  <p class="does">The employee taking back their own request. Releases the hold. Requires <code>MY_LEAVE:ADD</code>, not approver rights — taking back what you submitted is part of submitting it.</p>
+  <pre class="curl"><code>curl -s -X PUT "$BASE/leave/requests/21/cancel" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "reason": "Plans changed"
+  }'</code></pre>
+  
+  
+  
+</div>
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb put">PUT</span>
+    <code class="route">/leave/requests/21/withdraw</code>
+  </div>
+  <h4>Withdraw — after approval</h4>
+  <p class="does">Gives the days back with a positive <code>REVERSAL</code> rather than deleting the debit, because "I took it and then gave it back" is a different story from "it never happened" — and only the first is true. The unpaid days are reversed too, so payroll does not deduct for leave nobody took.</p>
+  <pre class="curl"><code>curl -s -X PUT "$BASE/leave/requests/21/withdraw" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "reason": "Plans changed"
+  }'</code></pre>
+  
+  
+  
+</div>
+</section>
+
+<section id="corrections" class="lv">
+  <div class="sec-head"><span class="sec-num">15</span><h2>Correcting a balance by hand</h2></div>
+  <p class="lede">The manage-balance screen. Both calls write ordinary ledger rows, so a correction is as visible and as reversible as anything else.</p>
+  
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/leave/balances/42/adjust</code>
+  </div>
+  <h4>Adjust one balance</h4>
+  <p class="does"><code>days</code> may be negative. Writes an <code>ADJUSTMENT</code> row and returns the new balance.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/leave/balances/42/adjust" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "leaveTypeId": 5,
+    "leaveCycleId": 1,
+    "days": 1,
+    "effectiveDate": "2026-11-06",
+    "remarks": "Carry-forward correction agreed with HR"
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>{
+  "employeeDetailId": 2,
+  "leaveTypeId": 5,
+  "leaveCycleId": 1,
+  "accruedDays": 0,
+  "consumedDays": 0,
+  "lwpDaysConsumed": 0,
+  "heldDays": 3,
+  "balanceDays": 6,
+  "availableDays": 3
+}</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/leave/balances/42/adjust</code>
+  </div>
+  <h4>Without a reason</h4>
+  <p class="does">Refused. This is the <b>one</b> entry type where remarks are mandatory: every other ledger row points at something that explains it — a request, a comp-off credit, an accrual run — but an adjustment points at nothing, so without a reason the statement line reads "+3 days" with no way for anybody, ever, to find out why.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/leave/balances/42/adjust" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "leaveTypeId": 5,
+    "leaveCycleId": 1,
+    "days": 1
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-4xx">400</span></div><pre><code>{
+  "statusCode": 400,
+  "message": "The submitted data is invalid",
+  "details": {
+    "remarks": "Remarks is required"
+  }
+}</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/leave/balances/42/adjust</code>
+  </div>
+  <h4>Below zero</h4>
+  <p class="does">Refused with <code>LEAVE_ADJUSTMENT_WOULD_GO_NEGATIVE</code>. Days somebody has already taken cannot be un-taken by arithmetic — that situation is unpaid leave, and it has its own entry type that payroll reads.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/leave/balances/42/adjust" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "leaveTypeId": 5,
+    "leaveCycleId": 1,
+    "days": -999,
+    "remarks": "Attempt to remove more than the balance holds"
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-4xx">400</span></div><pre><code>{
+  "statusCode": 400,
+  "message": "That adjustment would take the balance below zero. Record it as leave without pay instead",
+  "details": {
+    "code": "LEAVE_ADJUSTMENT_WOULD_GO_NEGATIVE",
+    "balanceDays": 6,
+    "requested": -999
+  }
+}</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/leave/balances/grant</code>
+  </div>
+  <h4>Grant days in bulk</h4>
+  <p class="does">The "add leaves" screen. Written as <code>ADJUSTMENT</code> rows, not <code>ACCRUAL</code> — labelling a hand grant as an accrual would make the nightly job’s idempotence check see work it did not do, and skip the real accrual that month.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/leave/balances/grant" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "leaveTypeId": 5,
+    "leaveCycleId": 1,
+    "days": 5,
+    "effectiveDate": "2026-11-06",
+    "remarks": "Opening balance for FY 2026-27",
+    "employeeDetailIds": [42]
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">201</span></div><pre><code>{
+  "granted": [
+    2
+  ],
+  "days": 5,
+  "effectiveDate": "2026-11-06"
+}</code></pre></div>
+  
+  
+</div>
+</section>
+
+<section id="compoff" class="lv">
+  <div class="sec-head"><span class="sec-num">16</span><h2>Comp-off: two separate acts</h2></div>
+  <p class="lede">The HR document is explicit: a comp-off is <b>never</b> credited merely because attendance exists on a weekend. The manager agrees the work happened; HR then grants the day, by hand. Approval alone credits nothing.</p>
+  
+<div class="ledger-flow">
+  <div class="lf"><span class="lf-step">Claim</span><span class="lf-row"><code>PENDING_MANAGER</code></span><span class="lf-say">employee raises it</span></div>
+  <div class="lf"><span class="lf-step">Approve</span><span class="lf-row"><code>APPROVED_AWAITING_CREDIT</code></span><span class="lf-say"><b>no ledger entry</b> — the balance does not move</span></div>
+  <div class="lf"><span class="lf-step">Credit</span><span class="lf-row"><code>CREDITED</code> + <code>COMP_OFF_CREDIT +1</code></span><span class="lf-say">HR grants the day</span></div>
+</div>
+<p class="fn"><code>APPROVED_AWAITING_CREDIT</code> is the state a single-table design cannot express — and without it, a request the manager approved and HR has not yet credited is invisible: the employee believes they have a day, HR never sees it, and nothing is wrong until somebody tries to spend it.</p>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/leave/comp-off</code>
+  </div>
+  <h4>Claim a day</h4>
+  <p class="does"><code>workedOnDate</code> is the day that was <em>worked</em>, not the day off being asked for — that comes later, as an ordinary leave request against the comp-off category.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/leave/comp-off" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workedOnDate": "2026-10-31",
+    "reason": "Production release over the weekend"
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">201</span></div><pre><code>{
+  "compOffRequestId": 1,
+  "employeeDetailId": 2,
+  "workedOnDate": "2026-10-31",
+  "attendanceDayId": null,
+  "workedMinutes": null,
+  "reason": "Production release over the weekend",
+  "status": "PENDING_MANAGER",
+  "approvedBy": null,
+  "approvedAt": null,
+  "approverRemarks": null,
+  "createdAt": "2026-11-06T05:22:46.968Z",
+  "modifiedAt": "2026-11-06T05:22:46.968Z"
+}</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/leave/comp-off</code>
+  </div>
+  <h4>For an ordinary working day</h4>
+  <p class="does">Refused with <code>COMP_OFF_WORKING_DAY</code>. The check is against the employee’s own shift pattern and their location’s holidays — so a Sunday-working shift behaves correctly rather than earning somebody a comp-off every week.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/leave/comp-off" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workedOnDate": "2026-11-02",
+    "reason": "Ordinary Monday"
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-4xx">400</span></div><pre><code>{
+  "statusCode": 400,
+  "message": "That day was a working day for this employee, so no comp-off is due for it",
+  "details": {
+    "code": "COMP_OFF_WORKING_DAY",
+    "workedOnDate": "2026-11-05"
+  }
+}</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb put">PUT</span>
+    <code class="route">/leave/comp-off/14/approve</code>
+  </div>
+  <h4>Manager approves</h4>
+  <p class="does">Moves it to <code>APPROVED_AWAITING_CREDIT</code> and writes <b>nothing</b> to the ledger. This is the whole point.</p>
+  <pre class="curl"><code>curl -s -X PUT "$BASE/leave/comp-off/14/approve" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "remarks": "Work confirmed"
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-4xx">403</span></div><pre><code>{
+  "success": false,
+  "statusCode": 403,
+  "message": "You cannot approve your own leave request",
+  "data": null,
+  "details": {
+    "code": "LEAVE_SELF_APPROVAL",
+    "requestId": "400f1291-c671-492d-886f-d7859f1243b6"
+  }
+}</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/leave/comp-off/awaiting-credit</code>
+  </div>
+  <h4>HR’s outstanding queue</h4>
+  <p class="does">Approved but not yet credited, company-wide. The screen that makes the gap visible.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/leave/comp-off/awaiting-credit" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>[]</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb post">POST</span>
+    <code class="route">/leave/comp-off/14/credit</code>
+  </div>
+  <h4>HR grants the day</h4>
+  <p class="does">The only call that moves a comp-off balance. Writes the credit row and the <code>COMP_OFF_CREDIT</code> ledger entry in one transaction.</p>
+  <pre class="curl"><code>curl -s -X POST "$BASE/leave/comp-off/14/credit" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "days": 1,
+    "remarks": "Weekend release work"
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-4xx">409</span></div><pre><code>null</code></pre></div>
+  
+  <p class="warn-line">Only from <code>APPROVED_AWAITING_CREDIT</code> — crediting a request the manager has not approved would make the approval decorative. A unique index makes a double-credit fail at the database rather than depending on two HR users not clicking at once.</p>
+</div>
+
+<p class="note-line"><code>expiresOn</code> is <b>null</b> until HR confirms a validity period — one of the two open questions. Null means the credit does not lapse, which is the safe reading of silence: the opposite default would quietly destroy days nobody agreed to destroy.</p>
+</section>
+
+<section id="confirm" class="lv">
+  <div class="sec-head"><span class="sec-num">17</span><h2>Probation and confirmation</h2></div>
+  <p class="lede">Probation is a <b>status</b>, not a date that has passed — because three things depend on it, and because HR needs both an automatic transition and a manual override. A computed value can express the first but not the second.</p>
+  
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/leave/confirmation/due?withinDays=30</code>
+  </div>
+  <h4>Who is due</h4>
+  <p class="does">A work queue, not a list: the people whose probation ends soon, so the conversation happens before the date. Anybody already past their date is included whatever the window, because they are overdue.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/leave/confirmation/due?withinDays=30" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>[
+  {
+    "employeeDetailId": 3,
+    "employeeCode": "EMP002",
+    "firstName": "Priya",
+    "lastName": "Sharma",
+    "workEmail": "priya@rstartec.com",
+    "dateOfJoining": "2026-08-18",
+    "probationEndDate": "2026-11-16",
+    "probationMonths": 3,
+    "confirmationStatus": "PROBATION",
+    "confirmedOn": null,
+    "managerId": 1,
+    "isOverdue": 0
+  }
+]</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb put">PUT</span>
+    <code class="route">/leave/confirmation/57/confirm</code>
+  </div>
+  <h4>Confirm</h4>
+  <p class="does"><code>confirmedOn</code> may be backdated — HR signing off in April for a March completion should record March, because Earned Leave accrual starts from that date.</p>
+  <pre class="curl"><code>curl -s -X PUT "$BASE/leave/confirmation/57/confirm" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "reason": "Probation completed"
+  }'</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>{
+  "employeeDetailId": 3,
+  "confirmationStatus": "CONFIRMED",
+  "confirmedOn": "2026-11-06"
+}</code></pre></div>
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb put">PUT</span>
+    <code class="route">/leave/confirmation/57/extend</code>
+  </div>
+  <h4>Extend or shorten</h4>
+  <p class="does">One endpoint for both — the only difference is which way the date moved, and that is derivable. The history records <code>EXTEND</code> or <code>SHORTEN</code> accordingly.</p>
+  <pre class="curl"><code>curl -s -X PUT "$BASE/leave/confirmation/57/extend" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "newProbationEndDate": "2036-11-02",
+    "reason": "Extended by one month at the manager’s request"
+  }'</code></pre>
+  
+  
+  
+</div>
+
+
+<div class="step">
+  <div class="step-head">
+    <span class="verb get">GET</span>
+    <code class="route">/leave/confirmation/42/history</code>
+  </div>
+  <h4>The history</h4>
+  <p class="does">Append-only. Every change, automatic or manual, with a mandatory reason.</p>
+  <pre class="curl"><code>curl -s -X GET "$BASE/leave/confirmation/42/history" \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+  <div class="resp"><div class="resp-head">Response <span class="code-2xx">200</span></div><pre><code>[]</code></pre></div>
+  <p class="note-line"><code>reason</code> is required even for the nightly job, which writes "Probation period completed on &lt;date&gt;". A nullable reason column becomes an empty one, and then the table answers "when" but never "why" — which is the question it exists for.</p>
+  
+</div>
+
+<p class="note-line">Confirmation does not grant Earned Leave itself. The nightly accrual reads the status and credits from there, so confirmation has exactly one effect and the balance arithmetic stays in one place.</p>
+</section>
+
+<section id="errors" class="">
+  <div class="sec-head"><span class="sec-num">18</span><h2>Errors you will actually hit</h2></div>
+  <p class="lede">Branch on <code>details.code</code>. These are the ones a client needs to handle rather than show raw.</p>
+  
+<div class="tbl-scroll"><table>
+<thead><tr><th>Code</th><th>HTTP</th><th>What it means, and what to do</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="3">Attendance</td></tr>
+<tr><td class="mono">ALREADY_CHECKED_IN</td><td class="num">409</td><td>A session is already open. Offer check-out instead.</td></tr>
+<tr><td class="mono">NOT_CHECKED_IN</td><td class="num">400</td><td>Nothing open to close.</td></tr>
+<tr><td class="mono">DATE_RANGE_TOO_WIDE</td><td class="num">400</td><td>More than 366 days asked for. Page the range.</td></tr>
+<tr><td class="mono">NO_SHIFT_ASSIGNED</td><td class="num">400</td><td>No shift covers that date — nothing to judge the day against. Create a location-wide shift.</td></tr>
+<tr><td class="mono">SHIFT_ASSIGNMENT_OVERLAP</td><td class="num">409</td><td>Ranges overlap. <code>details.conflictsWith</code> names the row.</td></tr>
+<tr><td class="mono">SHIFT_IN_USE</td><td class="num">409</td><td>Employees are still assigned. Remove the assignments first.</td></tr>
+<tr><td class="mono">HOLIDAY_NEEDS_LOCATION</td><td class="num">400</td><td><code>locationIds</code> was empty.</td></tr>
+<tr><td class="mono">REGULARIZATION_WINDOW_CLOSED</td><td class="num">409</td><td>Past the 24-hour window. <code>details.deadline</code> says when it closed.</td></tr>
+<tr><td class="mono">REGULARIZATION_ALREADY_OPEN</td><td class="num">409</td><td>A live request already covers that day.</td></tr>
+<tr><td class="mono">RESTRICTED_QUOTA_USED</td><td class="num">409</td><td>The floating holiday for the calendar year is used.</td></tr>
+<tr><td class="mono">RESTRICTED_NOT_ELIGIBLE</td><td class="num">403</td><td>No restricted-holiday mapping covers this employee.</td></tr>
+
+<tr class="grp"><td colspan="3">Leave</td></tr>
+<tr><td class="mono">LEAVE_CYCLE_MISSING</td><td class="num">400</td><td>No cycle of the policy’s type covers that date. Open the year.</td></tr>
+<tr><td class="mono">LEAVE_CYCLE_IS_CLOSED</td><td class="num">409</td><td>The year is settled. Use an adjustment in the current cycle.</td></tr>
+<tr><td class="mono">LEAVE_NOT_MAPPED</td><td class="num">403</td><td>The category is not offered to this employee. Add a mapping.</td></tr>
+<tr><td class="mono">LEAVE_POLICY_MISSING</td><td class="num">400</td><td>Mapped but unpriced — no policy row says how it behaves.</td></tr>
+<tr><td class="mono">LEAVE_NOT_AVAILABLE_ON_PROBATION</td><td class="num">403</td><td>Visible but not applicable yet.</td></tr>
+<tr><td class="mono">LEAVE_REQUEST_OVERLAP</td><td class="num">409</td><td>Those dates are already applied for. <code>details.conflictsWith</code> names the request.</td></tr>
+<tr><td class="mono">LEAVE_NO_WORKING_DAYS</td><td class="num">400</td><td>The whole range is week-offs and holidays the sandwich rule does not charge.</td></tr>
+<tr><td class="mono">LEAVE_HALF_DAY_NOT_ALLOWED</td><td class="num">400</td><td>The policy sets <code>allowHalfDay: false</code>.</td></tr>
+<tr><td class="mono">LEAVE_SELF_APPROVAL</td><td class="num">403</td><td>You cannot approve your own. Applies to leave, comp-off and regularization.</td></tr>
+<tr><td class="mono">LEAVE_REQUEST_NOT_PENDING</td><td class="num">409</td><td>Already decided. Reload the queue.</td></tr>
+<tr><td class="mono">LEAVE_ADJUSTMENT_NEEDS_REMARKS</td><td class="num">400</td><td>An adjustment must say why.</td></tr>
+<tr><td class="mono">LEAVE_ADJUSTMENT_WOULD_GO_NEGATIVE</td><td class="num">400</td><td>Record it as unpaid leave instead.</td></tr>
+<tr><td class="mono">COMP_OFF_WORKING_DAY</td><td class="num">400</td><td>That day was a working day for this employee.</td></tr>
+<tr><td class="mono">COMP_OFF_NOT_APPROVED</td><td class="num">409</td><td>Crediting before the manager approved.</td></tr>
+<tr><td class="mono">COMP_OFF_ALREADY_CREDITED</td><td class="num">409</td><td>One credit per request, enforced by a unique index.</td></tr>
+<tr><td class="mono">ALREADY_CONFIRMED</td><td class="num">409</td><td>That employee is already confirmed.</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="index" class="">
+  <div class="sec-head"><span class="sec-num">19</span><h2>Every endpoint</h2></div>
+  <p class="lede">All 126 requests in the Postman collection, in run order. The collection runs top to bottom and cleans up after itself.</p>
+  
+<p>The <b>right needed</b> column is what a screen checks before rendering a button. Ask <code>GET /access/page?path=/leave/me</code> for the rights the signed-in user holds on a screen, the same way the other modules do.</p>
+
+<div class="tbl-scroll"><table class="idx">
+<thead><tr><th>#</th><th>Request</th><th>Method</th><th>Path</th><th>Right needed</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="5">Attendance — 64 requests</td></tr><tr><td class="num">2</td><td>attendance statuses (the legend)</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/statuses</td><td class="right">MY_ATTENDANCE<span class="acts">view | add</span></td></tr>
+<tr><td class="num">3</td><td>list shifts</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/shifts</td><td class="right">SHIFTS<span class="acts">view</span></td></tr>
+<tr><td class="num">4</td><td>create shift</td><td><span class="verb post">POST</span></td><td class="mono">/attendance/shifts</td><td class="right">SHIFTS<span class="acts">add</span></td></tr>
+<tr><td class="num">5</td><td>save week offs (whole pattern)</td><td><span class="verb put">PUT</span></td><td class="mono">/attendance/shifts/:shiftId/week-offs</td><td class="right">SHIFTS<span class="acts">edit</span></td></tr>
+<tr><td class="num">6</td><td>list week offs</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/shifts/:shiftId/week-offs</td><td class="right">SHIFTS<span class="acts">view</span></td></tr>
+<tr><td class="num">7</td><td>shift detail</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/shifts/:shiftId</td><td class="right">SHIFTS<span class="acts">view</span></td></tr>
+<tr><td class="num">8</td><td>update shift</td><td><span class="verb put">PUT</span></td><td class="mono">/attendance/shifts/:shiftId</td><td class="right">SHIFTS<span class="acts">edit</span></td></tr>
+<tr><td class="num">9</td><td>list shift assignments</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/shift-assignments</td><td class="right">SHIFTS<span class="acts">view</span></td></tr>
+<tr><td class="num">10</td><td>assign shift</td><td><span class="verb post">POST</span></td><td class="mono">/attendance/shift-assignments</td><td class="right">SHIFTS<span class="acts">add</span></td></tr>
+<tr><td class="num">11</td><td>assign overlapping shift (refused)</td><td><span class="verb post">POST</span></td><td class="mono">/attendance/shift-assignments</td><td class="right">SHIFTS<span class="acts">add</span></td></tr>
+<tr><td class="num">12</td><td>update shift assignment</td><td><span class="verb put">PUT</span></td><td class="mono">/attendance/shift-assignments/:employeeShiftId</td><td class="right">SHIFTS<span class="acts">edit</span></td></tr>
+<tr><td class="num">13</td><td>which shift is this employee on</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/employees/:employeeDetailId/shift</td><td class="right">SHIFTS<span class="acts">view | edit</span></td></tr>
+<tr><td class="num">14</td><td>check in</td><td><span class="verb post">POST</span></td><td class="mono">/attendance/me/check-in</td><td class="right">MY_ATTENDANCE<span class="acts">add</span></td></tr>
+<tr><td class="num">15</td><td>today (am i checked in)</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/me/today</td><td class="right">MY_ATTENDANCE<span class="acts">view</span></td></tr>
+<tr><td class="num">16</td><td>check in again (refused)</td><td><span class="verb post">POST</span></td><td class="mono">/attendance/me/check-in</td><td class="right">MY_ATTENDANCE<span class="acts">add</span></td></tr>
+<tr><td class="num">17</td><td>check out</td><td><span class="verb post">POST</span></td><td class="mono">/attendance/me/check-out</td><td class="right">MY_ATTENDANCE<span class="acts">add</span></td></tr>
+<tr><td class="num">18</td><td>check out again (refused)</td><td><span class="verb post">POST</span></td><td class="mono">/attendance/me/check-out</td><td class="right">MY_ATTENDANCE<span class="acts">add</span></td></tr>
+<tr><td class="num">19</td><td>my calendar</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/me/calendar</td><td class="right">MY_ATTENDANCE<span class="acts">view</span></td></tr>
+<tr><td class="num">20</td><td>my summary</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/me/summary</td><td class="right">MY_ATTENDANCE<span class="acts">view</span></td></tr>
+<tr><td class="num">21</td><td>my day (with punches)</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/me/day/:attendanceDate</td><td class="right">MY_ATTENDANCE<span class="acts">view</span></td></tr>
+<tr><td class="num">22</td><td>calendar range too wide (refused)</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/me/calendar</td><td class="right">MY_ATTENDANCE<span class="acts">view</span></td></tr>
+<tr><td class="num">23</td><td>team day grid</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/team/day</td><td class="right">TEAM_ATTENDANCE<span class="acts">view</span></td></tr>
+<tr><td class="num">24</td><td>team exceptions (the morning list)</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/team/exceptions</td><td class="right">TEAM_ATTENDANCE<span class="acts">view</span></td></tr>
+<tr><td class="num">25</td><td>an employee's calendar</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/employees/:employeeDetailId/calendar</td><td class="right">TEAM_ATTENDANCE<span class="acts">view</span></td></tr>
+<tr><td class="num">26</td><td>an employee's day</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/employees/:employeeDetailId/day/:attendanceDate</td><td class="right">TEAM_ATTENDANCE<span class="acts">view</span></td></tr>
+<tr><td class="num">27</td><td>holiday types</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/holidays/types</td><td class="right">HOLIDAY_CALENDAR<span class="acts">view | add</span></td></tr>
+<tr><td class="num">28</td><td>list holidays</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/holidays</td><td class="right">MY_ATTENDANCE<span class="acts">view | add</span></td></tr>
+<tr><td class="num">29</td><td>create holiday (normal)</td><td><span class="verb post">POST</span></td><td class="mono">/attendance/holidays</td><td class="right">HOLIDAY_CALENDAR<span class="acts">add</span></td></tr>
+<tr><td class="num">30</td><td>holiday with no location (refused)</td><td><span class="verb post">POST</span></td><td class="mono">/attendance/holidays</td><td class="right">HOLIDAY_CALENDAR<span class="acts">add</span></td></tr>
+<tr><td class="num">31</td><td>holiday detail</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/holidays/:holidayId</td><td class="right">MY_ATTENDANCE<span class="acts">view | add</span></td></tr>
+<tr><td class="num">32</td><td>update holiday</td><td><span class="verb put">PUT</span></td><td class="mono">/attendance/holidays/:holidayId</td><td class="right">HOLIDAY_CALENDAR<span class="acts">edit</span></td></tr>
+<tr><td class="num">33</td><td>create restricted holiday</td><td><span class="verb post">POST</span></td><td class="mono">/attendance/holidays</td><td class="right">HOLIDAY_CALENDAR<span class="acts">add</span></td></tr>
+<tr><td class="num">34</td><td>list restricted-holiday mappings</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/holidays/restricted-mappings</td><td class="right">LEAVE_MAPPING<span class="acts">view</span></td></tr>
+<tr><td class="num">35</td><td>create restricted-holiday mapping</td><td><span class="verb post">POST</span></td><td class="mono">/attendance/holidays/restricted-mappings</td><td class="right">LEAVE_MAPPING<span class="acts">add</span></td></tr>
+<tr><td class="num">36</td><td>update restricted-holiday mapping</td><td><span class="verb put">PUT</span></td><td class="mono">/attendance/holidays/restricted-mappings/:restrictedHolidayMappingId</td><td class="right">LEAVE_MAPPING<span class="acts">edit</span></td></tr>
+<tr><td class="num">37</td><td>my restricted-holiday options</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/holidays/restricted/options</td><td class="right">MY_ATTENDANCE<span class="acts">view</span></td></tr>
+<tr><td class="num">38</td><td>pick a restricted holiday</td><td><span class="verb post">POST</span></td><td class="mono">/attendance/holidays/restricted/opt-in</td><td class="right">MY_ATTENDANCE<span class="acts">add</span></td></tr>
+<tr><td class="num">39</td><td>my restricted holiday</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/holidays/restricted/me</td><td class="right">MY_ATTENDANCE<span class="acts">view</span></td></tr>
+<tr><td class="num">40</td><td>pick a second one (refused)</td><td><span class="verb post">POST</span></td><td class="mono">/attendance/holidays/restricted/opt-in</td><td class="right">MY_ATTENDANCE<span class="acts">add</span></td></tr>
+<tr><td class="num">41</td><td>pending restricted-holiday picks</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/holidays/restricted/pending</td><td class="right">HOLIDAY_CALENDAR<span class="acts">edit</span></td></tr>
+<tr><td class="num">42</td><td>approve a restricted-holiday pick</td><td><span class="verb put">PUT</span></td><td class="mono">/attendance/holidays/restricted/:restrictedHolidayOptInId/decide</td><td class="right">HOLIDAY_CALENDAR<span class="acts">edit</span></td></tr>
+<tr><td class="num">43</td><td>list attendance exemptions</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/exemptions</td><td class="right">ATTENDANCE_EXEMPTIONS<span class="acts">view</span></td></tr>
+<tr><td class="num">44</td><td>grant an exemption</td><td><span class="verb post">POST</span></td><td class="mono">/attendance/exemptions</td><td class="right">ATTENDANCE_EXEMPTIONS<span class="acts">add</span></td></tr>
+<tr><td class="num">45</td><td>exemption without a reason (refused)</td><td><span class="verb post">POST</span></td><td class="mono">/attendance/exemptions</td><td class="right">ATTENDANCE_EXEMPTIONS<span class="acts">add</span></td></tr>
+<tr><td class="num">46</td><td>update exemption</td><td><span class="verb put">PUT</span></td><td class="mono">/attendance/exemptions/:attendanceExemptionId</td><td class="right">ATTENDANCE_EXEMPTIONS<span class="acts">edit</span></td></tr>
+<tr><td class="num">47</td><td>list alert settings</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/alert-settings</td><td class="right">ATTENDANCE_ALERTS<span class="acts">view</span></td></tr>
+<tr><td class="num">48</td><td>create alert setting (check-out)</td><td><span class="verb post">POST</span></td><td class="mono">/attendance/alert-settings</td><td class="right">ATTENDANCE_ALERTS<span class="acts">add</span></td></tr>
+<tr><td class="num">49</td><td>update alert setting</td><td><span class="verb put">PUT</span></td><td class="mono">/attendance/alert-settings/:attendanceAlertSettingId</td><td class="right">ATTENDANCE_ALERTS<span class="acts">edit</span></td></tr>
+<tr><td class="num">50</td><td>regularization types (master data)</td><td><span class="verb get">GET</span></td><td class="mono">/organizations/regularization-types</td><td class="right"><span class="acts">any signed-in user</span></td></tr>
+<tr><td class="num">51</td><td>raise a regularization</td><td><span class="verb post">POST</span></td><td class="mono">/attendance/regularizations</td><td class="right">REGULARIZATION<span class="acts">add</span></td></tr>
+<tr><td class="num">52</td><td>my regularizations</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/regularizations/me</td><td class="right">REGULARIZATION<span class="acts">view | add</span></td></tr>
+<tr><td class="num">53</td><td>regularization detail</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/regularizations/:regularizationRequestId</td><td class="right">REGULARIZATION<span class="acts">view | edit</span></td></tr>
+<tr><td class="num">54</td><td>pending regularizations (approver queue)</td><td><span class="verb get">GET</span></td><td class="mono">/attendance/regularizations/pending</td><td class="right">REGULARIZATION<span class="acts">edit</span></td></tr>
+<tr><td class="num">55</td><td>approve a regularization</td><td><span class="verb put">PUT</span></td><td class="mono">/attendance/regularizations/:regularizationRequestId/approve</td><td class="right">REGULARIZATION<span class="acts">edit</span></td></tr>
+<tr><td class="num">56</td><td>reject a regularization (the other branch)</td><td><span class="verb put">PUT</span></td><td class="mono">/attendance/regularizations/:regularizationRequestId/reject</td><td class="right">REGULARIZATION<span class="acts">edit</span></td></tr>
+<tr><td class="num">57</td><td>cancel the regularization (cleanup)</td><td><span class="verb put">PUT</span></td><td class="mono">/attendance/regularizations/:regularizationRequestId/cancel</td><td class="right">REGULARIZATION<span class="acts">add</span></td></tr>
+<tr><td class="num">58</td><td>cancel the restricted-holiday pick (cleanup)</td><td><span class="verb put">PUT</span></td><td class="mono">/attendance/holidays/restricted/:restrictedHolidayOptInId/cancel</td><td class="right">MY_ATTENDANCE<span class="acts">add</span></td></tr>
+<tr><td class="num">59</td><td>delete alert setting (cleanup)</td><td><span class="verb delete">DELETE</span></td><td class="mono">/attendance/alert-settings/:attendanceAlertSettingId</td><td class="right">ATTENDANCE_ALERTS<span class="acts">delete</span></td></tr>
+<tr><td class="num">60</td><td>delete exemption (cleanup)</td><td><span class="verb delete">DELETE</span></td><td class="mono">/attendance/exemptions/:attendanceExemptionId</td><td class="right">ATTENDANCE_EXEMPTIONS<span class="acts">delete</span></td></tr>
+<tr><td class="num">61</td><td>delete restricted-holiday mapping (cleanup)</td><td><span class="verb delete">DELETE</span></td><td class="mono">/attendance/holidays/restricted-mappings/:restrictedHolidayMappingId</td><td class="right">LEAVE_MAPPING<span class="acts">delete</span></td></tr>
+<tr><td class="num">62</td><td>delete the restricted holiday (cleanup)</td><td><span class="verb delete">DELETE</span></td><td class="mono">/attendance/holidays/:holidayId</td><td class="right">HOLIDAY_CALENDAR<span class="acts">delete</span></td></tr>
+<tr><td class="num">63</td><td>delete the holiday (cleanup)</td><td><span class="verb delete">DELETE</span></td><td class="mono">/attendance/holidays/:holidayId</td><td class="right">HOLIDAY_CALENDAR<span class="acts">delete</span></td></tr>
+<tr><td class="num">64</td><td>remove shift assignment (cleanup)</td><td><span class="verb delete">DELETE</span></td><td class="mono">/attendance/shift-assignments/:employeeShiftId</td><td class="right">SHIFTS<span class="acts">delete</span></td></tr>
+<tr><td class="num">65</td><td>delete shift (cleanup)</td><td><span class="verb delete">DELETE</span></td><td class="mono">/attendance/shifts/:shiftId</td><td class="right">SHIFTS<span class="acts">delete</span></td></tr>
+<tr class="grp"><td colspan="5">Leave — 62 requests</td></tr><tr><td class="num">1</td><td>who am i</td><td><span class="verb get">GET</span></td><td class="mono">/access/me</td><td class="right"><span class="acts">any signed-in user</span></td></tr>
+<tr><td class="num">2</td><td>leave cycles</td><td><span class="verb get">GET</span></td><td class="mono">/leave/cycles</td><td class="right">MY_LEAVE<span class="acts">view | add</span></td></tr>
+<tr><td class="num">3</td><td>create leave cycle</td><td><span class="verb post">POST</span></td><td class="mono">/leave/cycles</td><td class="right">LEAVE_POLICY<span class="acts">add</span></td></tr>
+<tr><td class="num">4</td><td>update leave cycle</td><td><span class="verb put">PUT</span></td><td class="mono">/leave/cycles/:leaveCycleId</td><td class="right">LEAVE_POLICY<span class="acts">edit</span></td></tr>
+<tr><td class="num">5</td><td>what i can apply for</td><td><span class="verb get">GET</span></td><td class="mono">/leave/me/types</td><td class="right">MY_LEAVE<span class="acts">view | add</span></td></tr>
+<tr><td class="num">6</td><td>my dashboard</td><td><span class="verb get">GET</span></td><td class="mono">/leave/me/dashboard</td><td class="right">MY_LEAVE<span class="acts">view</span></td></tr>
+<tr><td class="num">7</td><td>list sandwich rules</td><td><span class="verb get">GET</span></td><td class="mono">/leave/sandwich-rules</td><td class="right">LEAVE_POLICY<span class="acts">view</span></td></tr>
+<tr><td class="num">8</td><td>create sandwich rule</td><td><span class="verb post">POST</span></td><td class="mono">/leave/sandwich-rules</td><td class="right">LEAVE_POLICY<span class="acts">add</span></td></tr>
+<tr><td class="num">9</td><td>update sandwich rule</td><td><span class="verb put">PUT</span></td><td class="mono">/leave/sandwich-rules/:sandwichRuleId</td><td class="right">LEAVE_POLICY<span class="acts">edit</span></td></tr>
+<tr><td class="num">10</td><td>list leave policies</td><td><span class="verb get">GET</span></td><td class="mono">/leave/policies</td><td class="right">LEAVE_POLICY<span class="acts">view</span></td></tr>
+<tr><td class="num">11</td><td>create leave policy</td><td><span class="verb post">POST</span></td><td class="mono">/leave/policies</td><td class="right">LEAVE_POLICY<span class="acts">add</span></td></tr>
+<tr><td class="num">12</td><td>leave policy detail</td><td><span class="verb get">GET</span></td><td class="mono">/leave/policies/:leavePolicyId</td><td class="right">LEAVE_POLICY<span class="acts">view</span></td></tr>
+<tr><td class="num">13</td><td>update leave policy</td><td><span class="verb put">PUT</span></td><td class="mono">/leave/policies/:leavePolicyId</td><td class="right">LEAVE_POLICY<span class="acts">edit</span></td></tr>
+<tr><td class="num">14</td><td>list leave mappings</td><td><span class="verb get">GET</span></td><td class="mono">/leave/mappings</td><td class="right">LEAVE_MAPPING<span class="acts">view</span></td></tr>
+<tr><td class="num">15</td><td>create leave mapping</td><td><span class="verb post">POST</span></td><td class="mono">/leave/mappings</td><td class="right">LEAVE_MAPPING<span class="acts">add</span></td></tr>
+<tr><td class="num">16</td><td>update leave mapping</td><td><span class="verb put">PUT</span></td><td class="mono">/leave/mappings/:leaveMappingId</td><td class="right">LEAVE_MAPPING<span class="acts">edit</span></td></tr>
+<tr><td class="num">17</td><td>list policy overrides</td><td><span class="verb get">GET</span></td><td class="mono">/leave/overrides</td><td class="right">LEAVE_POLICY<span class="acts">view</span></td></tr>
+<tr><td class="num">18</td><td>create policy override</td><td><span class="verb post">POST</span></td><td class="mono">/leave/overrides</td><td class="right">LEAVE_POLICY<span class="acts">add</span></td></tr>
+<tr><td class="num">19</td><td>override without a reason (refused)</td><td><span class="verb post">POST</span></td><td class="mono">/leave/overrides</td><td class="right">LEAVE_POLICY<span class="acts">add</span></td></tr>
+<tr><td class="num">20</td><td>update policy override</td><td><span class="verb put">PUT</span></td><td class="mono">/leave/overrides/:employeeLeavePolicyId</td><td class="right">LEAVE_POLICY<span class="acts">edit</span></td></tr>
+<tr><td class="num">21</td><td>grant leave (add leaves)</td><td><span class="verb post">POST</span></td><td class="mono">/leave/balances/grant</td><td class="right">LEAVE_BALANCE<span class="acts">add</span></td></tr>
+<tr><td class="num">22</td><td>my balance</td><td><span class="verb get">GET</span></td><td class="mono">/leave/me/balance</td><td class="right">MY_LEAVE<span class="acts">view</span></td></tr>
+<tr><td class="num">23</td><td>preview the charge</td><td><span class="verb post">POST</span></td><td class="mono">/leave/me/preview</td><td class="right">MY_LEAVE<span class="acts">view | add</span></td></tr>
+<tr><td class="num">24</td><td>apply for leave</td><td><span class="verb post">POST</span></td><td class="mono">/leave/requests</td><td class="right">MY_LEAVE<span class="acts">add</span></td></tr>
+<tr><td class="num">25</td><td>apply for the same dates again (refused)</td><td><span class="verb post">POST</span></td><td class="mono">/leave/requests</td><td class="right">MY_LEAVE<span class="acts">add</span></td></tr>
+<tr><td class="num">26</td><td>balance now holds the days</td><td><span class="verb get">GET</span></td><td class="mono">/leave/me/balance</td><td class="right">MY_LEAVE<span class="acts">view</span></td></tr>
+<tr><td class="num">27</td><td>my requests</td><td><span class="verb get">GET</span></td><td class="mono">/leave/me/requests</td><td class="right">MY_LEAVE<span class="acts">view</span></td></tr>
+<tr><td class="num">28</td><td>leave request detail</td><td><span class="verb get">GET</span></td><td class="mono">/leave/requests/:leaveRequestId</td><td class="right">MY_LEAVE<span class="acts">view | add</span></td></tr>
+<tr><td class="num">29</td><td>pending approvals (approver queue)</td><td><span class="verb get">GET</span></td><td class="mono">/leave/requests/pending</td><td class="right">TEAM_LEAVE<span class="acts">edit</span></td></tr>
+<tr><td class="num">30</td><td>approve leave</td><td><span class="verb put">PUT</span></td><td class="mono">/leave/requests/:leaveRequestId/approve</td><td class="right">TEAM_LEAVE<span class="acts">edit</span></td></tr>
+<tr><td class="num">31</td><td>reject leave (the other branch)</td><td><span class="verb put">PUT</span></td><td class="mono">/leave/requests/:leaveRequestId/reject</td><td class="right">TEAM_LEAVE<span class="acts">edit</span></td></tr>
+<tr><td class="num">32</td><td>team calendar (who is off)</td><td><span class="verb get">GET</span></td><td class="mono">/leave/team/calendar</td><td class="right">TEAM_LEAVE<span class="acts">view</span></td></tr>
+<tr><td class="num">33</td><td>an employee's leave</td><td><span class="verb get">GET</span></td><td class="mono">/leave/team/requests</td><td class="right">TEAM_LEAVE<span class="acts">view</span></td></tr>
+<tr><td class="num">34</td><td>my ledger</td><td><span class="verb get">GET</span></td><td class="mono">/leave/me/ledger</td><td class="right">MY_LEAVE<span class="acts">view</span></td></tr>
+<tr><td class="num">35</td><td>balance grid (manage balances)</td><td><span class="verb get">GET</span></td><td class="mono">/leave/balances</td><td class="right">LEAVE_BALANCE<span class="acts">view</span></td></tr>
+<tr><td class="num">36</td><td>an employee's balances</td><td><span class="verb get">GET</span></td><td class="mono">/leave/balances/:employeeDetailId</td><td class="right">LEAVE_BALANCE<span class="acts">view</span></td></tr>
+<tr><td class="num">37</td><td>an employee's ledger</td><td><span class="verb get">GET</span></td><td class="mono">/leave/balances/:employeeDetailId/ledger</td><td class="right">LEAVE_BALANCE<span class="acts">view</span></td></tr>
+<tr><td class="num">38</td><td>adjust a balance</td><td><span class="verb post">POST</span></td><td class="mono">/leave/balances/:employeeDetailId/adjust</td><td class="right">LEAVE_BALANCE<span class="acts">edit</span></td></tr>
+<tr><td class="num">39</td><td>adjust without a reason (refused)</td><td><span class="verb post">POST</span></td><td class="mono">/leave/balances/:employeeDetailId/adjust</td><td class="right">LEAVE_BALANCE<span class="acts">edit</span></td></tr>
+<tr><td class="num">40</td><td>adjust below zero (refused)</td><td><span class="verb post">POST</span></td><td class="mono">/leave/balances/:employeeDetailId/adjust</td><td class="right">LEAVE_BALANCE<span class="acts">edit</span></td></tr>
+<tr><td class="num">41</td><td>claim a comp-off</td><td><span class="verb post">POST</span></td><td class="mono">/leave/comp-off</td><td class="right">COMP_OFF<span class="acts">add</span></td></tr>
+<tr><td class="num">42</td><td>claim one for a working day (refused)</td><td><span class="verb post">POST</span></td><td class="mono">/leave/comp-off</td><td class="right">COMP_OFF<span class="acts">add</span></td></tr>
+<tr><td class="num">43</td><td>my comp-off requests</td><td><span class="verb get">GET</span></td><td class="mono">/leave/comp-off/me</td><td class="right">COMP_OFF<span class="acts">view | add</span></td></tr>
+<tr><td class="num">44</td><td>pending comp-off (manager queue)</td><td><span class="verb get">GET</span></td><td class="mono">/leave/comp-off/pending</td><td class="right">COMP_OFF<span class="acts">edit</span></td></tr>
+<tr><td class="num">45</td><td>approve a comp-off</td><td><span class="verb put">PUT</span></td><td class="mono">/leave/comp-off/:compOffRequestId/approve</td><td class="right">COMP_OFF<span class="acts">edit</span></td></tr>
+<tr><td class="num">46</td><td>reject a comp-off (the other branch)</td><td><span class="verb put">PUT</span></td><td class="mono">/leave/comp-off/:compOffRequestId/reject</td><td class="right">COMP_OFF<span class="acts">edit</span></td></tr>
+<tr><td class="num">47</td><td>awaiting credit (HR queue)</td><td><span class="verb get">GET</span></td><td class="mono">/leave/comp-off/awaiting-credit</td><td class="right">COMP_OFF<span class="acts">add</span></td></tr>
+<tr><td class="num">48</td><td>credit the comp-off (HR)</td><td><span class="verb post">POST</span></td><td class="mono">/leave/comp-off/:compOffRequestId/credit</td><td class="right">COMP_OFF<span class="acts">add</span></td></tr>
+<tr><td class="num">49</td><td>comp-off credits</td><td><span class="verb get">GET</span></td><td class="mono">/leave/comp-off/credits</td><td class="right">COMP_OFF<span class="acts">view</span></td></tr>
+<tr><td class="num">50</td><td>due for confirmation</td><td><span class="verb get">GET</span></td><td class="mono">/leave/confirmation/due</td><td class="right">EMPLOYMENT_STATUS<span class="acts">view</span></td></tr>
+<tr><td class="num">51</td><td>confirmation history</td><td><span class="verb get">GET</span></td><td class="mono">/leave/confirmation/:employeeDetailId/history</td><td class="right">EMPLOYMENT_STATUS<span class="acts">view</span></td></tr>
+<tr><td class="num">52</td><td>extend probation</td><td><span class="verb put">PUT</span></td><td class="mono">/leave/confirmation/:employeeDetailId/extend</td><td class="right">EMPLOYMENT_STATUS<span class="acts">edit</span></td></tr>
+<tr><td class="num">53</td><td>confirm an employee</td><td><span class="verb put">PUT</span></td><td class="mono">/leave/confirmation/:employeeDetailId/confirm</td><td class="right">EMPLOYMENT_STATUS<span class="acts">edit</span></td></tr>
+<tr><td class="num">54</td><td>LWP report (payroll)</td><td><span class="verb get">GET</span></td><td class="mono">/leave/reports/lwp</td><td class="right">LWP_REPORT<span class="acts">view | print</span></td></tr>
+<tr><td class="num">55</td><td>cancel the leave request (cleanup)</td><td><span class="verb put">PUT</span></td><td class="mono">/leave/requests/:leaveRequestId/cancel</td><td class="right">MY_LEAVE<span class="acts">add</span></td></tr>
+<tr><td class="num">56</td><td>withdraw the leave request (cleanup)</td><td><span class="verb put">PUT</span></td><td class="mono">/leave/requests/:leaveRequestId/withdraw</td><td class="right">MY_LEAVE<span class="acts">add</span></td></tr>
+<tr><td class="num">57</td><td>cancel the comp-off (cleanup)</td><td><span class="verb put">PUT</span></td><td class="mono">/leave/comp-off/:compOffRequestId/cancel</td><td class="right">COMP_OFF<span class="acts">add</span></td></tr>
+<tr><td class="num">58</td><td>delete policy override (cleanup)</td><td><span class="verb delete">DELETE</span></td><td class="mono">/leave/overrides/:employeeLeavePolicyId</td><td class="right">LEAVE_POLICY<span class="acts">delete</span></td></tr>
+<tr><td class="num">59</td><td>delete leave mapping (cleanup)</td><td><span class="verb delete">DELETE</span></td><td class="mono">/leave/mappings/:leaveMappingId</td><td class="right">LEAVE_MAPPING<span class="acts">delete</span></td></tr>
+<tr><td class="num">60</td><td>delete leave policy (cleanup)</td><td><span class="verb delete">DELETE</span></td><td class="mono">/leave/policies/:leavePolicyId</td><td class="right">LEAVE_POLICY<span class="acts">delete</span></td></tr>
+<tr><td class="num">61</td><td>delete sandwich rule (cleanup)</td><td><span class="verb delete">DELETE</span></td><td class="mono">/leave/sandwich-rules/:sandwichRuleId</td><td class="right">LEAVE_POLICY<span class="acts">delete</span></td></tr>
+<tr><td class="num">62</td><td>close the leave cycle (cleanup)</td><td><span class="verb put">PUT</span></td><td class="mono">/leave/cycles/:leaveCycleId/close</td><td class="right">LEAVE_POLICY<span class="acts">delete</span></td></tr>
+</tbody></table></div>
+</section>
+
+<footer>
+  rSTAR HRMS · Attendance &amp; Leave API guide<br>
+  Curls generated from the Postman collection · responses captured from a live run against a seeded database<br>
+  Companion to docs/ATTENDANCE-LEAVE.html, which covers the policy and the schema
+</footer>
+
+</div>
+
+</body>
+</html>

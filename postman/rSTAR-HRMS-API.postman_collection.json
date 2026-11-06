@@ -3,7 +3,7 @@
 		"name": "rSTAR HRMS API",
 		"_postman_id": "b7a1f3c2-5d4e-4a6b-9c8d-0e1f2a3b4c5d",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"description": "HRMS backend API, grouped into folders.\n\nHealth   - liveness and readiness, no auth\nAuth     - login, OTP, refresh, password reset\nAdmin    - Organization, Locations and the five master-data lists (permission-guarded)\nEmployees   - onboarding, the employee record, exit and deletion\nAccess Control - groups, their rights matrix and who is in them\nError Logs - the admin error dashboard and frontend error reporting\n\nORDER MATTERS the first time through: run Auth top to bottom to capture the token, then Admin > Organization before Admin > Locations, because the location requests read the {{organizationId}} that `create organization` stores. Employees, Access Control and the master-data folders under Admin each stand on their own - any of them can be run straight after Auth.\n\nNo bearer token is ever pasted. verify-otp stores it in {{accessToken}} and every request inherits the collection-level Bearer auth that reads it.\n\nSet {{baseUrl}} in the Variables tab, or pick an environment, and go."
+		"description": "HRMS backend API, grouped into folders.\n\nHealth   - liveness and readiness, no auth\nAuth     - login, OTP, refresh, password reset\nAdmin    - Organization, Locations and the five master-data lists (permission-guarded)\nEmployees   - onboarding, the employee record, exit and deletion\nAccess Control - groups, their rights matrix and who is in them\nError Logs - the admin error dashboard and frontend error reporting\nAttendance  - check-in/out, calendars, shifts, holidays, exemptions, alerts, regularization\nLeave       - balances, apply and approve, policy and mapping, comp-off, confirmation, LWP report\n\nORDER MATTERS the first time through: run Auth top to bottom to capture the token, then Admin > Organization before Admin > Locations, because the location requests read the {{organizationId}} that `create organization` stores. Employees, Access Control and the master-data folders under Admin each stand on their own - any of them can be run straight after Auth.\n\nNo bearer token is ever pasted. verify-otp stores it in {{accessToken}} and every request inherits the collection-level Bearer auth that reads it.\n\nSet {{baseUrl}} in the Variables tab, or pick an environment, and go."
 	},
 	"auth": {
 		"type": "bearer",
@@ -267,16 +267,19 @@
 		},
 		{
 			"key": "inviteEmail",
+			"key": "selfEmployeeDetailId",
 			"value": "",
 			"type": "string"
 		},
 		{
 			"key": "invitePassword",
+			"key": "shiftCode",
 			"value": "",
 			"type": "string"
 		},
 		{
 			"key": "inviteOtp",
+			"key": "shiftId",
 			"value": "",
 			"type": "string"
 		},
@@ -287,6 +290,202 @@
 		},
 		{
 			"key": "inviteAccessToken",
+			"key": "employeeShiftId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "holidayId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "holidayName",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "holidayDate",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "restrictedHolidayId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "restrictedHolidayName",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "restrictedHolidayDate",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "restrictedHolidayOptInId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "restrictedHolidayMappingId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "attendanceExemptionId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "attendanceAlertSettingId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "regularizationTypeId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "regularizationRequestId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "leaveCycleId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "calendarCycleId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "futureLeaveCycleId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "leavePolicyId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "sandwichRuleName",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "sandwichRuleId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "leaveMappingId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "employeeLeavePolicyId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "leaveRequestId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "compOffRequestId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "lwpLeaveTypeId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "probationEmployeeId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "previewTotalDays",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "balanceBefore",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "todayDate",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "yesterdayDate",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "thisYear",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "attendanceFromDate",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "attendanceToDate",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "leaveFromDate",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "leaveToDate",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "compOffWorkedOn",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "pastWorkingDay",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "farFutureDate",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "farFutureEndDate",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "monthStartDate",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "monthEndDate",
 			"value": "",
 			"type": "string"
 		}
@@ -15030,6 +15229,5012 @@
 					}
 				}
 			]
+		},
+		{
+			"name": "Attendance",
+			"description": "Check-in and check-out, the calendars, shifts and week-off patterns, the holiday calendar, present-by-default exemptions, alert settings and regularization.\n\nRun IN ORDER. Request 1 captures your own employee id, requests 4-12 create a shift and assign it, and the cleanup requests at the end delete everything this folder made - so the whole folder can be run again tomorrow.\n\nSELF vs TEAM is two modules, not a scope. MY_ATTENDANCE covers /me; TEAM_ATTENDANCE covers /team and /employees/:id. A group that holds neither sees nothing here.\n\nApproving a regularization you raised yourself is refused whatever rights you hold - request 52 asserts 200 OR 403 and logs which, because a single-token run hits the self-approval rule rather than the happy path. Run it with a manager’s token against a report’s request to see the 200.",
+			"item": [
+				{
+					"name": "1. who am i",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/access/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"access",
+								"me"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('captures my own employee id', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.collectionVariables.set('selfEmployeeDetailId', data.employeeDetailId);",
+									"\tconsole.log('running as employee', data.employeeDetailId, '-', data.group ? data.group.groupName : 'no group');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "2. attendance statuses (the legend)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/statuses",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"statuses"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('all nine statuses, seeded by migration 022', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.expect(data.length).to.eql(9);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "3. list shifts",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/shifts?onDate={{todayDate}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"shifts"
+							],
+							"query": [
+								{
+									"key": "onDate",
+									"value": "{{todayDate}}"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('the seeded GEN and EVE shifts are there', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tconst gen = data.find(s => s.shiftCode === 'GEN');",
+									"\tpm.expect(gen, 'GEN shift').to.not.be.undefined;",
+									"\tpm.expect(gen.startTime).to.eql('09:00');",
+									"\tconst eve = data.find(s => s.shiftCode === 'EVE');",
+									"\tif (eve) pm.expect(eve.crossesMidnight, 'EVE crosses midnight').to.be.true;",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "4. create shift",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/shifts",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"shifts"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"shiftCode\": \"{{shiftCode}}\",\n  \"shiftName\": \"QA shift {{shiftCode}}\",\n  \"startTime\": \"10:00\",\n  \"endTime\": \"19:00\",\n  \"breakMinutes\": 60,\n  \"graceInMinutes\": 15,\n  \"graceOutMinutes\": 15,\n  \"fullDayMinutes\": 480,\n  \"halfDayMinutes\": 240,\n  \"effectiveFrom\": \"{{todayDate}}\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 201', function () {",
+									"\tpm.response.to.have.status(201);",
+									"});",
+									"pm.test('crossesMidnight is derived, not taken from the body', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.expect(data.crossesMidnight).to.be.false;",
+									"\tpm.collectionVariables.set('shiftId', data.shiftId);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "5. save week offs (whole pattern)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/shifts/{{shiftId}}/week-offs",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"shifts",
+								"{{shiftId}}",
+								"week-offs"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"weekOffs\": [\n    {\n      \"dayOfWeek\": 1\n    },\n    {\n      \"dayOfWeek\": 7,\n      \"weekOfMonth\": 2\n    },\n    {\n      \"dayOfWeek\": 7,\n      \"weekOfMonth\": 4\n    }\n  ]\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('Sunday every week, plus 2nd and 4th Saturday', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.expect(data.length).to.eql(3);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "6. list week offs",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/shifts/{{shiftId}}/week-offs",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"shifts",
+								"{{shiftId}}",
+								"week-offs"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "7. shift detail",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/shifts/{{shiftId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"shifts",
+								"{{shiftId}}"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('comes back with its week offs attached', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.expect(data).to.have.property('weekOffs');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "8. update shift",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/shifts/{{shiftId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"shifts",
+								"{{shiftId}}"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"shiftName\": \"QA shift {{shiftCode}} (renamed)\",\n  \"graceInMinutes\": 20\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "9. list shift assignments",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/shift-assignments?employeeDetailId={{selfEmployeeDetailId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"shift-assignments"
+							],
+							"query": [
+								{
+									"key": "employeeDetailId",
+									"value": "{{selfEmployeeDetailId}}"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "10. assign shift",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/shift-assignments",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"shift-assignments"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"employeeDetailId\": \"{{selfEmployeeDetailId}}\",\n  \"shiftId\": \"{{shiftId}}\",\n  \"effectiveFrom\": \"{{farFutureDate}}\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 201', function () {",
+									"\tpm.response.to.have.status(201);",
+									"});",
+									"pm.test('captures employeeShiftId', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.expect(data).to.not.be.undefined;",
+									"\tpm.collectionVariables.set('employeeShiftId', data.employeeShiftId);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "11. assign overlapping shift (refused)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/shift-assignments",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"shift-assignments"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"employeeDetailId\": \"{{selfEmployeeDetailId}}\",\n  \"shiftId\": \"{{shiftId}}\",\n  \"effectiveFrom\": \"{{farFutureDate}}\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 409', function () {",
+									"\tpm.response.to.have.status(409);",
+									"});",
+									"pm.test('names the assignment it clashed with', function () {",
+									"\tconst details = pm.response.json().details;",
+									"\tpm.expect(details.code).to.eql('SHIFT_ASSIGNMENT_OVERLAP');",
+									"\tpm.expect(details.conflictsWith).to.not.be.undefined;",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "12. update shift assignment",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/shift-assignments/{{employeeShiftId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"shift-assignments",
+								"{{employeeShiftId}}"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"effectiveTo\": \"{{farFutureEndDate}}\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "13. which shift is this employee on",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/employees/{{selfEmployeeDetailId}}/shift?onDate={{todayDate}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"employees",
+								"{{selfEmployeeDetailId}}",
+								"shift"
+							],
+							"query": [
+								{
+									"key": "onDate",
+									"value": "{{todayDate}}"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('resolves a shift - assigned, or the location-wide fallback', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.expect(data, 'no shift resolved').to.not.be.null;",
+									"\tconsole.log('shift:', data.shiftCode, data.startTime + '-' + data.endTime);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "14. check in",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/me/check-in",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"me",
+								"check-in"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"source\": \"WEB\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('checked in, or already checked in from an earlier run', function () {",
+									"\tpm.expect([201, 409]).to.include(pm.response.code);",
+									"});",
+									"if (pm.response.code === 409) {",
+									"\tconsole.log('Already checked in today - run check out first.');",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "15. today (am i checked in)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/me/today",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"me",
+								"today"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('reports the punch state from the punches themselves', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.expect(data).to.have.property('isCheckedIn');",
+									"\tconsole.log('checked in:', data.isCheckedIn, '| week off:', data.isWeekOff, '| exempt:', data.isExempt);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "16. check in again (refused)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/me/check-in",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"me",
+								"check-in"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"source\": \"WEB\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 409', function () {",
+									"\tpm.response.to.have.status(409);",
+									"});",
+									"pm.test('refused with ALREADY_CHECKED_IN', function () {",
+									"\tpm.expect(pm.response.json().details.code).to.eql('ALREADY_CHECKED_IN');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "17. check out",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/me/check-out",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"me",
+								"check-out"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('two punches on the day, and worked minutes computed', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.expect(data.punches.length).to.be.at.least(2);",
+									"\tconsole.log('worked minutes (net of the unpaid break):', data.workedMinutes);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "18. check out again (refused)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/me/check-out",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"me",
+								"check-out"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 400', function () {",
+									"\tpm.response.to.have.status(400);",
+									"});",
+									"pm.test('refused with NOT_CHECKED_IN', function () {",
+									"\tpm.expect(pm.response.json().details.code).to.eql('NOT_CHECKED_IN');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "19. my calendar",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/me/calendar?from={{attendanceFromDate}}&to={{todayDate}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"me",
+								"calendar"
+							],
+							"query": [
+								{
+									"key": "from",
+									"value": "{{attendanceFromDate}}"
+								},
+								{
+									"key": "to",
+									"value": "{{todayDate}}"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('every date in the range comes back, recorded or not', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.expect(data.length).to.be.above(0);",
+									"\tconst derived = data.filter(d => d.isRecorded === false).length;",
+									"\tconsole.log(data.length, 'days -', data.length - derived, 'recorded,', derived, 'derived from the shift pattern');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "20. my summary",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/me/summary?from={{attendanceFromDate}}&to={{todayDate}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"me",
+								"summary"
+							],
+							"query": [
+								{
+									"key": "from",
+									"value": "{{attendanceFromDate}}"
+								},
+								{
+									"key": "to",
+									"value": "{{todayDate}}"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "21. my day (with punches)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/me/day/{{todayDate}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"me",
+								"day",
+								"{{todayDate}}"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('carries the punches behind the day', function () {",
+									"\tpm.expect(pm.response.json().data).to.have.property('punches');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "22. calendar range too wide (refused)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/me/calendar?from=2020-01-01&to={{todayDate}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"me",
+								"calendar"
+							],
+							"query": [
+								{
+									"key": "from",
+									"value": "2020-01-01"
+								},
+								{
+									"key": "to",
+									"value": "{{todayDate}}"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 400', function () {",
+									"\tpm.response.to.have.status(400);",
+									"});",
+									"pm.test('refused with DATE_RANGE_TOO_WIDE', function () {",
+									"\tpm.expect(pm.response.json().details.code).to.eql('DATE_RANGE_TOO_WIDE');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "23. team day grid",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/team/day?date={{todayDate}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"team",
+								"day"
+							],
+							"query": [
+								{
+									"key": "date",
+									"value": "{{todayDate}}"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('includes people with no attendance row - that is the point', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.expect(data).to.have.property('rows');",
+									"\tconsole.log(data.rows.length, 'employees in scope');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "24. team exceptions (the morning list)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/team/exceptions?date={{yesterdayDate}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"team",
+								"exceptions"
+							],
+							"query": [
+								{
+									"key": "date",
+									"value": "{{yesterdayDate}}"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('absent, late, missing-punch and half days only', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tconsole.log(data.rows.length, 'exception(s) on', data.attendanceDate);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "25. an employee's calendar",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/employees/{{selfEmployeeDetailId}}/calendar?from={{attendanceFromDate}}&to={{todayDate}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"employees",
+								"{{selfEmployeeDetailId}}",
+								"calendar"
+							],
+							"query": [
+								{
+									"key": "from",
+									"value": "{{attendanceFromDate}}"
+								},
+								{
+									"key": "to",
+									"value": "{{todayDate}}"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "26. an employee's day",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/employees/{{selfEmployeeDetailId}}/day/{{todayDate}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"employees",
+								"{{selfEmployeeDetailId}}",
+								"day",
+								"{{todayDate}}"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "27. holiday types",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/holidays/types",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"holidays",
+								"types"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('NORMAL and RESTRICTED, seeded by migration 017', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.expect(data.length).to.eql(2);",
+									"\tconst restricted = data.find(t => t.typeCode === 'RESTRICTED');",
+									"\tpm.expect(restricted.requiresOptIn).to.be.true;",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "28. list holidays",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/holidays?year={{thisYear}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"holidays"
+							],
+							"query": [
+								{
+									"key": "year",
+									"value": "{{thisYear}}"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('each holiday carries the locations that observe it', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tif (data.length) pm.expect(data[0]).to.have.property('locationIds');",
+									"\tconsole.log(data.length, 'holiday(s) in {{thisYear}}');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "29. create holiday (normal)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/holidays",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"holidays"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"holidayName\": \"{{holidayName}}\",\n  \"holidayDate\": \"{{holidayDate}}\",\n  \"holidayTypeId\": 1,\n  \"description\": \"Created by the Postman run\",\n  \"locationIds\": [\n    \"{{locationId}}\"\n  ]\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 201', function () {",
+									"\tpm.response.to.have.status(201);",
+									"});",
+									"pm.test('HolidayYear is derived from the date', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.expect(String(data.holidayYear)).to.eql(data.holidayDate.slice(0, 4));",
+									"\tpm.collectionVariables.set('holidayId', data.holidayId);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "30. holiday with no location (refused)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/holidays",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"holidays"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"holidayName\": \"{{holidayName}} nowhere\",\n  \"holidayDate\": \"{{holidayDate}}\",\n  \"holidayTypeId\": 1,\n  \"locationIds\": []\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 400', function () {",
+									"\tpm.response.to.have.status(400);",
+									"});",
+									"pm.test('refused with HOLIDAY_NEEDS_LOCATION', function () {",
+									"\tpm.expect(pm.response.json().details.code).to.eql('HOLIDAY_NEEDS_LOCATION');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "31. holiday detail",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/holidays/{{holidayId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"holidays",
+								"{{holidayId}}"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "32. update holiday",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/holidays/{{holidayId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"holidays",
+								"{{holidayId}}"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"description\": \"Updated by the Postman run\",\n  \"locationIds\": [\n    \"{{locationId}}\"\n  ]\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "33. create restricted holiday",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/holidays",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"holidays"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"holidayName\": \"{{restrictedHolidayName}}\",\n  \"holidayDate\": \"{{restrictedHolidayDate}}\",\n  \"holidayTypeId\": 2,\n  \"locationIds\": [\n    \"{{locationId}}\"\n  ]\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 201', function () {",
+									"\tpm.response.to.have.status(201);",
+									"});",
+									"pm.test('captures holidayId', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.expect(data).to.not.be.undefined;",
+									"\tpm.collectionVariables.set('restrictedHolidayId', data.holidayId);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "34. list restricted-holiday mappings",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/holidays/restricted-mappings",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"holidays",
+								"restricted-mappings"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('the seeded everybody-everywhere mapping, quota 1', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tconst all = data.find(m => m.locationId === null && m.employmentType === null);",
+									"\tif (all) {",
+									"\t\tpm.expect(all.pickQuota).to.eql(1);",
+									"\t\tpm.collectionVariables.set('leaveCycleId', all.leaveCycleId);",
+									"\t}",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "35. create restricted-holiday mapping",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/holidays/restricted-mappings",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"holidays",
+								"restricted-mappings"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"leaveCycleId\": \"{{leaveCycleId}}\",\n  \"employmentType\": \"Contract\",\n  \"pickQuota\": 1\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 201', function () {",
+									"\tpm.response.to.have.status(201);",
+									"});",
+									"pm.test('captures restrictedHolidayMappingId', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.expect(data).to.not.be.undefined;",
+									"\tpm.collectionVariables.set('restrictedHolidayMappingId', data.restrictedHolidayMappingId);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "36. update restricted-holiday mapping",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/holidays/restricted-mappings/{{restrictedHolidayMappingId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"holidays",
+								"restricted-mappings",
+								"{{restrictedHolidayMappingId}}"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"pickQuota\": 2\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "37. my restricted-holiday options",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/holidays/restricted/options",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"holidays",
+								"restricted",
+								"options"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('quota, what is used, and the list to pick from', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tconsole.log('quota', data.pickQuota, '| used', data.used, '| remaining', data.remaining, '|', data.options.length, 'option(s)');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "38. pick a restricted holiday",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/holidays/restricted/opt-in",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"holidays",
+								"restricted",
+								"opt-in"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"holidayId\": \"{{restrictedHolidayId}}\",\n  \"reason\": \"Picked by the Postman run\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('created, or already there from an earlier run', function () {",
+									"\tpm.expect([201, 409]).to.include(pm.response.code);",
+									"});",
+									"if (pm.response.code === 201) {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.collectionVariables.set('restrictedHolidayOptInId', data.restrictedHolidayOptInId);",
+									"} else {",
+									"\tconsole.log('A restricted holiday pick already exists - the id is taken from the list request above.');",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "39. my restricted holiday",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/holidays/restricted/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"holidays",
+								"restricted",
+								"me"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('captures the live pick, however it was made', function () {",
+									"\tconst body = pm.response.json();",
+									"\tif (body.data) pm.collectionVariables.set('restrictedHolidayOptInId', body.data.restrictedHolidayOptInId);",
+									"\tconsole.log('remaining picks this calendar year:', body.meta ? body.meta.remaining : 'n/a');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "40. pick a second one (refused)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/holidays/restricted/opt-in",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"holidays",
+								"restricted",
+								"opt-in"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"holidayId\": \"{{holidayId}}\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('refused - one per calendar year', function () {",
+									"\tpm.expect([400, 403, 409]).to.include(pm.response.code);",
+									"\tconsole.log('refused with:', pm.response.json().details.code);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "41. pending restricted-holiday picks",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/holidays/restricted/pending",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"holidays",
+								"restricted",
+								"pending"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "42. approve a restricted-holiday pick",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/holidays/restricted/{{restrictedHolidayOptInId}}/decide",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"holidays",
+								"restricted",
+								"{{restrictedHolidayOptInId}}",
+								"decide"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"approve\": true,\n  \"remarks\": \"Approved by the Postman run\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('decided, or already decided by an earlier run', function () {",
+									"\tpm.expect([200, 404]).to.include(pm.response.code);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "43. list attendance exemptions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/exemptions",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"exemptions"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "44. grant an exemption",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/exemptions",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"exemptions"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"employeeDetailId\": \"{{selfEmployeeDetailId}}\",\n  \"effectiveFrom\": \"{{farFutureDate}}\",\n  \"effectiveTo\": \"{{farFutureEndDate}}\",\n  \"reason\": \"Granted by the Postman run - a reason is mandatory\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 201', function () {",
+									"\tpm.response.to.have.status(201);",
+									"});",
+									"pm.test('captures attendanceExemptionId', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.expect(data).to.not.be.undefined;",
+									"\tpm.collectionVariables.set('attendanceExemptionId', data.attendanceExemptionId);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "45. exemption without a reason (refused)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/exemptions",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"exemptions"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"employeeDetailId\": \"{{selfEmployeeDetailId}}\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 400', function () {",
+									"\tpm.response.to.have.status(400);",
+									"});",
+									"pm.test('reason is required', function () {",
+									"\tpm.expect(pm.response.json().details).to.have.property('reason');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "46. update exemption",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/exemptions/{{attendanceExemptionId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"exemptions",
+								"{{attendanceExemptionId}}"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"reason\": \"Updated by the Postman run\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "47. list alert settings",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/alert-settings",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"alert-settings"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('the seeded missed-check-in rule: 9 min, every 10, for 2 hours', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tconst rule = data.find(s => s.alertType === 'MISSED_CHECK_IN');",
+									"\tif (rule) {",
+									"\t\tpm.expect(rule.delayMinutes).to.eql(9);",
+									"\t\tpm.expect(rule.intervalMinutes).to.eql(10);",
+									"\t\tpm.expect(rule.windowMinutes).to.eql(120);",
+									"\t}",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "48. create alert setting (check-out)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/alert-settings",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"alert-settings"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"alertType\": \"MISSED_CHECK_OUT\",\n  \"delayMinutes\": 30,\n  \"intervalMinutes\": 15,\n  \"windowMinutes\": 90,\n  \"skipWhenOnLeave\": true,\n  \"skipOnHoliday\": true,\n  \"skipWhenExempt\": true,\n  \"notifyManagerAfter\": 4\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('created, or already there from an earlier run', function () {",
+									"\tpm.expect([201, 409]).to.include(pm.response.code);",
+									"});",
+									"if (pm.response.code === 201) {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.collectionVariables.set('attendanceAlertSettingId', data.attendanceAlertSettingId);",
+									"} else {",
+									"\tconsole.log('A missed-check-out alert setting already exists - the id is taken from the list request above.');",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "49. update alert setting",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/alert-settings/{{attendanceAlertSettingId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"alert-settings",
+								"{{attendanceAlertSettingId}}"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"intervalMinutes\": 20\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('updated, or nothing was created to update', function () {",
+									"\tpm.expect([200, 404]).to.include(pm.response.code);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "50. regularization types (master data)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/organizations/regularization-types",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"organizations",
+								"regularization-types"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('the four seeded reasons', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.expect(data.length).to.be.at.least(1);",
+									"\tpm.collectionVariables.set('regularizationTypeId', data[0].regularizationTypeId);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "51. raise a regularization",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/regularizations",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"regularizations"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"attendanceDate\": \"{{yesterdayDate}}\",\n  \"regularizationTypeId\": \"{{regularizationTypeId}}\",\n  \"requestedCheckInAt\": \"{{yesterdayDate}}T09:05:00.000Z\",\n  \"requestedCheckOutAt\": \"{{yesterdayDate}}T18:10:00.000Z\",\n  \"reason\": \"Worked from the client site and forgot to punch.\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('created, or already there from an earlier run', function () {",
+									"\tpm.expect([201, 409]).to.include(pm.response.code);",
+									"});",
+									"if (pm.response.code === 201) {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.collectionVariables.set('regularizationRequestId', data.regularizationRequestId);",
+									"} else {",
+									"\tconsole.log('A regularization for that day already exists - the id is taken from the list request above.');",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "52. my regularizations",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/regularizations/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"regularizations",
+								"me"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('captures a pending one to act on', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tconst pending = data.find(r => r.status === 'PENDING');",
+									"\tif (pending) pm.collectionVariables.set('regularizationRequestId', pending.regularizationRequestId);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "53. regularization detail",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/regularizations/{{regularizationRequestId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"regularizations",
+								"{{regularizationRequestId}}"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "54. pending regularizations (approver queue)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/regularizations/pending",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"regularizations",
+								"pending"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "55. approve a regularization",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/regularizations/{{regularizationRequestId}}/approve",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"regularizations",
+								"{{regularizationRequestId}}",
+								"approve"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"remarks\": \"Approved by the Postman run\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('approved, or refused because it is your own regularization', function () {",
+									"\tpm.expect([200, 403]).to.include(pm.response.code);",
+									"});",
+									"if (pm.response.code === 403) {",
+									"\tconst details = pm.response.json().details || {};",
+									"\tconsole.log('Refused:', details.code, '- run this with a manager\\'s token against a report\\'s regularization.');",
+									"} else {",
+									"\tconsole.log('regularization approved.');",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "56. reject a regularization (the other branch)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/regularizations/{{regularizationRequestId}}/reject",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"regularizations",
+								"{{regularizationRequestId}}",
+								"reject"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"remarks\": \"Rejected by the Postman run\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('rejected, refused as self-approval, or already decided above', function () {",
+									"\tpm.expect([200, 403, 409]).to.include(pm.response.code);",
+									"});",
+									"if (pm.response.code === 409) {",
+									"\tconsole.log('Already decided by the approve request above - this call is here for the shape of it.');",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "57. cancel the regularization (cleanup)",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/regularizations/{{regularizationRequestId}}/cancel",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"regularizations",
+								"{{regularizationRequestId}}",
+								"cancel"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('cancelled, or already decided', function () {",
+									"\tpm.expect([200, 404, 409]).to.include(pm.response.code);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "58. cancel the restricted-holiday pick (cleanup)",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/holidays/restricted/{{restrictedHolidayOptInId}}/cancel",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"holidays",
+								"restricted",
+								"{{restrictedHolidayOptInId}}",
+								"cancel"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('cancelled, or nothing live to cancel', function () {",
+									"\tpm.expect([200, 404]).to.include(pm.response.code);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "59. delete alert setting (cleanup)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/alert-settings/{{attendanceAlertSettingId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"alert-settings",
+								"{{attendanceAlertSettingId}}"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('deleted, or already gone', function () {",
+									"\tpm.expect([200, 404]).to.include(pm.response.code);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "60. delete exemption (cleanup)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/exemptions/{{attendanceExemptionId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"exemptions",
+								"{{attendanceExemptionId}}"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "61. delete restricted-holiday mapping (cleanup)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/holidays/restricted-mappings/{{restrictedHolidayMappingId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"holidays",
+								"restricted-mappings",
+								"{{restrictedHolidayMappingId}}"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "62. delete the restricted holiday (cleanup)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/holidays/{{restrictedHolidayId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"holidays",
+								"{{restrictedHolidayId}}"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "63. delete the holiday (cleanup)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/holidays/{{holidayId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"holidays",
+								"{{holidayId}}"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "64. remove shift assignment (cleanup)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/shift-assignments/{{employeeShiftId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"shift-assignments",
+								"{{employeeShiftId}}"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "65. delete shift (cleanup)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/attendance/shifts/{{shiftId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"attendance",
+								"shifts",
+								"{{shiftId}}"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('the assignment had to go first - a shift in use is refused', function () {",
+									"\tpm.expect(pm.response.json().success).to.be.true;",
+									"});"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Leave",
+			"description": "Balances, the apply flow, approvals, policy and mapping admin, comp-off, probation confirmation and the payroll LWP report.\n\nRun IN ORDER after Auth. Request 2 captures the current financial and calendar cycle ids, request 4 captures a leave type you are actually mapped to, and the cleanup requests at the end cancel the leave request and delete the policy rows this folder made - so it can be run again.\n\nTWO CYCLES RUN AT ONCE. CL/SL and EL sit on the financial year, the floating holiday on the calendar year, so {{leaveCycleId}} and {{calendarCycleId}} are different rows and a balance means nothing without knowing which.\n\nTHE BALANCE IS A LEDGER. Applying writes a HOLD, approving reverses it and writes a DEBIT - watch it in ‘my balance’ before and after, and read the movements in ‘my ledger’.\n\nCOMP-OFF IS TWO ACTS. The manager approving credits nothing; the day only arrives when HR calls credit. The ‘awaiting credit’ queue is what makes the gap visible.",
+			"item": [
+				{
+					"name": "1. who am i",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/access/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"access",
+								"me"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('captures my own employee id', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.collectionVariables.set('selfEmployeeDetailId', data.employeeDetailId);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "2. leave cycles",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/cycles",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"cycles"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('both cycle types run at once - financial and calendar', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tconst fin = data.filter(c => c.cycleType === 'FINANCIAL');",
+									"\tconst cal = data.filter(c => c.cycleType === 'CALENDAR');",
+									"\tconsole.log(fin.length, 'financial cycle(s),', cal.length, 'calendar cycle(s)');",
+									"\tconst today = pm.collectionVariables.get('todayDate');",
+									"\tconst current = fin.find(c => c.startDate <= today && c.endDate >= today);",
+									"\tif (current) pm.collectionVariables.set('leaveCycleId', current.leaveCycleId);",
+									"\tconst currentCal = cal.find(c => c.startDate <= today && c.endDate >= today);",
+									"\tif (currentCal) pm.collectionVariables.set('calendarCycleId', currentCal.leaveCycleId);",
+									"\t// The cycle the next request creates, if an earlier run already made",
+									"\t// it - otherwise the cleanup at the end would close an empty id.",
+									"\tconst future = data.find(c => c.cycleLabel === 'FY 2039-40');",
+									"\tif (future) pm.collectionVariables.set('futureLeaveCycleId', future.leaveCycleId);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "3. create leave cycle",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/cycles",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"cycles"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"cycleType\": \"FINANCIAL\",\n  \"cycleLabel\": \"FY 2039-40\",\n  \"startDate\": \"2039-04-01\",\n  \"endDate\": \"2040-03-31\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('created, or already there from an earlier run', function () {",
+									"\tpm.expect([201, 409]).to.include(pm.response.code);",
+									"});",
+									"if (pm.response.code === 201) {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.collectionVariables.set('futureLeaveCycleId', data.leaveCycleId);",
+									"} else {",
+									"\tconsole.log('That leave cycle already exists - the id is taken from the list request above.');",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "4. update leave cycle",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/cycles/{{futureLeaveCycleId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"cycles",
+								"{{futureLeaveCycleId}}"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"cycleLabel\": \"FY 2039-40\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('updated, or nothing was created to update', function () {",
+									"\tpm.expect([200, 404]).to.include(pm.response.code);",
+									"});",
+									"pm.test('a closed cycle would be refused - this one is still open', function () {",
+									"\tif (pm.response.code === 200) pm.expect(pm.response.json().data.isClosed).to.be.false;",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "5. what i can apply for",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/me/types",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"me",
+								"types"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('every mapped category, with its rules and why it is unavailable', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.expect(data.length).to.be.above(0);",
+									"\tconst paid = data.find(t => t.policy && t.policy.tracksBalance && t.isAvailable);",
+									"\tif (paid) pm.collectionVariables.set('leaveTypeId', paid.leaveTypeId);",
+									"\tconst lwp = data.find(t => t.policy && !t.policy.isPaid);",
+									"\tif (lwp) pm.collectionVariables.set('lwpLeaveTypeId', lwp.leaveTypeId);",
+									"\tdata.forEach(t => console.log(t.leaveTypeName + ':', t.isAvailable ? 'available' : 'unavailable - ' + t.unavailableReason));",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "6. my dashboard",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/me/dashboard",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"me",
+								"dashboard"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('a tile per category, each naming the cycle it belongs to', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tconsole.log('status:', data.confirmationStatus);",
+									"\tdata.tiles.forEach(t => console.log('  ' + t.leaveTypeName + ' [' + t.cycleType + ']:', t.tracksBalance ? (t.balance ? t.balance.availableDays + ' available' : 'no cycle') : 'consumption only'));",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "7. list sandwich rules",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/sandwich-rules",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"sandwich-rules"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('all three modes are seeded', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tconst modes = new Set(data.map(r => r.mode));",
+									"\tconsole.log('modes on file:', [...modes].join(', '));",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "8. create sandwich rule",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/sandwich-rules",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"sandwich-rules"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"ruleName\": \"{{sandwichRuleName}}\",\n  \"mode\": \"COUNT_WHEN_BOTH_FLANKS\",\n  \"includeHolidays\": false,\n  \"description\": \"Created by the Postman run\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 201', function () {",
+									"\tpm.response.to.have.status(201);",
+									"});",
+									"pm.test('captures sandwichRuleId', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.expect(data).to.not.be.undefined;",
+									"\tpm.collectionVariables.set('sandwichRuleId', data.sandwichRuleId);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "9. update sandwich rule",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/sandwich-rules/{{sandwichRuleId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"sandwich-rules",
+								"{{sandwichRuleId}}"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"description\": \"Updated by the Postman run\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "10. list leave policies",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/policies?onDate={{todayDate}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"policies"
+							],
+							"query": [
+								{
+									"key": "onDate",
+									"value": "{{todayDate}}"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('the seeded policies, and LWP tracks no balance', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tconst lwp = data.find(p => p.isPaid === false);",
+									"\tif (lwp) pm.expect(lwp.tracksBalance, 'LWP must track no balance').to.be.false;",
+									"\tif (data.length) pm.collectionVariables.set('leavePolicyId', data[0].leavePolicyId);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "11. create leave policy",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/policies",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"policies"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"leaveTypeId\": \"{{leaveTypeId}}\",\n  \"employmentType\": \"Contract\",\n  \"cycleType\": \"FINANCIAL\",\n  \"availableDuringProbation\": true,\n  \"visibleDuringProbation\": true,\n  \"isPaid\": true,\n  \"tracksBalance\": true,\n  \"accrualFrequency\": \"MONTHLY\",\n  \"accrualDays\": 1,\n  \"accrualAnchor\": \"MONTH_START\",\n  \"annualQuota\": 12,\n  \"allowHalfDay\": true,\n  \"minNoticeDays\": 0,\n  \"requiresSecondApproval\": false,\n  \"effectiveFrom\": \"{{todayDate}}\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('created, or already there from an earlier run', function () {",
+									"\tpm.expect([201, 409]).to.include(pm.response.code);",
+									"});",
+									"if (pm.response.code === 201) {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.collectionVariables.set('leavePolicyId', data.leavePolicyId);",
+									"} else {",
+									"\tconsole.log('That leave policy already exists - the id is taken from the list request above.');",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "12. leave policy detail",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/policies/{{leavePolicyId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"policies",
+								"{{leavePolicyId}}"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "13. update leave policy",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/policies/{{leavePolicyId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"policies",
+								"{{leavePolicyId}}"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"minNoticeDays\": 1\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "14. list leave mappings",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/mappings",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"mappings"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "15. create leave mapping",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/mappings",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"mappings"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"leaveTypeId\": \"{{leaveTypeId}}\",\n  \"gender\": \"Female\",\n  \"minTenureMonths\": 12,\n  \"availableDuringProbation\": false\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('created, or already there from an earlier run', function () {",
+									"\tpm.expect([201, 409]).to.include(pm.response.code);",
+									"});",
+									"if (pm.response.code === 201) {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.collectionVariables.set('leaveMappingId', data.leaveMappingId);",
+									"} else {",
+									"\tconsole.log('That leave mapping already exists - the id is taken from the list request above.');",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "16. update leave mapping",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/mappings/{{leaveMappingId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"mappings",
+								"{{leaveMappingId}}"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"minTenureMonths\": 6\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "17. list policy overrides",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/overrides?employeeDetailId={{selfEmployeeDetailId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"overrides"
+							],
+							"query": [
+								{
+									"key": "employeeDetailId",
+									"value": "{{selfEmployeeDetailId}}"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "18. create policy override",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/overrides",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"overrides"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"employeeDetailId\": \"{{selfEmployeeDetailId}}\",\n  \"leavePolicyId\": \"{{leavePolicyId}}\",\n  \"overrideAnnualQuota\": 15,\n  \"effectiveFrom\": \"{{todayDate}}\",\n  \"reason\": \"Retention agreement - a reason is mandatory on an override\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('created, or already there from an earlier run', function () {",
+									"\tpm.expect([201, 409]).to.include(pm.response.code);",
+									"});",
+									"if (pm.response.code === 201) {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.collectionVariables.set('employeeLeavePolicyId', data.employeeLeavePolicyId);",
+									"} else {",
+									"\tconsole.log('That override already exists - the id is taken from the list request above.');",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "19. override without a reason (refused)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/overrides",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"overrides"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"employeeDetailId\": \"{{selfEmployeeDetailId}}\",\n  \"leavePolicyId\": \"{{leavePolicyId}}\",\n  \"overrideAnnualQuota\": 20\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 400', function () {",
+									"\tpm.response.to.have.status(400);",
+									"});",
+									"pm.test('reason is required', function () {",
+									"\tpm.expect(pm.response.json().details).to.have.property('reason');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "20. update policy override",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/overrides/{{employeeLeavePolicyId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"overrides",
+								"{{employeeLeavePolicyId}}"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"overrideAnnualQuota\": 14,\n  \"reason\": \"Revised by the Postman run\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('updated, or nothing was created to update', function () {",
+									"\tpm.expect([200, 404]).to.include(pm.response.code);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "21. grant leave (add leaves)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/balances/grant",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"balances",
+								"grant"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"leaveTypeId\": \"{{leaveTypeId}}\",\n  \"leaveCycleId\": \"{{leaveCycleId}}\",\n  \"days\": 5,\n  \"effectiveDate\": \"{{todayDate}}\",\n  \"remarks\": \"Opening balance for the Postman run\",\n  \"employeeDetailIds\": [\n    \"{{selfEmployeeDetailId}}\"\n  ]\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 201', function () {",
+									"\tpm.response.to.have.status(201);",
+									"});",
+									"pm.test('granted to one employee', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.expect(data.granted.length).to.eql(1);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "22. my balance",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/me/balance?leaveTypeId={{leaveTypeId}}&leaveCycleId={{leaveCycleId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"me",
+								"balance"
+							],
+							"query": [
+								{
+									"key": "leaveTypeId",
+									"value": "{{leaveTypeId}}"
+								},
+								{
+									"key": "leaveCycleId",
+									"value": "{{leaveCycleId}}"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('balance, held and available are all reported', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tconsole.log('balance', data.balanceDays, '| held', data.heldDays, '| available', data.availableDays, '| LWP', data.lwpDaysConsumed);",
+									"\tpm.collectionVariables.set('balanceBefore', data.availableDays);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "23. preview the charge",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/me/preview",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"me",
+								"preview"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"leaveTypeId\": \"{{leaveTypeId}}\",\n  \"fromDate\": \"{{leaveFromDate}}\",\n  \"toDate\": \"{{leaveToDate}}\",\n  \"dayPart\": \"FULL\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('says how many days, how many sandwich, how many unpaid', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tconsole.log('total', data.totalDays, '| sandwich', data.sandwichDays, '| paid', data.paidDays, '| LWP', data.lwpDays, '| rule:', data.sandwichMode);",
+									"\tpm.collectionVariables.set('previewTotalDays', data.totalDays);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "24. apply for leave",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/requests",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"requests"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"leaveTypeId\": \"{{leaveTypeId}}\",\n  \"fromDate\": \"{{leaveFromDate}}\",\n  \"toDate\": \"{{leaveToDate}}\",\n  \"dayPart\": \"FULL\",\n  \"reason\": \"Applied by the Postman run\",\n  \"contactDuringLeave\": \"+91 90000 00000\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('submitted, or those dates are already applied for', function () {",
+									"\tpm.expect([201, 409]).to.include(pm.response.code);",
+									"});",
+									"if (pm.response.code === 201) {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.collectionVariables.set('leaveRequestId', data.leaveRequestId);",
+									"\tpm.test('charged what the preview said', function () {",
+									"\t\tpm.expect(Number(data.totalDays)).to.eql(Number(pm.collectionVariables.get('previewTotalDays')));",
+									"\t});",
+									"} else {",
+									"\tconsole.log('Overlapping request from an earlier run - the cleanup step at the end cancels it.');",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "25. apply for the same dates again (refused)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/requests",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"requests"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"leaveTypeId\": \"{{leaveTypeId}}\",\n  \"fromDate\": \"{{leaveFromDate}}\",\n  \"toDate\": \"{{leaveToDate}}\",\n  \"reason\": \"Should collide with the request above\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 409', function () {",
+									"\tpm.response.to.have.status(409);",
+									"});",
+									"pm.test('refused with LEAVE_REQUEST_OVERLAP', function () {",
+									"\tpm.expect(pm.response.json().details.code).to.eql('LEAVE_REQUEST_OVERLAP');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "26. balance now holds the days",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/me/balance?leaveTypeId={{leaveTypeId}}&leaveCycleId={{leaveCycleId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"me",
+								"balance"
+							],
+							"query": [
+								{
+									"key": "leaveTypeId",
+									"value": "{{leaveTypeId}}"
+								},
+								{
+									"key": "leaveCycleId",
+									"value": "{{leaveCycleId}}"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('a hold reserves days without spending them', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.expect(Number(data.heldDays)).to.be.above(0);",
+									"\tconsole.log('held', data.heldDays, '- balance is still', data.balanceDays, 'but available is', data.availableDays);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "27. my requests",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/me/requests",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"me",
+								"requests"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('captures a live request to act on', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tconst live = data.find(r => r.status === 'PENDING_MANAGER' || r.status === 'PENDING_HR');",
+									"\tif (live) pm.collectionVariables.set('leaveRequestId', live.leaveRequestId);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "28. leave request detail",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/requests/{{leaveRequestId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"requests",
+								"{{leaveRequestId}}"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('one row per date, plus the approval trail', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.expect(data).to.have.property('days');",
+									"\tpm.expect(data).to.have.property('approvals');",
+									"\tconsole.log(data.days.length, 'day row(s),', data.approvals.length, 'trail entr(ies)');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "29. pending approvals (approver queue)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/requests/pending",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"requests",
+								"pending"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "30. approve leave",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/requests/{{leaveRequestId}}/approve",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"requests",
+								"{{leaveRequestId}}",
+								"approve"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"remarks\": \"Approved by the Postman run\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('approved, or refused because it is your own leave request', function () {",
+									"\tpm.expect([200, 403]).to.include(pm.response.code);",
+									"});",
+									"if (pm.response.code === 403) {",
+									"\tconst details = pm.response.json().details || {};",
+									"\tconsole.log('Refused:', details.code, '- run this with a manager\\'s token against a report\\'s leave request.');",
+									"} else {",
+									"\tconsole.log('leave request approved.');",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "31. reject leave (the other branch)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/requests/{{leaveRequestId}}/reject",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"requests",
+								"{{leaveRequestId}}",
+								"reject"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"remarks\": \"Rejected by the Postman run\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('rejected, refused as self-approval, or already decided above', function () {",
+									"\tpm.expect([200, 403, 409]).to.include(pm.response.code);",
+									"});",
+									"if (pm.response.code === 409) {",
+									"\tconsole.log('Already decided by the approve request above - this call is here for the shape of it.');",
+									"} else if (pm.response.code === 200) {",
+									"\tconsole.log('Rejected - the hold is released and nothing is charged.');",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "32. team calendar (who is off)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/team/calendar?from={{todayDate}}&to={{attendanceToDate}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"team",
+								"calendar"
+							],
+							"query": [
+								{
+									"key": "from",
+									"value": "{{todayDate}}"
+								},
+								{
+									"key": "to",
+									"value": "{{attendanceToDate}}"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "33. an employee's leave",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/team/requests?employeeDetailId={{selfEmployeeDetailId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"team",
+								"requests"
+							],
+							"query": [
+								{
+									"key": "employeeDetailId",
+									"value": "{{selfEmployeeDetailId}}"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "34. my ledger",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/me/ledger?leaveCycleId={{leaveCycleId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"me",
+								"ledger"
+							],
+							"query": [
+								{
+									"key": "leaveCycleId",
+									"value": "{{leaveCycleId}}"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('every movement, which is where the balance comes from', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tdata.slice(0, 8).forEach(e => console.log('  ' + e.effectiveDate, e.entryType, e.days, e.isHold ? '(held)' : '', e.remarks || ''));",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "35. balance grid (manage balances)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/balances?leaveCycleId={{leaveCycleId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"balances"
+							],
+							"query": [
+								{
+									"key": "leaveCycleId",
+									"value": "{{leaveCycleId}}"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "36. an employee's balances",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/balances/{{selfEmployeeDetailId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"balances",
+								"{{selfEmployeeDetailId}}"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "37. an employee's ledger",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/balances/{{selfEmployeeDetailId}}/ledger?leaveCycleId={{leaveCycleId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"balances",
+								"{{selfEmployeeDetailId}}",
+								"ledger"
+							],
+							"query": [
+								{
+									"key": "leaveCycleId",
+									"value": "{{leaveCycleId}}"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "38. adjust a balance",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/balances/{{selfEmployeeDetailId}}/adjust",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"balances",
+								"{{selfEmployeeDetailId}}",
+								"adjust"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"leaveTypeId\": \"{{leaveTypeId}}\",\n  \"leaveCycleId\": \"{{leaveCycleId}}\",\n  \"days\": 1,\n  \"effectiveDate\": \"{{todayDate}}\",\n  \"remarks\": \"Correction recorded by the Postman run\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('the adjustment is reflected immediately', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tconsole.log('balance after adjustment:', data.balanceDays);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "39. adjust without a reason (refused)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/balances/{{selfEmployeeDetailId}}/adjust",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"balances",
+								"{{selfEmployeeDetailId}}",
+								"adjust"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"leaveTypeId\": \"{{leaveTypeId}}\",\n  \"leaveCycleId\": \"{{leaveCycleId}}\",\n  \"days\": 1\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 400', function () {",
+									"\tpm.response.to.have.status(400);",
+									"});",
+									"pm.test('an adjustment must say why', function () {",
+									"\tconst body = pm.response.json();",
+									"\tconsole.log(body.message);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "40. adjust below zero (refused)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/balances/{{selfEmployeeDetailId}}/adjust",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"balances",
+								"{{selfEmployeeDetailId}}",
+								"adjust"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"leaveTypeId\": \"{{leaveTypeId}}\",\n  \"leaveCycleId\": \"{{leaveCycleId}}\",\n  \"days\": -999,\n  \"remarks\": \"Should be refused - days already taken cannot be un-taken\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 400', function () {",
+									"\tpm.response.to.have.status(400);",
+									"});",
+									"pm.test('refused with LEAVE_ADJUSTMENT_WOULD_GO_NEGATIVE', function () {",
+									"\tpm.expect(pm.response.json().details.code).to.eql('LEAVE_ADJUSTMENT_WOULD_GO_NEGATIVE');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "41. claim a comp-off",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/comp-off",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"comp-off"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"workedOnDate\": \"{{compOffWorkedOn}}\",\n  \"reason\": \"Production release over the weekend\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('claimed, or already claimed for that day', function () {",
+									"\tpm.expect([201, 400, 409]).to.include(pm.response.code);",
+									"});",
+									"if (pm.response.code === 201) {",
+									"\tconst data = pm.response.json().data;",
+									"\tpm.collectionVariables.set('compOffRequestId', data.compOffRequestId);",
+									"} else {",
+									"\tconsole.log('Not claimed:', pm.response.json().details.code, '- {{compOffWorkedOn}} must be a past non-working day for you.');",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "42. claim one for a working day (refused)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/comp-off",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"comp-off"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"workedOnDate\": \"{{pastWorkingDay}}\",\n  \"reason\": \"An ordinary working day\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('refused - working that day is the job', function () {",
+									"\tpm.expect([400, 409]).to.include(pm.response.code);",
+									"\tconsole.log('refused with:', pm.response.json().details.code);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "43. my comp-off requests",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/comp-off/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"comp-off",
+								"me"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('captures one awaiting a decision', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tconst live = data.find(r => r.status === 'PENDING_MANAGER') || data.find(r => r.status === 'APPROVED_AWAITING_CREDIT');",
+									"\tif (live) pm.collectionVariables.set('compOffRequestId', live.compOffRequestId);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "44. pending comp-off (manager queue)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/comp-off/pending",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"comp-off",
+								"pending"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "45. approve a comp-off",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/comp-off/{{compOffRequestId}}/approve",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"comp-off",
+								"{{compOffRequestId}}",
+								"approve"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"remarks\": \"Work confirmed\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('approved, or refused because it is your own comp-off', function () {",
+									"\tpm.expect([200, 403]).to.include(pm.response.code);",
+									"});",
+									"if (pm.response.code === 403) {",
+									"\tconst details = pm.response.json().details || {};",
+									"\tconsole.log('Refused:', details.code, '- run this with a manager\\'s token against a report\\'s comp-off.');",
+									"} else {",
+									"\tconsole.log('comp-off approved.');",
+									"}",
+									"pm.test('approval alone credits nothing - that is the HR rule', function () {",
+									"\tif (pm.response.code === 200) {",
+									"\t\tpm.expect(pm.response.json().data.status).to.eql('APPROVED_AWAITING_CREDIT');",
+									"\t}",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "46. reject a comp-off (the other branch)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/comp-off/{{compOffRequestId}}/reject",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"comp-off",
+								"{{compOffRequestId}}",
+								"reject"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"remarks\": \"Rejected by the Postman run\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('rejected, or already approved above', function () {",
+									"\tpm.expect([200, 403, 404, 409]).to.include(pm.response.code);",
+									"});",
+									"if (pm.response.code === 409) {",
+									"\tconsole.log('Already approved by the request above - this call is here for the shape of it.');",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "47. awaiting credit (HR queue)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/comp-off/awaiting-credit",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"comp-off",
+								"awaiting-credit"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('the queue that would be invisible without its own state', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tconsole.log(data.length, 'comp-off(s) approved but not yet credited');",
+									"\tif (data.length) pm.collectionVariables.set('compOffRequestId', data[0].compOffRequestId);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "48. credit the comp-off (HR)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/comp-off/{{compOffRequestId}}/credit",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"comp-off",
+								"{{compOffRequestId}}",
+								"credit"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"days\": 1,\n  \"remarks\": \"Credited by the Postman run\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('credited, or not in a state to credit', function () {",
+									"\tpm.expect([201, 404, 409]).to.include(pm.response.code);",
+									"});",
+									"if (pm.response.code === 201) {",
+									"\tconsole.log('credited', pm.response.json().data.days, 'day - this is the only call that grants one');",
+									"} else {",
+									"\tconsole.log('Not credited:', pm.response.json().details.code);",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "49. comp-off credits",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/comp-off/credits?employeeDetailId={{selfEmployeeDetailId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"comp-off",
+								"credits"
+							],
+							"query": [
+								{
+									"key": "employeeDetailId",
+									"value": "{{selfEmployeeDetailId}}"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "50. due for confirmation",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/confirmation/due?withinDays=30",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"confirmation",
+								"due"
+							],
+							"query": [
+								{
+									"key": "withinDays",
+									"value": "30"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('the work queue: who is due, and who is overdue', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tconsole.log(data.length, 'employee(s) due within 30 days');",
+									"\tif (data.length) pm.collectionVariables.set('probationEmployeeId', data[0].employeeDetailId);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "51. confirmation history",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/confirmation/{{selfEmployeeDetailId}}/history",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"confirmation",
+								"{{selfEmployeeDetailId}}",
+								"history"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "52. extend probation",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/confirmation/{{probationEmployeeId}}/extend",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"confirmation",
+								"{{probationEmployeeId}}",
+								"extend"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"newProbationEndDate\": \"{{farFutureDate}}\",\n  \"reason\": \"Extended by the Postman run\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('extended, or nobody is on probation to extend', function () {",
+									"\tpm.expect([200, 404, 409]).to.include(pm.response.code);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "53. confirm an employee",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/confirmation/{{probationEmployeeId}}/confirm",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"confirmation",
+								"{{probationEmployeeId}}",
+								"confirm"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"reason\": \"Probation completed - confirmed by the Postman run\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('confirmed, or already confirmed', function () {",
+									"\tpm.expect([200, 404, 409]).to.include(pm.response.code);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "54. LWP report (payroll)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/reports/lwp?from={{monthStartDate}}&to={{monthEndDate}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"reports",
+								"lwp"
+							],
+							"query": [
+								{
+									"key": "from",
+									"value": "{{monthStartDate}}"
+								},
+								{
+									"key": "to",
+									"value": "{{monthEndDate}}"
+								}
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status is 200', function () {",
+									"\tpm.response.to.have.status(200);",
+									"});",
+									"pm.test('employee-wise unpaid days for the period', function () {",
+									"\tconst data = pm.response.json().data;",
+									"\tconsole.log(data.length, 'employee(s) with LWP this month');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "55. cancel the leave request (cleanup)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/requests/{{leaveRequestId}}/cancel",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"requests",
+								"{{leaveRequestId}}",
+								"cancel"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"reason\": \"Postman run cleanup\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('cancelled, or it was approved - then withdraw instead', function () {",
+									"\tpm.expect([200, 404, 409]).to.include(pm.response.code);",
+									"});",
+									"if (pm.response.code === 409) {",
+									"\tconsole.log('Already approved - run \\'withdraw the leave request\\' below.');",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "56. withdraw the leave request (cleanup)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/leave/requests/{{leaveRequestId}}/withdraw",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"requests",
+								"{{leaveRequestId}}",
+								"withdraw"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"reason\": \"Postman run cleanup\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('withdrawn, or it was never approved', function () {",
+									"\tpm.expect([200, 404, 409]).to.include(pm.response.code);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "57. cancel the comp-off (cleanup)",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/comp-off/{{compOffRequestId}}/cancel",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"comp-off",
+								"{{compOffRequestId}}",
+								"cancel"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('cancelled, or already decided', function () {",
+									"\tpm.expect([200, 404, 409]).to.include(pm.response.code);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "58. delete policy override (cleanup)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/overrides/{{employeeLeavePolicyId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"overrides",
+								"{{employeeLeavePolicyId}}"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('deleted, or already gone', function () {",
+									"\tpm.expect([200, 404]).to.include(pm.response.code);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "59. delete leave mapping (cleanup)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/mappings/{{leaveMappingId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"mappings",
+								"{{leaveMappingId}}"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('deleted, or already gone', function () {",
+									"\tpm.expect([200, 404]).to.include(pm.response.code);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "60. delete leave policy (cleanup)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/policies/{{leavePolicyId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"policies",
+								"{{leavePolicyId}}"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('deleted, or already gone', function () {",
+									"\tpm.expect([200, 404]).to.include(pm.response.code);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "61. delete sandwich rule (cleanup)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/sandwich-rules/{{sandwichRuleId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"sandwich-rules",
+								"{{sandwichRuleId}}"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('deleted, or still used by a policy', function () {",
+									"\tpm.expect([200, 404, 409]).to.include(pm.response.code);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "62. close the leave cycle (cleanup)",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/leave/cycles/{{futureLeaveCycleId}}/close",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"leave",
+								"cycles",
+								"{{futureLeaveCycleId}}",
+								"close"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('closed, or nothing was created to close', function () {",
+									"\tpm.expect([200, 404]).to.include(pm.response.code);",
+									"});",
+									"pm.test('closing is one-way - it stops anything further landing in the year', function () {",
+									"\tif (pm.response.code === 200) pm.expect(pm.response.json().data.isClosed).to.be.true;",
+									"});"
+								]
+							}
+						}
+					]
+				}
+			]
 		}
 	],
 	"event": [
@@ -15077,7 +20282,68 @@
 					"  // Shared by the 23 dropdown-list folders: each creates one row,",
 					"  // then deletes it again, so one name per folder is enough.",
 					"  pm.collectionVariables.set('masterDataName', 'PM Item ' + unique);",
-					"}"
+					"}",
+					"",
+					"// --- attendance and leave: dates and unique names, per run ---",
+					"// Computed every request so a run that crosses midnight stays coherent, and",
+					"// so the folders are runnable on any day rather than against baked-in dates.",
+					"(function () {",
+					"\tconst iso = (d) => d.toISOString().slice(0, 10);",
+					"\tconst now = new Date();",
+					"\tconst utc = (offsetDays) => {",
+					"\t\tconst d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));",
+					"\t\td.setUTCDate(d.getUTCDate() + offsetDays);",
+					"\t\treturn d;",
+					"\t};",
+					"",
+					"\tpm.collectionVariables.set('todayDate', iso(utc(0)));",
+					"\tpm.collectionVariables.set('yesterdayDate', iso(utc(-1)));",
+					"\tpm.collectionVariables.set('thisYear', String(now.getUTCFullYear()));",
+					"\tpm.collectionVariables.set('attendanceFromDate', iso(utc(-14)));",
+					"\tpm.collectionVariables.set('attendanceToDate', iso(utc(30)));",
+					"",
+					"\t// The most recent Saturday that has already passed - a non-working day",
+					"\t// under the seeded shifts, which is what a comp-off claim requires.",
+					"\tconst back = (utc(0).getUTCDay() + 1) % 7 || 7;",
+					"\tpm.collectionVariables.set('compOffWorkedOn', iso(utc(-back)));",
+					"",
+					"\t// A weekday in the recent past, for the claim that must be refused.",
+					"\tlet probe = -1;",
+					"\twhile ([0, 6].indexOf(utc(probe).getUTCDay()) !== -1) probe -= 1;",
+					"\tpm.collectionVariables.set('pastWorkingDay', iso(utc(probe)));",
+					"",
+					"\t// Leave dates: the next Monday, three working days.",
+					"\tlet ahead = 1;",
+					"\twhile (utc(ahead).getUTCDay() !== 1) ahead += 1;",
+					"\tpm.collectionVariables.set('leaveFromDate', iso(utc(ahead)));",
+					"\tpm.collectionVariables.set('leaveToDate', iso(utc(ahead + 2)));",
+					"",
+					"\t// Far enough out that a new shift assignment or exemption cannot overlap",
+					"\t// anything real.",
+					"\tpm.collectionVariables.set('farFutureDate', iso(utc(3650)));",
+					"\tpm.collectionVariables.set('farFutureEndDate', iso(utc(3740)));",
+					"",
+					"\tconst first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));",
+					"\tconst last = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));",
+					"\tpm.collectionVariables.set('monthStartDate', iso(first));",
+					"\tpm.collectionVariables.set('monthEndDate', iso(last));",
+					"",
+					"\t// Unique per run, so the Attendance and Leave folders can be re-run",
+					"\t// without colliding with the shift, holiday or rule they made last time.",
+					"\tif (!pm.collectionVariables.get('shiftCode') || pm.info.requestName.startsWith('1. ')) {",
+					"\t\tconst unique = Date.now().toString().slice(-6);",
+					"\t\tpm.collectionVariables.set('shiftCode', 'QA' + unique.slice(-4));",
+					"\t\tpm.collectionVariables.set('sandwichRuleName', 'QA Sandwich ' + unique);",
+					"\t\tpm.collectionVariables.set('holidayName', 'QA Holiday ' + unique);",
+					"\t\tpm.collectionVariables.set('restrictedHolidayName', 'QA Restricted ' + unique);",
+					"\t}",
+					"",
+					"\t// Both inside the current calendar year, so they land in the cycle the",
+					"\t// restricted-holiday quota is counted against.",
+					"\tconst y = now.getUTCFullYear();",
+					"\tpm.collectionVariables.set('holidayDate', y + '-12-26');",
+					"\tpm.collectionVariables.set('restrictedHolidayDate', y + '-12-24');",
+					"})();"
 				]
 			}
 		}

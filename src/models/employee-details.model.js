@@ -143,6 +143,25 @@ export const EmployeeDetails = defineModel({
 
     dateOfJoining: { column: 'DateOfJoining', type: sql.Date },
     probationEndDate: { column: 'ProbationEndDate', type: sql.Date, nullable: true },
+
+    /*
+      Added in 014 for the leave module. PROBATION or CONFIRMED, from
+      CONFIRMATION_STATUS in src/enums/leave.enum.js.
+
+      A DIFFERENT QUESTION FROM employmentStatus ABOVE, which has existed
+      since 001 and says where somebody stands with the company (Active /
+      Exited / ...). These two are independent and both are needed: an
+      exited employee was still either confirmed or not, and the final
+      settlement reads exactly that.
+
+      Stored rather than derived from probationEndDate because HR must be
+      able to confirm somebody early or extend them, neither of which a
+      computed value can express. confirmedOn is when it actually happened,
+      which is not always the date it was scheduled for.
+    */
+    confirmationStatus: { column: 'ConfirmationStatus', type: sql.NVarChar(20) },
+    probationMonths: { column: 'ProbationMonths', type: sql.TinyInt },
+    confirmedOn: { column: 'ConfirmedOn', type: sql.Date, nullable: true },
     dateOfLeaving: { column: 'DateOfLeaving', type: sql.Date, nullable: true },
     dateOfRehire: { column: 'DateOfRehire', type: sql.Date, nullable: true },
     contractorEndDate: { column: 'ContractorEndDate', type: sql.Date, nullable: true },
@@ -261,6 +280,9 @@ export const EMPLOYEE_DETAILS_PUBLIC_PROPS = Object.freeze([
   'employmentStatus',
   'dateOfJoining',
   'probationEndDate',
+  'confirmationStatus',
+  'probationMonths',
+  'confirmedOn',
   'dateOfLeaving',
   'dateOfRehire',
   'contractorEndDate',

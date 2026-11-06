@@ -1,0 +1,1799 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="rSTAR HRMS — Attendance and Leave functional blueprint v2.0 — flows, rules, ERD. Incorporates the HR leave policy document.">
+<title>Attendance &amp; Leave Blueprint</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a spec sheet — sticky section rail, one reading column, full-width flow canvases. */
+:root{
+  --bg:#eef1f4;
+  --sheet:#ffffff;
+  --sunk:#f4f6f8;
+  --ink:#141d26;
+  --ink-2:#4a5a6b;
+  --ink-3:#7e8d9c;
+  --line:#c3cdd7;
+  --line-soft:#dde4ea;
+  --att:#a8451a;
+  --att-bg:#fbeee7;
+  --lv:#0b6f68;
+  --lv-bg:#e4f2f0;
+  --sys:#3c4f9c;
+  --sys-bg:#e8ebf7;
+  --ok:#1f7a45;
+  --ok-bg:#e3f2e9;
+  --stop:#a32330;
+  --stop-bg:#fae9eb;
+  --warn:#8a6100;
+  --warn-bg:#faf0d8;
+  --f-disp:"Archivo",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"Cascadia Mono",monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0d141b; --sheet:#151e27; --sunk:#111922; --ink:#e6edf3; --ink-2:#a8b7c4; --ink-3:#7b8b99;
+  --line:#3a4854; --line-soft:#26313b;
+  --att:#f0a177; --att-bg:#33211a; --lv:#5fc9bf; --lv-bg:#12302e; --sys:#9fb0ee; --sys-bg:#1d2340;
+  --ok:#6cd298; --ok-bg:#133024; --stop:#f0919b; --stop-bg:#35191d; --warn:#e2bb5c; --warn-bg:#302713;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0d141b; --sheet:#151e27; --sunk:#111922; --ink:#e6edf3; --ink-2:#a8b7c4; --ink-3:#7b8b99;
+  --line:#3a4854; --line-soft:#26313b;
+  --att:#f0a177; --att-bg:#33211a; --lv:#5fc9bf; --lv-bg:#12302e; --sys:#9fb0ee; --sys-bg:#1d2340;
+  --ok:#6cd298; --ok-bg:#133024; --stop:#f0919b; --stop-bg:#35191d; --warn:#e2bb5c; --warn-bg:#302713;
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--sheet);z-index:40}
+.wrap{max-width:1080px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 72px}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--sys);outline-offset:2px;border-radius:3px}
+
+.mast{padding-block:46px 30px;border-bottom:3px solid var(--ink)}
+.eyebrow{font-family:var(--f-mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-3);margin:0 0 14px}
+h1{font-family:var(--f-disp);font-weight:800;font-size:clamp(34px,7vw,60px);line-height:1.02;letter-spacing:-.025em;margin:0;text-wrap:balance}
+h1 em{font-style:normal;color:var(--att)}
+h1 i{font-style:normal;color:var(--lv)}
+.dek{margin:18px 0 0;max-width:62ch;font-size:17px;color:var(--ink-2)}
+.meta{display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:22px;font-family:var(--f-mono);font-size:11.5px;color:var(--ink-3);letter-spacing:.04em}
+.meta b{color:var(--ink-2);font-weight:500}
+
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;background:var(--sheet);border-bottom:1px solid var(--line);
+  margin-inline:calc(-1 * max(16px,env(safe-area-inset-left,0px))) calc(-1 * max(16px,env(safe-area-inset-right,0px)))}
+nav.rail ol{display:flex;gap:2px;list-style:none;margin:0;padding:8px max(16px,env(safe-area-inset-left,0px));overflow-x:auto;scrollbar-width:thin}
+nav.rail a{display:block;white-space:nowrap;font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-2);text-decoration:none;padding:6px 10px;border-radius:4px}
+nav.rail a:hover{background:var(--sunk);color:var(--ink)}
+nav.rail a.att{color:var(--att)} nav.rail a.lv{color:var(--lv)}
+
+section{padding-block:52px 8px;scroll-margin-top:72px}
+.sec-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+.sec-num{font-family:var(--f-mono);font-size:12px;font-weight:600;letter-spacing:.1em;color:var(--ink-3);
+  border:1px solid var(--line);border-radius:3px;padding:3px 7px}
+h2{font-family:var(--f-disp);font-weight:700;font-size:clamp(22px,4vw,30px);letter-spacing:-.018em;margin:0;text-wrap:balance}
+.lede{color:var(--ink-2);max-width:68ch;margin:10px 0 26px}
+h3{font-family:var(--f-disp);font-weight:600;font-size:16px;margin:34px 0 12px;
+  padding-bottom:6px;border-bottom:1px solid var(--line-soft)}
+h3 .tag{font-family:var(--f-mono);font-size:10px;letter-spacing:.1em;color:var(--ink-3);font-weight:500;margin-left:8px;text-transform:uppercase}
+p{margin:0 0 14px;max-width:68ch}
+code{font-family:var(--f-mono);font-size:.88em;background:var(--sunk);border:1px solid var(--line-soft);border-radius:3px;padding:1px 5px}
+
+.domain-att h2{color:var(--att)} .domain-lv h2{color:var(--lv)} .domain-db h2{color:var(--sys)}
+
+.canvas{background:var(--sheet);border:1px solid var(--line);border-radius:10px;padding:26px 18px 30px;margin:0 0 20px;
+  background-image:radial-gradient(var(--line-soft) 1px,transparent 1px);background-size:22px 22px;background-position:11px 11px}
+.canvas-title{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);
+  text-align:center;margin:0 0 22px;max-width:none}
+
+.flow{display:flex;flex-direction:column;gap:30px;align-items:stretch}
+.flow>*{position:relative}
+.flow>*+*::before{content:"";position:absolute;left:50%;top:-30px;width:2px;height:30px;background:var(--line);transform:translateX(-50%)}
+.flow>*+*::after{content:"";position:absolute;left:50%;top:-12px;width:8px;height:8px;transform:translateX(-50%) rotate(45deg);
+  border-right:2px solid var(--line);border-bottom:2px solid var(--line)}
+.n{background:var(--sheet);border:1.5px solid var(--line);border-radius:7px;padding:12px 15px;max-width:560px;margin:0 auto;width:100%}
+.n .who{display:block;font-family:var(--f-mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);margin-bottom:4px}
+.n .t{font-weight:600;font-size:14.5px;line-height:1.35;display:block}
+.n .d{display:block;margin-top:5px;font-size:13px;color:var(--ink-2);line-height:1.5}
+.n ul{margin:7px 0 0;padding-left:17px;font-size:12.8px;color:var(--ink-2);line-height:1.6}
+.n li::marker{color:var(--ink-3)}
+.n.start{border-radius:999px;border-color:var(--ink);text-align:center;max-width:380px;padding:11px 20px}
+.n.start .t{font-family:var(--f-disp)}
+.n.sys{border-color:var(--sys);background:var(--sys-bg)} .n.sys .who{color:var(--sys)}
+.n.dec{border-color:var(--warn);background:var(--warn-bg);border-style:dashed}
+.n.dec .t::before{content:"\25C6  ";color:var(--warn)}
+.n.ok{border-color:var(--ok);background:var(--ok-bg)} .n.ok .who{color:var(--ok)}
+.n.att{border-color:var(--att);background:var(--att-bg)} .n.att .who{color:var(--att)}
+.n.lv{border-color:var(--lv);background:var(--lv-bg)} .n.lv .who{color:var(--lv)}
+
+.split{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(215px,1fr))}
+.lane{border:1px solid var(--line);border-radius:8px;background:var(--sheet);overflow:hidden;min-width:0;display:flex;flex-direction:column}
+.lane>.lh{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;padding:7px 12px;
+  color:var(--ink);background:var(--sunk);border-bottom:1px solid var(--line);font-weight:600}
+.lane.y>.lh{background:var(--ok-bg);color:var(--ok)}
+.lane.n2>.lh{background:var(--stop-bg);color:var(--stop)}
+.lane.w>.lh{background:var(--warn-bg);color:var(--warn)}
+.lane.i>.lh{background:var(--sys-bg);color:var(--sys)}
+.lane .lb{padding:13px 14px;font-size:13.2px;color:var(--ink-2);line-height:1.55;flex:1}
+.lane .lb strong{color:var(--ink);font-weight:600;display:block;margin-bottom:4px;font-size:13.6px}
+.lane .lb ul{margin:7px 0 0;padding-left:16px}
+.lane .lb li{margin-bottom:3px}
+.lane .lb code{font-size:11.5px}
+
+.chain{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:0 0 12px;padding:0;list-style:none;max-width:none}
+.chain li{display:flex;align-items:center;gap:7px}
+.chip{font-family:var(--f-mono);font-size:11px;font-weight:500;letter-spacing:.04em;padding:4px 9px;border-radius:4px;
+  border:1px solid var(--line);background:var(--sheet);white-space:nowrap}
+.chip.ok{border-color:var(--ok);color:var(--ok);background:var(--ok-bg)}
+.chip.stop{border-color:var(--stop);color:var(--stop);background:var(--stop-bg)}
+.chip.warn{border-color:var(--warn);color:var(--warn);background:var(--warn-bg)}
+.chip.sys{border-color:var(--sys);color:var(--sys);background:var(--sys-bg)}
+.chip.ini{border-color:var(--ink);background:var(--ink);color:var(--sheet)}
+.arw{color:var(--ink-3);font-family:var(--f-mono);font-size:12px}
+.sm{margin:0 0 22px;padding:15px 16px;border:1px solid var(--line-soft);border-radius:8px;background:var(--sheet)}
+.sm h4{margin:0 0 11px;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+.sm p{font-size:12.8px;color:var(--ink-2);margin:4px 0 0}
+
+.tbl-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:9px;background:var(--sheet);margin:0 0 22px}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:13px}
+th{text-align:left;font-family:var(--f-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);
+  font-weight:600;padding:11px 13px;border-bottom:1.5px solid var(--line);background:var(--sunk);white-space:nowrap}
+td{padding:11px 13px;border-bottom:1px solid var(--line-soft);vertical-align:top;color:var(--ink-2);line-height:1.5}
+tbody tr:last-child td{border-bottom:0}
+td strong{color:var(--ink);font-weight:600}
+td code{font-size:11.5px}
+.grp td{background:var(--sunk);color:var(--ink);font-family:var(--f-mono);font-size:12px;font-weight:600}
+.mono{font-family:var(--f-mono);font-size:11.5px;white-space:nowrap}
+.num{font-variant-numeric:tabular-nums;text-align:center;font-family:var(--f-mono);font-size:12px}
+.cell-off{background:var(--sunk);color:var(--ink-3)}
+.cell-lv{background:var(--lv-bg);color:var(--lv);font-weight:600}
+.cell-sand{background:var(--stop-bg);color:var(--stop);font-weight:600}
+.cell-work{color:var(--ink-3)}
+.tot{font-family:var(--f-mono);font-weight:600;color:var(--ink);text-align:center;font-variant-numeric:tabular-nums}
+.fn{font-size:12.8px;color:var(--ink-3);margin-top:-10px}
+
+.grid2{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));margin:0 0 22px}
+.card{border:1px solid var(--line);border-radius:9px;background:var(--sheet);padding:15px 16px;min-width:0}
+.card h4{margin:0 0 8px;font-size:14px;font-family:var(--f-disp);font-weight:600}
+.card h4 .k{font-family:var(--f-mono);font-size:10px;color:var(--ink-3);letter-spacing:.1em;display:block;margin-bottom:4px;text-transform:uppercase;font-weight:500}
+.card p,.card ul{font-size:13px;color:var(--ink-2);margin:0;max-width:none}
+.card ul{padding-left:16px;line-height:1.6}
+.card li{margin-bottom:4px}
+.card.att{border-top:3px solid var(--att)} .card.lv{border-top:3px solid var(--lv)}
+.card.sys{border-top:3px solid var(--sys)}
+
+.ladder{list-style:none;margin:0 0 22px;padding:0;counter-reset:lad;display:flex;flex-direction:column}
+.ladder li{counter-increment:lad;display:flex;gap:14px;align-items:flex-start;padding:13px 16px;border:1px solid var(--line);
+  background:var(--sheet);border-bottom:0;min-width:0}
+.ladder li:first-child{border-radius:9px 9px 0 0}
+.ladder li:last-child{border-radius:0 0 9px 9px;border-bottom:1px solid var(--line)}
+.ladder li::before{content:counter(lad);font-family:var(--f-mono);font-size:11px;font-weight:600;color:#fff;background:var(--att);
+  width:22px;height:22px;flex:0 0 22px;border-radius:50%;display:grid;place-items:center;margin-top:1px}
+.ladder li:last-child::before{background:var(--ink-3)}
+.ladder b{font-weight:600;color:var(--ink);display:block;font-size:13.8px}
+.ladder span{font-size:13px;color:var(--ink-2)}
+
+.funnel{display:flex;flex-direction:column;gap:10px;margin:0 0 22px;align-items:center}
+.funnel .fr{width:100%;border:1px solid var(--line);border-radius:8px;background:var(--sheet);padding:12px 16px}
+.funnel .fr:nth-child(3){max-width:92%} .funnel .fr:nth-child(5){max-width:84%} .funnel .fr:nth-child(7){max-width:76%}
+.funnel .gate{font-family:var(--f-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--lv);font-weight:600}
+.funnel .fr b{display:block;font-size:14px;margin:3px 0 2px}
+.funnel .fr span{font-size:12.8px;color:var(--ink-2)}
+.funnel .drop{font-family:var(--f-mono);font-size:11px;color:var(--stop);display:flex;align-items:center;gap:8px}
+.funnel .drop::before{content:"\2193";color:var(--ink-3)}
+
+.erd{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));margin:0 0 22px;align-items:start}
+.erd-col{display:flex;flex-direction:column;gap:12px;min-width:0}
+.erd-col>.ch{font-family:var(--f-mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);
+  font-weight:600;padding-bottom:5px;border-bottom:1.5px solid var(--line)}
+.ent{border:1px solid var(--line);border-radius:8px;background:var(--sheet);overflow:hidden;min-width:0}
+.ent>.eh{font-family:var(--f-mono);font-size:12px;font-weight:600;padding:8px 11px;background:var(--sunk);
+  border-bottom:1px solid var(--line);display:block;word-break:break-word}
+.ent>.eh .es{display:block;font-family:var(--f-body);font-size:11.5px;font-weight:400;color:var(--ink-3);margin-top:2px;letter-spacing:0}
+.ent.att>.eh{background:var(--att-bg);color:var(--att);border-bottom-color:var(--att)}
+.ent.lv>.eh{background:var(--lv-bg);color:var(--lv);border-bottom-color:var(--lv)}
+.ent.hub{border-width:2px;border-color:var(--ink)}
+.ent.hub>.eh{background:var(--ink);color:var(--sheet);border-bottom-color:var(--ink)}
+.ent.hub>.eh .es{color:#c3cdd7}
+.ent.cfg>.eh{background:var(--sys-bg);color:var(--sys);border-bottom-color:var(--sys)}
+.ent ul{list-style:none;margin:0;padding:7px 11px 9px;font-family:var(--f-mono);font-size:11px;line-height:1.75;color:var(--ink-2)}
+.ent li{display:flex;gap:7px;align-items:baseline;min-width:0}
+.ent li>span:first-child{flex:1;min-width:0;word-break:break-word}
+.badge{font-size:8.5px;letter-spacing:.08em;font-weight:600;padding:1px 4px;border-radius:3px;flex:0 0 auto;
+  border:1px solid var(--line);color:var(--ink-3);background:var(--sunk)}
+.badge.pk{border-color:var(--ink);color:var(--ink)}
+.badge.fk{border-color:var(--sys);color:var(--sys);background:var(--sys-bg)}
+.badge.uq{border-color:var(--ok);color:var(--ok);background:var(--ok-bg)}
+.badge.ap{border-color:var(--warn);color:var(--warn);background:var(--warn-bg)}
+
+.legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin:20px 0 0;padding:14px 16px;border:1px solid var(--line-soft);border-radius:8px;background:var(--sheet)}
+.legend span{display:inline-flex;align-items:center;gap:7px;font-family:var(--f-mono);font-size:11px;color:var(--ink-2)}
+.legend.tight{margin:0 0 22px}
+.sw{width:13px;height:13px;border-radius:3px;border:1.5px solid var(--line);flex:0 0 13px}
+.sw.a{border-color:var(--att);background:var(--att-bg)} .sw.l{border-color:var(--lv);background:var(--lv-bg)}
+.sw.s{border-color:var(--sys);background:var(--sys-bg)} .sw.d{border-color:var(--warn);background:var(--warn-bg);border-style:dashed}
+.sw.o{border-color:var(--ok);background:var(--ok-bg)}
+.sw.h{border-color:var(--ink);background:var(--ink)}
+.note{border-left:3px solid var(--warn);background:var(--warn-bg);padding:13px 16px;border-radius:0 7px 7px 0;margin:0 0 22px;font-size:13.4px;color:var(--ink-2);max-width:72ch}
+.note b{color:var(--ink)}
+footer{margin-top:56px;padding-top:22px;border-top:1px solid var(--line);font-family:var(--f-mono);font-size:11px;color:var(--ink-3);letter-spacing:.04em;line-height:1.9}
+@media (max-width:460px){
+  .n{padding:11px 13px}
+  .canvas{padding:20px 12px 24px}
+  .flow{gap:26px}
+  .flow>*+*::before{top:-26px;height:26px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.note.v2{border-left-color:var(--ok);background:var(--ok-bg)}
+.note.hr{border-left-color:var(--sys);background:var(--sys-bg)}
+.src{font-family:var(--f-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--sys);
+  border:1px solid var(--sys);border-radius:3px;padding:1px 5px;margin-left:8px;white-space:nowrap;font-weight:600}
+.pill{display:inline-block;font-family:var(--f-mono);font-size:10px;letter-spacing:.06em;padding:2px 7px;border-radius:999px;
+  border:1px solid var(--line);color:var(--ink-2);background:var(--sunk);margin-right:5px}
+.pill.fy{border-color:var(--lv);color:var(--lv);background:var(--lv-bg)}
+.pill.cy{border-color:var(--att);color:var(--att);background:var(--att-bg)}
+.pill.no{border-color:var(--ink-3);color:var(--ink-3)}
+</style>
+<style>
+/* Standalone-document additions: the reset the hosted page gets from its frame, plus print. */
+html,body{margin:0;padding:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+@media print{
+  nav.rail{display:none}
+  body{background:#fff;color:#000;font-size:10.5pt}
+  .canvas{background:#fff;background-image:none;break-inside:avoid}
+  .n,.lane,.card,.ent,.sm,.tbl-scroll{break-inside:avoid}
+  section{break-before:page;padding-block:18px 4px}
+  .mast{break-after:avoid}
+  h2,h3{break-after:avoid}
+  .tbl-scroll{overflow:visible}
+  table{min-width:0}
+  a{text-decoration:none}
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header class="mast">
+  <p class="eyebrow">rSTAR HRMS · Attendance &amp; Leave · Version 2.0</p>
+  <h1>How <em>Attendance</em> and <i>Leave</i> will work</h1>
+  <p class="dek">Version 2.0 folds in the HR policy document <em>HRMS – Rules for Leaves Management</em>. The leave half is rewritten to match it; the attendance half carries forward from 1.0. Each rule is drawn as the flow the system will run, and the document ends with the entity relationship diagram and the table definitions.</p>
+  <div class="meta">
+    <span><b>Version</b> 2.0</span>
+    <span><b>Sources</b> requirement list · HR leave policy document</span>
+    <span><b>Locations</b> India · US</span>
+    <span><b>Status</b> for review before schema freeze</span>
+  </div>
+  <div class="legend">
+    <span><i class="sw"></i>Action / step</span>
+    <span><i class="sw d"></i>Decision</span>
+    <span><i class="sw s"></i>System or scheduled job</span>
+    <span><i class="sw a"></i>Attendance record</span>
+    <span><i class="sw l"></i>Leave record</span>
+    <span><i class="sw o"></i>Accepted outcome</span>
+    <span><i class="src">HR DOC</i>From the HR policy document</span>
+  </div>
+</header>
+
+<nav class="rail" aria-label="Sections">
+  <ol>
+    <li><a href="#whatsnew">00 What's new</a></li>
+    <li><a class="lv" href="#status">01 Employment status</a></li>
+    <li><a class="lv" href="#categories">02 Categories &amp; cycles</a></li>
+    <li><a class="lv" href="#probation">03 On probation</a></li>
+    <li><a class="lv" href="#confirmed">04 Confirmed</a></li>
+    <li><a class="lv" href="#clsl">05 CL/SL</a></li>
+    <li><a class="lv" href="#el">06 EL</a></li>
+    <li><a class="lv" href="#floating">07 Floating</a></li>
+    <li><a class="lv" href="#lwp">08 LWP</a></li>
+    <li><a class="lv" href="#compoff">09 Comp-off</a></li>
+    <li><a class="lv" href="#dashboard">10 Dashboard</a></li>
+    <li><a class="lv" href="#apply">11 Apply leave</a></li>
+    <li><a class="lv" href="#sandwich">12 Sandwich</a></li>
+    <li><a class="lv" href="#mapping">13 Mapping</a></li>
+    <li><a class="lv" href="#approval">14 Approvals</a></li>
+    <li><a class="att" href="#punch">15 Check-in</a></li>
+    <li><a class="att" href="#alerts">16 Alerts</a></li>
+    <li><a class="att" href="#regular">17 Regularization</a></li>
+    <li><a class="att" href="#shift">18 Shifts</a></li>
+    <li><a class="att" href="#default">19 Default present</a></li>
+    <li><a class="att" href="#holiday">20 Holidays</a></li>
+    <li><a href="#hradmin">21 HR controls</a></li>
+    <li><a href="#automation">22 Automation</a></li>
+    <li><a href="#config">23 Config</a></li>
+    <li><a href="#states">24 Statuses</a></li>
+    <li><a href="#usecases">25 Use cases</a></li>
+    <li><a href="#erd">26 ERD</a></li>
+    <li><a href="#appendix">27 Tables</a></li>
+    <li><a href="#finalise">28 To finalise</a></li>
+  </ol>
+</nav>
+
+<section id="whatsnew">
+  <div class="sec-head"><span class="sec-num">00</span><h2>What changed in version 2.0</h2></div>
+  <p class="lede">The HR policy document is the authority for leave. Where it differs from the original requirement list, it wins, and the difference is recorded below so nothing changes silently.</p>
+
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Area</th><th>Version 1.0</th><th>Version 2.0 — per the HR document</th></tr></thead>
+      <tbody>
+        <tr><td><strong>CL and SL</strong></td><td>Two separate leave types</td><td><strong>One combined category</strong>, "Casual / Sick Leave (CL/SL)", with a single balance</td></tr>
+        <tr><td><strong>Leave cycle</strong></td><td>One cycle, 1 Jan – 31 Dec</td><td><strong>Two cycles running in parallel.</strong> CL/SL and EL on the financial year, 1 Apr – 31 Mar. Floating / Restricted on the calendar year, 1 Jan – 31 Dec</td></tr>
+        <tr><td><strong>LWP</strong></td><td>Removed in the 1.0 trim</td><td><strong>Required category.</strong> Auto-classified when paid balance is exhausted, tracked separately, never deducted from paid balance, and exposed to payroll</td></tr>
+        <tr><td><strong>Probation</strong></td><td>A date on the employee record</td><td><strong>A status with a lifecycle.</strong> 3 months by default, configurable per employee, auto-calculated from DOJ, auto-transition on completion, HR override for extend / shorten / confirm early</td></tr>
+        <tr><td><strong>EL accrual start</strong></td><td>1st of every month after probation</td><td><strong>From the probation end date.</strong> The exact anchor is one of HR's open questions — see section 28</td></tr>
+        <tr><td><strong>Comp-off</strong></td><td>Auto-credited on manager approval, hour bands giving 0.5 or 1.0</td><td><strong>Manual HR credit of 1 day</strong> after the manager approves the request. Explicitly never credited just because attendance exists on a weekend</td></tr>
+        <tr><td><strong>Floating holiday</strong></td><td>Quota per policy</td><td><strong>Exactly 1 per calendar year.</strong> HR uploads a curated list each year; once availed, a second is blocked</td></tr>
+        <tr><td><strong>Probation leave</strong></td><td>CL and SL per policy</td><td><strong>1 CL/SL per month</strong>, and anything beyond it becomes LWP automatically</td></tr>
+        <tr><td><strong>Dashboard</strong></td><td>Not specified</td><td><strong>Specified per employment status</strong> — see section 10</td></tr>
+        <tr><td><strong>Sabbatical</strong></td><td>A leave type</td><td><strong>Not in the HR document.</strong> Carried forward but flagged in section 28</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note v2"><b>Unchanged from 1.0:</b> everything on the attendance side — check-in and check-out, the repeating missed-punch alerts, regularization inside a configurable window, shifts by location, present-by-default, and the location-based holiday calendar. The HR document covers leave only, so sections 15 to 20 carry forward as they were.</div>
+
+  <div class="note"><b>Still ours, not HR's.</b> Three mechanics are design decisions rather than stated requirements: shifts and leave policies are versioned by effective date, so editing one does not rewrite history; punches on a shift that crosses midnight stay attached to the shift's start date; and leave balance is a ledger of movements rather than a stored number, which is what lets HR correct a balance without destroying what was there before.</div>
+
+  <div class="note v2">
+    <b>This is now built, not just designed.</b>
+    The schema, services, API and scheduled jobs described here exist in the backend and are applied to the development database. Where the build taught us something the design had wrong, <em>this document was corrected to match the code</em> rather than the other way round — three places, each flagged where it occurs:
+    <ul>
+      <li>the probation column is <code>ConfirmationStatus</code>, because <code>EmploymentStatus</code> was already taken (section 27);</li>
+      <li>only <code>tblRegularizationType</code> is editable master data — the attendance statuses and holiday types carry fixed ids the code branches on (section 27);</li>
+      <li>two defects in the leave ledger, found by running it against a real database, are corrected by migrations 021 and 022 (section 27).</li>
+    </ul>
+    The two open questions in section 28 — the EL accrual anchor and the comp-off validity period — are <em>configuration columns</em> in the shipped schema, so answering them is an update, not a change to the code.
+  </div>
+</section>
+
+<section id="status" class="domain-lv">
+  <div class="sec-head"><span class="sec-num">01</span><h2>Employment status and probation<span class="src">HR doc §1</span></h2></div>
+  <p class="lede">The system recognises two employment stages, and leave eligibility follows automatically from which one an employee is in.</p>
+
+  <div class="grid2">
+    <div class="card lv"><h4><span class="k">Stage 1</span>Probation</h4><p>Joined, but has not yet completed the probation period. Eligible for CL/SL and LWP only.</p></div>
+    <div class="card lv"><h4><span class="k">Stage 2</span>Confirmed / Permanent / Full-Time</h4><p>Completed probation, or moved to confirmed status manually by HR. All applicable leave categories activate.</p></div>
+  </div>
+
+  <div class="canvas">
+    <p class="canvas-title">Probation lifecycle</p>
+    <div class="flow">
+      <div class="n start"><span class="t">Employee joins</span></div>
+
+      <div class="n sys"><span class="who">System</span><span class="t">Calculate the probation end date from the DOJ</span>
+        <ul><li>Standard duration is <b>3 months</b></li><li>Configurable per employee, so a 6-month or 1-month probation is a field, not an exception</li><li><code>ProbationEndDate = DateOfJoining + ProbationMonths</code></li></ul>
+      </div>
+
+      <div class="n ok"><span class="who">Worked example</span><span class="t">Joins 5 November 2026</span><span class="d">Date of joining 5 Nov 2026 · probation duration 3 months · <b>probation end date 5 February 2027</b>. EL accrual begins from that date.</span></div>
+
+      <div class="n dec"><span class="t">Has HR changed the status manually?</span><span class="d">HR can extend probation, shorten it, or confirm an employee early. A manual change always wins over the calculated date.</span></div>
+
+      <div class="split">
+        <div class="lane i"><div class="lh">Yes — HR override</div><div class="lb"><strong>The new status and date apply</strong>Written with who changed it, when, and why. Extending probation pushes the end date out and defers EL accrual with it.</div></div>
+        <div class="lane y"><div class="lh">No</div><div class="lb"><strong>Auto-transition on the end date</strong>The scheduler moves the employee to Confirmed the day probation completes. Nothing waits on somebody remembering.</div></div>
+      </div>
+
+      <div class="n lv"><span class="who">On confirmation</span><span class="t">Activate the confirmed-employee leave categories</span><span class="d">EL, Floating / Restricted, Comp-off, Paternity and Maternity become visible and applicable. CL/SL switches from the monthly probation entitlement to the financial-year entitlement.</span></div>
+    </div>
+  </div>
+
+  <div class="note hr"><b>Why status is stored, not derived.</b> The HR document requires both an automatic transition <em>and</em> a manual HR override. A status computed on the fly from <code>ProbationEndDate</code> cannot express "HR confirmed this person early" — so the status is its own column, the date drives the automatic transition, and every manual change is written to a history table.</div>
+</section>
+
+<section id="categories" class="domain-lv">
+  <div class="sec-head"><span class="sec-num">02</span><h2>Leave categories and cycles<span class="src">HR doc §2</span></h2></div>
+  <p class="lede">Seven categories, and — this is the structural change in 2.0 — <strong>two different cycles running at the same time</strong>. Getting this wrong means every balance is wrong for part of the year.</p>
+
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Category</th><th>Cycle</th><th>Window</th><th>On probation</th><th>Confirmed</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Casual / Sick Leave</strong><br><span class="mono">CL/SL</span> — one combined balance</td><td><span class="pill fy">Financial year</span></td><td class="mono">1 Apr – 31 Mar</td><td><strong>Yes</strong> — 1 per month</td><td><strong>Yes</strong> — annual entitlement</td></tr>
+        <tr><td><strong>Earned Leave</strong><br><span class="mono">EL</span></td><td><span class="pill fy">Financial year</span></td><td class="mono">1 Apr – 31 Mar</td><td><span class="pill no">No</span></td><td><strong>Yes</strong> — from probation end</td></tr>
+        <tr><td><strong>Floating / Restricted Holiday</strong></td><td><span class="pill cy">Calendar year</span></td><td class="mono">1 Jan – 31 Dec</td><td><span class="pill no">No</span></td><td><strong>Yes</strong> — exactly 1 per year</td></tr>
+        <tr><td><strong>Leave Without Pay</strong><br><span class="mono">LWP</span></td><td><span class="pill">Consumption only</span></td><td class="mono">no cycle</td><td><strong>Yes</strong></td><td><strong>Yes</strong></td></tr>
+        <tr><td><strong>Compensatory Off</strong><br><span class="mono">Comp-Off</span></td><td><span class="pill">As credited</span></td><td><span class="mono">per credit</span></td><td><span class="pill no">No</span></td><td><strong>Yes</strong></td></tr>
+        <tr><td><strong>Paternity Leave</strong><br><span class="mono">PL</span></td><td><span class="pill">On event</span></td><td class="mono">—</td><td><span class="pill no">No</span></td><td><strong>Yes</strong></td></tr>
+        <tr><td><strong>Maternity Leave</strong><br><span class="mono">ML</span></td><td><span class="pill">On event</span></td><td class="mono">—</td><td><span class="pill no">No</span></td><td><strong>Yes</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="canvas">
+    <p class="canvas-title">Two cycles, one employee — November 2026 joiner</p>
+    <div class="flow">
+      <div class="n sys"><span class="who">Financial year cycle</span><span class="t">CL/SL and EL · 1 April – 31 March</span><span class="d">Joins Nov 2026 → the first CL/SL cycle runs <b>Nov 2026 to 31 Mar 2027</b>, pro-rated from the joining month. The next cycle opens 1 Apr 2027 and runs a full twelve months.</span></div>
+      <div class="n att"><span class="who">Calendar year cycle</span><span class="t">Floating / Restricted · 1 January – 31 December</span><span class="d">The same employee's floating entitlement runs <b>to 31 Dec 2026</b>, then resets on 1 Jan 2027 — three months before their CL/SL cycle resets.</span></div>
+      <div class="n ok"><span class="who">Consequence for the schema</span><span class="t">A cycle is a row, not a year number</span><span class="d">Every balance and every ledger entry points at a cycle, and each leave type's policy says which cycle type it follows. One <code>LeaveYear</code> integer cannot represent both at once.</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="probation" class="domain-lv">
+  <div class="sec-head"><span class="sec-num">03</span><h2>While on probation<span class="src">HR doc §2.1</span></h2></div>
+  <p class="lede">Two categories, and nothing else. An employee on probation sees CL/SL and LWP on their dashboard; the rest do not exist for them yet.</p>
+
+  <div class="canvas">
+    <p class="canvas-title">Probation leave, month by month</p>
+    <div class="flow">
+      <div class="n sys"><span class="who">Scheduler · monthly</span><span class="t">Allocate 1 CL/SL</span><span class="d">One leave per month, automatically, for the duration of probation. The employee can see the running balance.</span></div>
+      <div class="n"><span class="who">Employee</span><span class="t">Applies for leave</span></div>
+      <div class="n dec"><span class="t">Is there CL/SL balance available?</span></div>
+      <div class="split">
+        <div class="lane y"><div class="lh">Yes</div><div class="lb"><strong>Charged to CL/SL</strong>Balance decrements by the days taken.</div></div>
+        <div class="lane w"><div class="lh">Partly</div><div class="lb"><strong>Split</strong>The covered days are charged to CL/SL, and the excess is classified as <b>LWP</b> automatically.</div></div>
+        <div class="lane n2"><div class="lh">No balance</div><div class="lb"><strong>All of it is LWP</strong>Recorded as LWP days, never as negative CL/SL.</div></div>
+      </div>
+      <div class="n lv"><span class="who">Result</span><span class="t">LWP is tracked, not deducted</span><span class="d">LWP days accumulate as their own count. They never reduce the paid balance, and they are available to payroll for the salary deduction.</span></div>
+    </div>
+  </div>
+
+  <h3>What the employee sees on probation</h3>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Leave category</th><th>Visible</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Casual / Sick Leave</strong></td><td><strong>Yes</strong> — available balance</td></tr>
+        <tr><td><strong>Leave Without Pay</strong></td><td><strong>Yes</strong> — total LWP consumed</td></tr>
+        <tr><td>Earned Leave</td><td><span class="pill no">No</span></td></tr>
+        <tr><td>Floating / Restricted Holiday</td><td><span class="pill no">No</span></td></tr>
+        <tr><td>Compensatory Off</td><td><span class="pill no">No</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Visibility is a property of the leave policy, not a hard-coded list in the UI, so adding a category that is visible during probation later is a configuration change rather than a release.</p>
+</section>
+
+<section id="confirmed" class="domain-lv">
+  <div class="sec-head"><span class="sec-num">04</span><h2>After confirmation<span class="src">HR doc §2.2</span></h2></div>
+  <p class="lede">Once probation completes — or HR moves the employee to confirmed manually — the full set activates.</p>
+
+  <div class="canvas">
+    <p class="canvas-title">What switches on at confirmation</p>
+    <div class="flow">
+      <div class="n start"><span class="t">Employee becomes Confirmed</span></div>
+      <div class="n lv"><span class="who">CL/SL</span><span class="t">Switches from monthly probation allocation to the financial-year entitlement</span><span class="d">Shown as a consolidated entitlement for the remainder of the financial year.</span></div>
+      <div class="n lv"><span class="who">Earned Leave</span><span class="t">Accrual starts from the probation end date</span><span class="d">1 EL per month from that point. Previously invisible, now shown separately from CL/SL.</span></div>
+      <div class="n lv"><span class="who">Floating / Restricted</span><span class="t">1 per calendar year becomes available</span><span class="d">Picked from the list HR published for the current calendar year.</span></div>
+      <div class="n lv"><span class="who">Comp-off · Paternity · Maternity</span><span class="t">Become visible and applicable</span><span class="d">Comp-off starts at zero and only fills when HR credits an approved request.</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="clsl" class="domain-lv">
+  <div class="sec-head"><span class="sec-num">05</span><h2>Casual / Sick Leave<span class="src">HR doc §2.2 A</span></h2></div>
+  <p class="lede">One combined category with one balance. Maintained on the financial year, 1 April to 31 March.</p>
+
+  <div class="grid2">
+    <div class="card lv"><h4><span class="k">On probation</span>Monthly allocation</h4><p>1 CL/SL credited per month. Anything taken beyond the balance becomes LWP.</p></div>
+    <div class="card lv"><h4><span class="k">Confirmed</span>Financial-year entitlement</h4><p>Entitlement applies from the month of joining through to March, shown as a consolidated figure for the cycle, and recalculated on 1 April each year.</p></div>
+  </div>
+
+  <div class="canvas">
+    <p class="canvas-title">Worked example — joins November 2026</p>
+    <div class="flow">
+      <div class="n"><span class="who">Dashboard, Nov 2026</span><span class="t">Shows the CL/SL entitlement for Nov 2026 – Mar 2027</span><span class="d">Pro-rated from the joining month to the end of the financial year, displayed as one consolidated number rather than a month-by-month drip.</span></div>
+      <div class="n sys"><span class="who">Scheduler · 1 April 2027</span><span class="t">The next cycle opens</span><span class="d">Entitlement is reset and recalculated for 1 Apr 2027 – 31 Mar 2028 per the company's leave policy.</span></div>
+    </div>
+  </div>
+
+  <div class="note"><b>Two things HR has not yet fixed</b> — both listed in section 28. Whether the financial-year entitlement is credited <em>upfront</em> on 1 April or accrued monthly, and how the entitlement is calculated for somebody who moves from probation to confirmed in the middle of a financial year. The schema supports either, but the accrual job cannot be written until both are answered.</div>
+</section>
+
+<section id="el" class="domain-lv">
+  <div class="sec-head"><span class="sec-num">06</span><h2>Earned Leave<span class="src">HR doc §2.2 B</span></h2></div>
+  <p class="lede">Financial-year cycle, but the accrual clock starts at the probation end date rather than at the start of the cycle.</p>
+
+  <div class="canvas">
+    <p class="canvas-title">EL accrual</p>
+    <div class="flow">
+      <div class="n dec"><span class="t">Has the employee completed probation?</span></div>
+      <div class="split">
+        <div class="lane n2"><div class="lh">No</div><div class="lb"><strong>No EL at all</strong>It does not accrue and it is not shown on the dashboard.</div></div>
+        <div class="lane y"><div class="lh">Yes</div><div class="lb"><strong>Accrual begins from the probation end date</strong>1 EL per month from that point forward.</div></div>
+      </div>
+      <div class="n sys"><span class="who">Scheduler · monthly</span><span class="t">Add the monthly EL and update the balance</span><span class="d">Shown separately from CL/SL on the dashboard, and held against the financial-year cycle.</span></div>
+      <div class="n ok"><span class="who">Worked example</span><span class="t">Probation ends 5 February 2027</span><span class="d">EL accrual begins 5 Feb 2027, and the accrued balance appears on the employee's dashboard from that date.</span></div>
+    </div>
+  </div>
+
+  <div class="note"><b>Three open points on EL</b>, all in section 28. The HR document says both "1 Earned Leave per month" and asks whether it is 1 per month or 1 per year — HR flagged the contradiction themselves. It is also unresolved whether accrual runs from the exact probation end date or from the following month, and the original requirement list said EL is credited on the 1st of every month, which is a third answer. The schema stores an accrual anchor so any of the three can be configured, but one has to be chosen before the job is written.</div>
+</section>
+
+<section id="floating" class="domain-lv">
+  <div class="sec-head"><span class="sec-num">07</span><h2>Floating / Restricted Holiday<span class="src">HR doc §2.2 C</span></h2></div>
+  <p class="lede">The one category on the calendar year, and the one with a hard limit of a single day.</p>
+
+  <div class="canvas">
+    <p class="canvas-title">Floating holiday — 1 January to 31 December</p>
+    <div class="flow">
+      <div class="n"><span class="who">HR</span><span class="t">Upload the year's curated list</span><span class="d">A list of approved floating / restricted holidays for the calendar year. It changes every year with festivals, occasions and organisational requirements, so it is uploaded or configured per year rather than carried forward.</span></div>
+      <div class="n"><span class="who">Employee</span><span class="t">View the options and select one</span><span class="d">The employee picks the holiday they want from the published list.</span></div>
+      <div class="n dec"><span class="t">Has this employee already availed one this calendar year?</span></div>
+      <div class="split">
+        <div class="lane n2"><div class="lh">Yes</div><div class="lb"><strong>Blocked</strong>Entitlement is <b>exactly 1 per calendar year</b>. The system does not allow a second.</div></div>
+        <div class="lane y"><div class="lh">No</div><div class="lb"><strong>Approved → the day becomes a holiday</strong>The entitlement for the year is now consumed.</div></div>
+      </div>
+      <div class="n sys"><span class="who">Scheduler · 1 January</span><span class="t">Reset the entitlement for the new calendar year</span><span class="d">Subject to the applicable policy. Unused entitlement from the previous year does not carry over.</span></div>
+    </div>
+  </div>
+
+  <p>Because this cycle is calendar-year and CL/SL and EL are financial-year, the two reset at different points in the year. The cycle a request belongs to is resolved from the leave type's policy, not from the date alone.</p>
+</section>
+
+<section id="lwp" class="domain-lv">
+  <div class="sec-head"><span class="sec-num">08</span><h2>Leave Without Pay<span class="src">HR doc §2.2 D</span></h2></div>
+  <p class="lede">Not a balance to spend — a count of days consumed. It is what every other category falls through to.</p>
+
+  <div class="canvas">
+    <p class="canvas-title">How a day becomes LWP</p>
+    <div class="flow">
+      <div class="n"><span class="who">Employee</span><span class="t">Applies for leave</span></div>
+      <div class="n dec"><span class="t">Is there enough paid balance in the chosen category?</span></div>
+      <div class="split">
+        <div class="lane y"><div class="lh">Yes</div><div class="lb"><strong>Charged to that category</strong>No LWP involved.</div></div>
+        <div class="lane w"><div class="lh">Partly</div><div class="lb"><strong>Split across both</strong>Covered days charged to the paid category; the remainder recorded as LWP.</div></div>
+        <div class="lane n2"><div class="lh">None</div><div class="lb"><strong>Entirely LWP</strong>Applies on probation once the monthly CL/SL is used, and after confirmation once all paid balances are exhausted.</div></div>
+      </div>
+      <div class="n lv"><span class="who">Ledger</span><span class="t">Record the LWP days separately</span>
+        <ul><li>Tracked as its own category, with a running total of days consumed</li><li><b>Never deducted from any paid leave balance</b></li><li>Visible to the employee as "total LWP consumed"</li></ul>
+      </div>
+      <div class="n sys"><span class="who">HR and Payroll</span><span class="t">Read the LWP record for salary processing</span><span class="d">Employee-wise LWP days are available as a report so the corresponding salary deduction can be processed.</span></div>
+    </div>
+  </div>
+
+  <div class="note hr"><b>The one explicit prohibition in the HR document:</b> LWP must be tracked separately and must <em>not</em> be deducted from the employee's paid leave balance. In the ledger this means an LWP entry is recorded against the LWP category only — it never produces a negative balance on CL/SL or EL.</div>
+
+  <div class="note"><b>Open:</b> whether LWP is triggered automatically the moment paid leave is exhausted, or whether HR must approve the classification first. HR listed this themselves — section 28.</div>
+</section>
+
+<section id="compoff" class="domain-lv">
+  <div class="sec-head"><span class="sec-num">09</span><h2>Compensatory Off<span class="src">HR doc §2.2 E</span></h2></div>
+  <p class="lede">For employees who work a weekend or other non-working day. The crediting step is manual and deliberate — this changed in 2.0.</p>
+
+  <div class="canvas">
+    <p class="canvas-title">Earning a comp-off day</p>
+    <div class="flow">
+      <div class="n"><span class="who">Employee</span><span class="t">Raise a comp-off request</span><span class="d">For having worked an eligible weekend or non-working day.</span></div>
+      <div class="n"><span class="who">Reporting Manager</span><span class="t">Approve the request</span><span class="d">Mandatory. Nothing is credited without it.</span></div>
+      <div class="n"><span class="who">HR</span><span class="t">Manually add 1 comp-off day to the balance</span><span class="d">A deliberate human step after the approval, not a consequence of it.</span></div>
+      <div class="n lv"><span class="who">Balance</span><span class="t">The employee can see their available comp-off</span><span class="d">The system keeps the record of days earned, availed and remaining.</span></div>
+    </div>
+  </div>
+
+  <div class="note hr"><b>Explicitly ruled out:</b> comp-off must <em>not</em> be credited automatically merely because an employee has marked attendance on a weekend. Manager approval is mandatory before the credit is processed. This reverses the 1.0 design, where an approved claim credited the balance directly and hour bands decided whether it was half a day or a full day — the HR document specifies 1 day per approved request and an HR credit step.</div>
+
+  <div class="canvas">
+    <p class="canvas-title">Spending it</p>
+    <div class="flow">
+      <div class="n"><span class="who">Employee</span><span class="t">Apply for comp-off leave</span><span class="d">Through the standard leave application and approval workflow — section 11.</span></div>
+      <div class="n dec"><span class="t">Is there comp-off balance available?</span></div>
+      <div class="split">
+        <div class="lane y"><div class="lh">Yes</div><div class="lb"><strong>Approved and debited</strong>The remaining balance updates.</div></div>
+        <div class="lane n2"><div class="lh">No</div><div class="lb"><strong>Blocked</strong>Comp-off cannot go negative; the employee would apply under another category or take LWP.</div></div>
+      </div>
+      <div class="n sys"><span class="who">Record</span><span class="t">Days earned, availed and remaining</span><span class="d">Kept per employee, so the comp-off position is auditable at any point.</span></div>
+    </div>
+  </div>
+
+  <div class="note"><b>Open:</b> whether credited comp-off days expire. The schema carries a nullable expiry per credit so a validity period can be switched on later without a migration, but no expiry is applied until HR confirms one — section 28.</div>
+</section>
+
+<section id="dashboard" class="domain-lv">
+  <div class="sec-head"><span class="sec-num">10</span><h2>Employee leave dashboard<span class="src">HR doc §3</span></h2></div>
+  <p class="lede">The dashboard changes shape with employment status. It is not one screen with rows hidden — it is driven by the visibility flag on each leave policy.</p>
+
+  <h3>A — employee on probation</h3>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Leave type</th><th>Expected display</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Casual / Sick Leave</strong></td><td>Available balance</td></tr>
+        <tr><td><strong>Leave Without Pay</strong></td><td>Total LWP consumed</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="fn">No other leave categories are visible during probation.</p>
+
+  <h3>B — confirmed / permanent / full-time employee</h3>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Leave type</th><th>Expected display</th><th>Allocation cycle</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Casual / Sick Leave</strong></td><td>Available balance and applicable annual entitlement</td><td><span class="pill fy">April – March</span></td></tr>
+        <tr><td><strong>Earned Leave</strong></td><td>Available balance and monthly accrual</td><td><span class="pill fy">April – March</span></td></tr>
+        <tr><td><strong>Floating / Restricted Holiday</strong></td><td>Available entitlement, 1 per year</td><td><span class="pill cy">January – December</span></td></tr>
+        <tr><td><strong>Leave Without Pay</strong></td><td>Total LWP consumed</td><td><span class="pill">As applicable</span></td></tr>
+        <tr><td><strong>Compensatory Off</strong></td><td>Available balance</td><td><span class="pill">As credited</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note v2"><b>Design consequence.</b> Because the dashboard shows two cycles side by side, each tile has to name the window it belongs to. An employee looking at "5 days remaining" needs to know whether that resets on 1 April or on 1 January — the two are three months apart, and a tile without its cycle label is the most likely source of a support ticket.</div>
+</section>
+
+<section id="apply" class="domain-lv">
+  <div class="sec-head"><span class="sec-num">11</span><h2>Applying — half day and full day</h2></div>
+  <p class="lede">Days are computed before the balance is checked, because the sandwich rule can change how many days are being asked for. Anything the balance cannot cover falls through to LWP.</p>
+
+  <div class="canvas">
+    <p class="canvas-title">Leave application</p>
+    <div class="flow">
+      <div class="n start"><span class="t">Employee opens Apply Leave</span></div>
+
+      <div class="n sys"><span class="who">System</span><span class="t">Show only the categories available for this employment status</span><span class="d">On probation: CL/SL and LWP. Confirmed: the full set, filtered further by the leave mapping in section 13.</span></div>
+
+      <div class="n"><span class="who">Employee</span><span class="t">Choose category, dates and duration</span>
+        <ul><li>Leave category</li><li>From date and to date</li><li><b>Full day · first half · second half</b> — a half day counts 0.5</li><li>Reason</li></ul>
+      </div>
+
+      <div class="n sys"><span class="who">Rule engine</span><span class="t">Resolve the cycle, then compute the chargeable days</span>
+        <ul><li>The policy says which cycle the category follows — financial or calendar</li><li>Remove week-offs from the shift pattern, and location holidays</li><li>Apply the configured sandwich mode, which may add them back</li><li>One row written per date, half days at 0.5</li></ul>
+      </div>
+
+      <div class="n dec"><span class="t">Is there enough balance in that category and cycle?</span><span class="d">Available = balance for the cycle − days already held by pending requests.</span></div>
+
+      <div class="split">
+        <div class="lane y"><div class="lh">Fully covered</div><div class="lb"><strong>Hold the days</strong>Written to the ledger as a hold, not a debit. Only approval converts a hold into a debit.</div></div>
+        <div class="lane w"><div class="lh">Partly covered</div><div class="lb"><strong>Split, with LWP shown before submit</strong>Covered days against the category, the remainder as LWP, both as explicit numbers so nothing is a surprise on the payslip.</div></div>
+        <div class="lane n2"><div class="lh">Nothing available</div><div class="lb"><strong>Entirely LWP</strong>Recorded as LWP days. The paid balance is untouched and never goes negative.</div></div>
+      </div>
+
+      <div class="n lv"><span class="who">System</span><span class="t">Create the request and notify the approver</span></div>
+
+      <div class="n dec"><span class="t">Approval — section 14</span></div>
+
+      <div class="split">
+        <div class="lane y"><div class="lh">Approved</div><div class="lb"><strong>Commit</strong>
+          <ul><li>The hold converts to a ledger debit against the resolved cycle</li><li>Any LWP portion is recorded against the LWP category</li><li>Each covered date is written to attendance as <code>ON_LEAVE</code></li><li>Employee and manager notified</li></ul></div></div>
+        <div class="lane n2"><div class="lh">Rejected</div><div class="lb"><strong>Release</strong>The hold is reversed, the balance restored, the reason shown to the employee.</div></div>
+        <div class="lane i"><div class="lh">Cancelled or withdrawn</div><div class="lb"><strong>Before the start date</strong> → auto-cancel, balance back.<br><strong>On or after</strong> → approver consent, and only unused days are credited back.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <p>A half-day leave does not excuse the day's punch: the employee is still expected to check in for the half they are working.</p>
+</section>
+
+<section id="sandwich" class="domain-lv">
+  <div class="sec-head"><span class="sec-num">12</span><h2>Sandwich — three selectable modes</h2></div>
+  <p class="lede">From the original requirement list; the HR document does not address it. Configured per leave category and location, never code. Scenario below: week-off on Saturday and Sunday.</p>
+
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Mode</th><th>Friday leave only</th><th>Monday leave only</th><th>Friday <em>and</em> Monday</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Ignore week-offs</strong><br><span class="mono">IGNORE_WEEKOFF</span></td>
+          <td class="num cell-lv">1 day</td><td class="num cell-lv">1 day</td><td class="num cell-lv">2 days<br><span style="font-size:11px;font-weight:400">Sat and Sun ignored</span></td></tr>
+        <tr><td><strong>Charge when flanked</strong><br><span class="mono">COUNT_WHEN_BOTH_FLANKS</span></td>
+          <td class="num cell-lv">1 day</td><td class="num cell-lv">1 day</td><td class="num cell-sand">4 days<br><span style="font-size:11px;font-weight:400">Sat and Sun charged</span></td></tr>
+        <tr><td><strong>Always charge</strong><br><span class="mono">COUNT_ALWAYS</span></td>
+          <td class="num cell-sand">3 days</td><td class="num cell-sand">3 days</td><td class="num cell-sand">4 days</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Worked example <span class="tag">charge when flanked</span></h3>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Case</th><th>Thu</th><th>Fri</th><th>Sat off</th><th>Sun off</th><th>Mon</th><th>Tue</th><th>Charged</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Friday only</strong></td>
+          <td class="num cell-work">Work</td><td class="num cell-lv">Leave</td><td class="num cell-off">Off</td><td class="num cell-off">Off</td><td class="num cell-work">Work</td><td class="num cell-work">Work</td><td class="tot">1.0</td></tr>
+        <tr><td><strong>Monday only</strong></td>
+          <td class="num cell-work">Work</td><td class="num cell-work">Work</td><td class="num cell-off">Off</td><td class="num cell-off">Off</td><td class="num cell-lv">Leave</td><td class="num cell-work">Work</td><td class="tot">1.0</td></tr>
+        <tr><td><strong>Friday and Monday</strong></td>
+          <td class="num cell-work">Work</td><td class="num cell-lv">Leave</td><td class="num cell-sand">Charged</td><td class="num cell-sand">Charged</td><td class="num cell-lv">Leave</td><td class="num cell-work">Work</td><td class="tot">4.0</td></tr>
+        <tr><td><strong>Thu–Fri and Mon–Tue</strong></td>
+          <td class="num cell-lv">Leave</td><td class="num cell-lv">Leave</td><td class="num cell-sand">Charged</td><td class="num cell-sand">Charged</td><td class="num cell-lv">Leave</td><td class="num cell-lv">Leave</td><td class="tot">6.0</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Every day the rule adds is tagged <code>SANDWICH</code> on the request's day rows, so the deduction is explainable line by line, and the total is shown to the employee before they submit. Where the sandwich days exceed the balance, the excess becomes LWP like any other shortfall.</p>
+</section>
+
+<section id="mapping" class="domain-lv">
+  <div class="sec-head"><span class="sec-num">13</span><h2>Leave mapping and restricted-holiday mapping</h2></div>
+  <p class="lede">Employment status decides which categories exist at all. Mapping narrows it further, for the cases status alone cannot express.</p>
+
+  <div class="grid2">
+    <div class="card lv"><h4><span class="k">Leave mapping</span>Which categories this employee may take</h4><ul><li>Employment status — the primary gate, from section 01</li><li>Location — India, US, or both</li><li>Employment type</li><li>Gender — maternity, paternity</li><li>Tenure, where a category requires service</li></ul><p style="margin-top:8px">A row is a <em>grant</em>. Nothing matching means the category is not offered, so the Apply Leave list is built from this table and the employment status, and nothing else.</p></div>
+    <div class="card att"><h4><span class="k">Restricted-holiday mapping</span>Which list, and how many picks</h4><ul><li>Location — the published list is per location</li><li>Calendar year — the list is uploaded fresh each year</li><li>Pick quota — <b>1</b> per the HR document</li></ul><p style="margin-top:8px">The quota is a column rather than a constant, so a later policy of two picks a year is a configuration change.</p></div>
+  </div>
+
+  <h3>Evaluation order <span class="tag">first failure stops the request</span></h3>
+  <div class="funnel">
+    <div class="fr"><span class="gate">Gate 1 · Status</span><b>Is this category available for the employee's employment status?</b><span>On probation, only CL/SL and LWP exist. Everything else is invisible, not merely disabled.</span></div>
+    <div class="drop">Not available → the category is invisible</div>
+    <div class="fr"><span class="gate">Gate 2 · Mapping</span><b>Is the category mapped to this employee?</b><span>Location, employment type, gender, tenure. Re-checked at submit, in case something changed since the page loaded.</span></div>
+    <div class="drop">Not mapped → the category is invisible</div>
+    <div class="fr"><span class="gate">Gate 3 · Policy</span><b>Does the request obey the policy?</b><span>Half day allowed, the cycle the category follows, and the 1-per-year cap on floating holidays.</span></div>
+    <div class="drop">Rule broken → blocked, with the rule named</div>
+    <div class="fr"><span class="gate">Gate 4 · Balance</span><b>How much is covered?</b><span>Fully, partly, or not at all — the shortfall becomes LWP rather than a block, except where the category itself forbids it.</span></div>
+    <div class="drop">Shortfall → split with LWP, shown before submit</div>
+    <div class="fr"><span class="gate">Gate 5 · Approval</span><b>Human judgement</b><span>Only requests that pass the four machine gates reach an approver.</span></div>
+  </div>
+</section>
+
+<section id="approval" class="domain-lv">
+  <div class="sec-head"><span class="sec-num">14</span><h2>Approvals</h2></div>
+  <p class="lede">Leave is approved by the reporting manager, HR and HR Admin. Comp-off has an extra step, because HR performs the credit by hand.</p>
+
+  <div class="canvas">
+    <p class="canvas-title">Approval chain</p>
+    <div class="flow">
+      <div class="n lv"><span class="who">Level 1</span><span class="t">Reporting manager</span><span class="d"><code>ManagerId</code> on the employee record is the chain; no new hierarchy table.</span></div>
+      <div class="n dec"><span class="t">Does this category need a second level?</span><span class="d">Set per leave category — maternity and paternity go to HR as well; CL/SL normally does not.</span></div>
+      <div class="split">
+        <div class="lane i"><div class="lh">Yes</div><div class="lb"><strong>HR or HR Admin</strong>Sees the manager's decision and comment, and may still reject. The employee sees both decisions.</div></div>
+        <div class="lane y"><div class="lh">No</div><div class="lb"><strong>The manager's decision is final</strong></div></div>
+      </div>
+      <div class="split">
+        <div class="lane y"><div class="lh">Approved</div><div class="lb"><strong>Commit</strong>Ledger debit against the resolved cycle, any LWP portion recorded, attendance days written, employee notified.</div></div>
+        <div class="lane n2"><div class="lh">Rejected</div><div class="lb"><strong>Release</strong>Hold reversed, reason recorded and shown.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Who can do what</h3>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Capability</th><th>Employee</th><th>Manager</th><th>HR</th><th>HR Admin / Admin</th></tr></thead>
+      <tbody>
+        <tr><td>Apply for and cancel own leave</td><td><strong>Yes</strong></td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td>View own leave dashboard</td><td><strong>Yes</strong></td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td>View own attendance</td><td><strong>Yes</strong></td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td>View team attendance</td><td>—</td><td><strong>Yes</strong></td><td>Yes</td><td>Yes</td></tr>
+        <tr><td>Approve team leave</td><td>—</td><td><strong>Yes</strong></td><td>Yes</td><td>Yes</td></tr>
+        <tr><td>Approve second level</td><td>—</td><td>—</td><td><strong>Yes</strong></td><td>Yes</td></tr>
+        <tr><td>Approve a comp-off request</td><td>—</td><td><strong>Yes</strong></td><td>—</td><td>Yes</td></tr>
+        <tr><td><strong>Credit the comp-off day</strong></td><td>—</td><td>—</td><td>—</td><td><strong>Yes</strong> — manual, after approval</td></tr>
+        <tr><td>Approve regularization</td><td>—</td><td><strong>Yes</strong></td><td>—</td><td><strong>Yes</strong></td></tr>
+        <tr><td>Change employment status, extend probation</td><td>—</td><td>—</td><td>—</td><td><strong>Yes</strong></td></tr>
+        <tr><td>Upload the floating-holiday list</td><td>—</td><td>—</td><td>—</td><td><strong>Yes</strong></td></tr>
+        <tr><td>Correct or add leave balance</td><td>—</td><td>—</td><td>—</td><td><strong>Yes</strong></td></tr>
+        <tr><td>View employee-wise LWP for payroll</td><td>—</td><td>—</td><td><strong>Yes</strong></td><td><strong>Yes</strong></td></tr>
+        <tr><td>Grant present-by-default</td><td>—</td><td>—</td><td>—</td><td><strong>Yes</strong></td></tr>
+        <tr><td>Add, edit, delete holidays</td><td>—</td><td>—</td><td>—</td><td><strong>Yes</strong></td></tr>
+        <tr><td>Edit policies, shifts, alert settings</td><td>—</td><td>—</td><td>—</td><td><strong>Yes</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="fn">This maps onto the existing group-and-module rights — new <code>MODULE</code> ids and the usual six flags, no new permission mechanism.</p>
+</section>
+
+<section id="punch" class="domain-att">
+  <div class="sec-head"><span class="sec-num">15</span><h2>Check-in and check-out</h2></div>
+  <p class="lede">Carried forward from 1.0; the HR document does not cover attendance. The employee does two things, and everything that makes the day correct happens in the validation step and the nightly close.</p>
+
+  <div class="canvas">
+    <p class="canvas-title">Daily punch</p>
+    <div class="flow">
+      <div class="n start"><span class="t">Employee opens Attendance</span></div>
+
+      <div class="n sys"><span class="who">System</span><span class="t">Resolve context for today</span>
+        <ul><li>Work location → holiday calendar</li><li>Assigned shift → start, end, grace, thresholds</li><li>Approved leave, if any</li><li>Present-by-default flag</li></ul>
+      </div>
+
+      <div class="n dec"><span class="t">Is today a working day for this employee?</span></div>
+
+      <div class="split">
+        <div class="lane n2"><div class="lh">No — holiday / week-off</div><div class="lb"><strong>Punch is optional</strong>The day stays <code>HOLIDAY</code> or <code>WEEK_OFF</code>. Working it does not credit comp-off by itself — the employee must raise a request, section 09.</div></div>
+        <div class="lane w"><div class="lh">Partly — half-day leave</div><div class="lb"><strong>Punch for the working half</strong>Measured against the half-day threshold only.</div></div>
+        <div class="lane y"><div class="lh">Yes — full working day</div><div class="lb"><strong>Punch required</strong>Miss it and section 16 starts chasing.</div></div>
+      </div>
+
+      <div class="n"><span class="who">Employee</span><span class="t">Check in</span><span class="d">Captured with the punch: timestamp and source — web, mobile, biometric or kiosk. This is the evidence an approver looks at when a regularization is raised.</span></div>
+
+      <div class="n dec"><span class="t">Within the shift's grace period?</span></div>
+
+      <div class="split">
+        <div class="lane y"><div class="lh">Yes</div><div class="lb"><strong><code>PRESENT</code></strong>Alerts for the day stop.</div></div>
+        <div class="lane w"><div class="lh">No</div><div class="lb"><strong><code>LATE</code></strong>Recorded with the minutes late. Alerts stop.</div></div>
+      </div>
+
+      <div class="n"><span class="who">Employee</span><span class="t">Check out</span><span class="d">Worked minutes = check-out − check-in − unpaid break. The 3 PM – 12 AM shift crosses midnight, so its punches stay attached to the shift's start date.</span></div>
+
+      <div class="n sys"><span class="who">Scheduler · nightly</span><span class="t">Close the day and write the final status</span>
+        <ul><li>Worked at or above the full-day threshold → <code>PRESENT</code></li><li>Between half-day and full-day → <code>HALF_DAY</code></li><li>Below the half-day threshold → <code>ABSENT</code></li><li>Check-in but no check-out → <code>MISSING_PUNCH</code></li><li>No punch at all, not on leave → <code>ABSENT</code></li></ul>
+      </div>
+
+      <div class="n att"><span class="who">Result</span><span class="t">One attendance day row, final unless regularized</span><span class="d">Exception days become an action item for the employee and a team exception for the manager. Route: section 17.</span></div>
+    </div>
+  </div>
+
+  <h3>Who sees what</h3>
+  <div class="grid2">
+    <div class="card att"><h4><span class="k">My Attendance</span>The employee</h4><p>Own calendar, own punches, own exceptions, own pending regularizations. An employee sees nobody else.</p></div>
+    <div class="card att"><h4><span class="k">Team Attendance</span>The reporting manager</h4><p>Everyone whose <code>ManagerId</code> is them. Approve or reject a regularization from the same screen.</p></div>
+  </div>
+</section>
+
+<section id="alerts" class="domain-att">
+  <div class="sec-head"><span class="sec-num">16</span><h2>Alerts</h2></div>
+  <p class="lede">If an employee misses the timing of the shift assigned to them, the system chases until they punch or the window closes. Interval and window are both set by Admin and HR Admin.</p>
+
+  <div class="canvas">
+    <p class="canvas-title">Missed check-in — the repeat loop</p>
+    <div class="flow">
+      <div class="n sys"><span class="who">Scheduler</span><span class="t">Scan today's unpunched rows</span><span class="d">Location-scoped, because 9 AM in India and 9 AM in the US are different sweeps.</span></div>
+
+      <div class="n dec"><span class="t">Should this employee be chased at all?</span>
+        <ul><li>Approved leave covering today → <b>skip</b></li><li>Holiday or week-off at their location → <b>skip</b></li><li>Present by default → <b>skip</b></li><li>Already checked in → <b>skip</b></li></ul>
+      </div>
+
+      <div class="split">
+        <div class="lane n2"><div class="lh">Skip — on leave</div><div class="lb"><strong>Silence</strong>If the employee is on leave we cannot send notifications. The job never touches the row — this is not a filter applied afterwards.</div></div>
+        <div class="lane y"><div class="lh">Chase</div><div class="lb"><strong>Shift start + delay has passed</strong>Send the first "you forgot to check in" mail.</div></div>
+      </div>
+
+      <div class="n dec"><span class="t">Has the employee checked in yet?</span></div>
+
+      <div class="split">
+        <div class="lane y"><div class="lh">Yes</div><div class="lb"><strong>Stop immediately</strong>No further alerts for the day.</div></div>
+        <div class="lane w"><div class="lh">No, still inside the window</div><div class="lb"><strong>Send again after the interval</strong>Loop back. The window bounds the repeats, not a retry count.</div></div>
+        <div class="lane n2"><div class="lh">No, window closed</div><div class="lb"><strong>Stop chasing</strong>The nightly close writes <code>ABSENT</code>, and the regularization window opens.</div></div>
+      </div>
+
+      <div class="n ok"><span class="who">Worked example</span><span class="t">General shift 9 AM – 6 PM, every 10 minutes for 2 hours</span><span class="d">Mails at 9:10, 9:20, 9:30 … through 11:10, stopping the moment the employee checks in. Twelve mails is the ceiling, and it is the window that sets it.</span></div>
+    </div>
+  </div>
+
+  <h3>The three alerts</h3>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>When</th><th>Alert</th><th>Suppressed when</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">Shift start + delay,<br>then every interval,<br>for the window</td><td><strong>You forgot to check in</strong><br>Repeats until the employee punches</td><td>On approved leave · holiday · week-off · present-by-default · already checked in</td></tr>
+        <tr><td class="mono">Configured time,<br>21:00 by default</td><td><strong>You forgot to check out</strong><br>Sweeps any day still holding a check-in with no check-out, and writes <code>MISSING_PUNCH</code></td><td>Already checked out · on leave</td></tr>
+        <tr><td class="mono">On decision</td><td><strong>Your regularization was approved</strong><br>To the employee, with the date and the remark. Also sent on rejection</td><td>Never</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Every alert that goes out writes a row through the existing <code>dbo.tblEmailOutbox</code>, so "I never got a mail" has an answer. No new notification table.</p>
+</section>
+
+<section id="regular" class="domain-att">
+  <div class="sec-head"><span class="sec-num">17</span><h2>Regularization</h2></div>
+  <p class="lede">If someone forgets to check in or check out, they raise a regularization within 24 hours — configurable by Admin and HR Admin — and their manager, HR Admin or Admin approves it from the approval screen.</p>
+
+  <div class="canvas">
+    <p class="canvas-title">Regularization request</p>
+    <div class="flow">
+      <div class="n start"><span class="t">An exception day exists</span></div>
+      <div class="n"><span class="who">Employee</span><span class="t">Raise a regularization request</span>
+        <ul><li>The date</li><li>Type: missing check-in · missing check-out · late arrival · early exit</li><li>Proposed in and out time, and a reason</li></ul>
+      </div>
+      <div class="n dec"><span class="t">Is the request inside the window?</span>
+        <ul><li>Raised within <b>24 hours</b> of the date, by default</li><li>No existing request or approved leave on that date</li></ul>
+      </div>
+      <div class="split">
+        <div class="lane n2"><div class="lh">Outside the window</div><div class="lb"><strong>Blocked at submit</strong>The message names the window. The remaining route is a leave application, or an HR Admin correction.</div></div>
+        <div class="lane y"><div class="lh">Inside</div><div class="lb"><strong><code>PENDING</code> → the approval screen</strong>Visible to the reporting manager, HR Admin and Admin. Any one of the three can decide.</div></div>
+      </div>
+      <div class="n dec"><span class="t">Approver decides</span><span class="d">The screen shows the recorded punch beside the claim — time and source.</span></div>
+      <div class="split">
+        <div class="lane y"><div class="lh">Approve</div><div class="lb"><strong>The day is recomputed</strong>Status changes and the previous value is kept, so the change is auditable.</div></div>
+        <div class="lane n2"><div class="lh">Reject</div><div class="lb"><strong>The status stands</strong>The employee is told why.</div></div>
+        <div class="lane w"><div class="lh">No action by the window close</div><div class="lb"><strong><code>EXPIRED</code></strong>A real status, not a silent disappearance from the queue.</div></div>
+      </div>
+      <div class="n sys"><span class="who">System</span><span class="t">Mail the employee</span><span class="d">On approval and on rejection, with the date and the remark.</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="shift" class="domain-att">
+  <div class="sec-head"><span class="sec-num">18</span><h2>Shifts, location-wise</h2></div>
+  <p class="lede">Two shifts to start, assigned to employees and scoped by location. A third can be added as a row; nothing in the design assumes only two.</p>
+
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Code</th><th>Window</th><th>Crosses midnight</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">GEN</td><td class="mono">09:00 – 18:00</td><td>No</td></tr>
+        <tr><td class="mono">EVE</td><td class="mono">15:00 – 00:00</td><td><strong>Yes</strong> — punches stay attached to the start date</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>How a shift is resolved for an employee on a date</h3>
+  <ol class="ladder">
+    <li><div><b>The employee's assigned shift</b><span>Set when they join or when they move shift. Carries effective-from and effective-to dates, so a reassignment does not rewrite history.</span></div></li>
+    <li><div><b>The location's default shift</b><span>Fallback, so resolution never returns nothing. India and the US can each have their own default and their own week-off pattern.</span></div></li>
+  </ol>
+
+  <h3>What one shift row carries</h3>
+  <div class="grid2">
+    <div class="card"><h4><span class="k">Timing</span>Window</h4><ul><li>Start, end, crosses-midnight flag</li><li>Unpaid break minutes</li><li>Grace-in and grace-out minutes</li></ul></div>
+    <div class="card"><h4><span class="k">Thresholds</span>Day classification</h4><ul><li>Full-day minutes</li><li>Half-day minutes</li></ul></div>
+    <div class="card"><h4><span class="k">Calendar</span>Week-off pattern</h4><ul><li>Stored as rows: day of week, week of month</li><li>Fixed Sat + Sun, or alternate Saturday</li><li>This is what the sandwich rule reads — it must not hard-code weekends</li></ul></div>
+    <div class="card"><h4><span class="k">Scope</span>Where it applies</h4><ul><li>Location, or null for all</li><li>Effective-from and effective-to</li><li>Soft delete — a shift with history is never removed</li></ul></div>
+  </div>
+</section>
+
+<section id="default" class="domain-att">
+  <div class="sec-head"><span class="sec-num">19</span><h2>Present by default</h2></div>
+  <p class="lede">Switched on per employee. While it is on, that member does not check in on a regular basis — identically whether they are in India or the US.</p>
+
+  <div class="canvas">
+    <p class="canvas-title">Grant, and the daily effect</p>
+    <div class="flow">
+      <div class="n"><span class="who">HR Admin</span><span class="t">Grant the exemption</span><span class="d">Per employee, with effective-from and effective-to dates and a reason.</span></div>
+      <div class="n sys"><span class="who">Scheduler · daily</span><span class="t">Mark the day present at shift start</span><span class="d">Writes <code>PRESENT</code> with source <code>DEFAULT_PRESENT</code>, so the row still shows it was automatic and who granted it.</span></div>
+      <div class="n dec"><span class="t">Is there an approved leave on this date?</span></div>
+      <div class="split">
+        <div class="lane y"><div class="lh">Yes</div><div class="lb"><strong>Leave wins</strong>The day is <code>ON_LEAVE</code> and balance is deducted. The exemption is from punching, not from the leave policy.</div></div>
+        <div class="lane i"><div class="lh">No</div><div class="lb"><strong><code>PRESENT</code> stands</strong></div></div>
+      </div>
+      <div class="n ok"><span class="who">Outcome</span><span class="t">No alerts, no regularizations, no approvals</span><span class="d">Exempt members generate no exception traffic at all.</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="holiday" class="domain-att">
+  <div class="sec-head"><span class="sec-num">20</span><h2>Holidays, by location</h2></div>
+  <p class="lede">India and the US have different holidays and festivals. A holiday is linked to one or more locations, and an employee sees only the calendar for the location they are assigned to.</p>
+
+  <div class="grid2">
+    <div class="card att"><h4><span class="k">Type 1</span>Normal holiday</h4><p>Applies to everybody at the linked locations. Non-working, nothing to choose. Independence Day is one row linked to India; Thanksgiving is one linked to the US; New Year's Day is <b>one row linked to both</b>.</p></div>
+    <div class="card att"><h4><span class="k">Type 2</span>Floating / Restricted holiday</h4><p>The curated list HR uploads for the calendar year. The employee picks <b>one</b> from it — the detail is in section 07, because the entitlement behaves as a leave category.</p></div>
+  </div>
+
+  <p>HR Admin can <strong>add, edit and delete</strong> holidays. Delete is a soft delete, so a holiday that days are already marked against never leaves the table.</p>
+
+  <p>A holiday links to locations through a link table rather than carrying a single <code>LocationId</code>. One column would force either a duplicate row per location or a nullable "all locations" special case, and the first bug either produces is a US employee seeing an Indian festival.</p>
+</section>
+
+<section id="hradmin">
+  <div class="sec-head"><span class="sec-num">21</span><h2>HR and Admin controls<span class="src">HR doc §4</span></h2></div>
+  <p class="lede">The capabilities the HR document requires, and where each one lives in this design.</p>
+
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Required control</th><th>Where it lives</th></tr></thead>
+      <tbody>
+        <tr><td>Automatically calculate probation end dates from the DOJ</td><td>Scheduler, on joining · <code>ProbationEndDate</code> on the employee record · §01</td></tr>
+        <tr><td>Automatically transition employees from probation to confirmed</td><td>Daily scheduler job reading <code>ProbationEndDate</code> · §01</td></tr>
+        <tr><td>Allow HR to manually change employment status</td><td>Employee screen, with every change written to the status history · §01</td></tr>
+        <tr><td>Allow HR to extend or modify the probation period</td><td><code>ProbationMonths</code> is per employee, not a global constant · §01</td></tr>
+        <tr><td>Automatically allocate eligible leave balances by employment status</td><td>Monthly accrual job, driven by the policy's <code>AvailableDuringProbation</code> flag · §03, §06</td></tr>
+        <tr><td>Maintain separate financial-year and calendar-year cycles</td><td><code>tblLeaveCycle</code> with a cycle type; each policy names which it follows · §02</td></tr>
+        <tr><td>Allow HR to upload or modify the annual floating-holiday list</td><td>Holiday calendar screen, filtered to the restricted type for the calendar year · §07, §20</td></tr>
+        <tr><td>Allow HR to manually credit comp-off after approval</td><td>Comp-off screen — the credit is a separate action from the manager's approval · §09</td></tr>
+        <tr><td>Maintain employee-wise allocation, consumption and remaining balance</td><td><code>vwLeaveBalance</code> over the ledger, per employee per category per cycle · §27</td></tr>
+        <tr><td>Maintain a historical record of all leave transactions and manual adjustments</td><td>The ledger is append-only; a correction is a new row, never an edit · §27</td></tr>
+        <tr><td>Provide HR with employee-wise LWP records for payroll</td><td>LWP report over the ledger, filtered to the LWP category · §08</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="automation">
+  <div class="sec-head"><span class="sec-num">22</span><h2>Automation summary<span class="src">HR doc §5</span></h2></div>
+  <p class="lede">What happens without HR intervention. Every row here is a scheduled job or a trigger inside a transaction, not a screen somebody has to remember to open.</p>
+
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Trigger / event</th><th>System action</th><th>Runs as</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Employee joins</strong></td><td>Calculate the probation end date from the DOJ</td><td>On create</td></tr>
+        <tr><td><strong>Employee is on probation</strong></td><td>Allocate 1 CL/SL per month</td><td>Monthly job</td></tr>
+        <tr><td><strong>Employee exceeds available probation leave</strong></td><td>Record the excess as LWP</td><td>At approval, in the transaction</td></tr>
+        <tr><td><strong>Probation is completed</strong></td><td>Activate the confirmed-employee leave categories</td><td>Daily job</td></tr>
+        <tr><td><strong>Probation is completed</strong></td><td>Start monthly EL accrual</td><td>Daily job, then monthly</td></tr>
+        <tr><td><strong>1 April every year</strong></td><td>Start a new CL/SL and EL financial-year cycle</td><td>Annual job</td></tr>
+        <tr><td><strong>1 January every year</strong></td><td>Reset the floating / restricted holiday entitlement</td><td>Annual job</td></tr>
+        <tr><td><strong>Approved comp-off request</strong></td><td>Make the request available for HR to credit 1 day</td><td>On approval — <strong>the credit itself stays manual</strong></td></tr>
+        <tr><td><strong>Employee avails leave</strong></td><td>Update the respective leave balance</td><td>At approval, in the transaction</td></tr>
+        <tr><td><strong>LWP is recorded</strong></td><td>Make the LWP data available for payroll processing</td><td>Continuous — the report reads the ledger</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>All scheduled jobs, leave and attendance</h3>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Cadence</th><th>Job</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">Every 10 min</td><td>Missed check-in alert sweep, within each alert window</td></tr>
+        <tr><td class="mono">Daily 21:00</td><td>Missed check-out sweep; write <code>MISSING_PUNCH</code></td></tr>
+        <tr><td class="mono">Nightly</td><td>Close the day; compute final attendance statuses</td></tr>
+        <tr><td class="mono">Daily at shift start</td><td>Mark present-by-default members present</td></tr>
+        <tr><td class="mono">Daily</td><td>Probation completion sweep → transition to Confirmed, open EL accrual</td></tr>
+        <tr><td class="mono">Daily</td><td>Regularization window expiry</td></tr>
+        <tr><td class="mono">Monthly</td><td>Leave accrual — 1 CL/SL on probation, 1 EL after confirmation</td></tr>
+        <tr><td class="mono">1 April</td><td>Open the new financial-year cycle for CL/SL and EL</td></tr>
+        <tr><td class="mono">1 January</td><td>Open the new calendar-year cycle; reset the floating entitlement</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="config">
+  <div class="sec-head"><span class="sec-num">23</span><h2>Configurable values</h2></div>
+  <p class="lede">Everything called out as configurable, across both source documents.</p>
+
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Setting</th><th>Controls</th><th>Default</th><th>Scope</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">ProbationMonths</td><td>Probation duration from the DOJ</td><td class="num">3</td><td><strong>Per employee</strong></td></tr>
+        <tr><td class="mono">ProbationCLSLPerMonth</td><td>CL/SL allocated monthly during probation</td><td class="num">1</td><td>Per policy</td></tr>
+        <tr><td class="mono">ELAccrualDays</td><td>EL credited per accrual after confirmation</td><td class="num">1</td><td>Per policy</td></tr>
+        <tr><td class="mono">ELAccrualAnchor</td><td>What the monthly EL accrual is counted from</td><td class="mono">to confirm</td><td>Per policy</td></tr>
+        <tr><td class="mono">FloatingPickQuota</td><td>Floating / restricted holidays per calendar year</td><td class="num">1</td><td>Per mapping</td></tr>
+        <tr><td class="mono">CompOffValidityDays</td><td>Life of a credited comp-off day</td><td class="mono">to confirm</td><td>Per policy</td></tr>
+        <tr><td class="mono">CheckInAlertDelay</td><td>Wait after shift start before the first alert</td><td class="num">10 min</td><td>Org / Location</td></tr>
+        <tr><td class="mono">CheckInAlertInterval</td><td>Gap between repeat alerts</td><td class="num">10 min</td><td>Org / Location</td></tr>
+        <tr><td class="mono">CheckInAlertWindow</td><td>How long the repeats continue</td><td class="num">120 min</td><td>Org / Location</td></tr>
+        <tr><td class="mono">CheckOutAlertTime</td><td>When the missed-check-out sweep runs</td><td class="num">21:00</td><td>Org / Location</td></tr>
+        <tr><td class="mono">RegularizationWindow</td><td>How long after the date a request may be raised</td><td class="num">24 hours</td><td>Org / Location</td></tr>
+        <tr><td class="mono">SandwichMode</td><td>Which of the three modes applies</td><td class="mono">to confirm</td><td>Per category / location</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>The alert settings are per location because 9 AM in India and 9 AM in the US are different sweeps. Anything scoped <em>Org / Location</em> resolves location-first and falls back to the org row.</p>
+</section>
+
+<section id="states">
+  <div class="sec-head"><span class="sec-num">24</span><h2>Statuses</h2></div>
+  <p class="lede">Five status sets. Nothing in the system should write a status that is not on one of these lines.</p>
+
+  <div class="sm">
+    <h4>Employment status <span style="text-transform:none;letter-spacing:0;font-family:var(--f-body);color:var(--ok)">— new in 2.0</span></h4>
+    <ul class="chain">
+      <li><span class="chip ini">PROBATION</span><span class="arw">→</span></li>
+      <li><span class="chip ok">CONFIRMED</span></li>
+    </ul>
+    <p>The transition is automatic on the probation end date, or manual by HR at any time. Extending probation moves the date without changing the status. Every manual change is written to the status history with who, when and why.</p>
+  </div>
+
+  <div class="sm">
+    <h4>Attendance day</h4>
+    <ul class="chain">
+      <li><span class="chip ini">NOT_MARKED</span><span class="arw">→</span></li>
+      <li><span class="chip">CHECKED_IN</span><span class="arw">→</span></li>
+      <li><span class="chip ok">PRESENT</span><span class="arw">|</span></li>
+      <li><span class="chip warn">LATE</span><span class="arw">|</span></li>
+      <li><span class="chip warn">HALF_DAY</span><span class="arw">|</span></li>
+      <li><span class="chip stop">ABSENT</span><span class="arw">|</span></li>
+      <li><span class="chip warn">MISSING_PUNCH</span><span class="arw">|</span></li>
+      <li><span class="chip sys">ON_LEAVE</span><span class="arw">|</span></li>
+      <li><span class="chip sys">HOLIDAY</span><span class="arw">|</span></li>
+      <li><span class="chip sys">WEEK_OFF</span><span class="arw">→</span></li>
+      <li><span class="chip">REGULARIZED</span></li>
+    </ul>
+    <p>Any non-final status can move to <code>REGULARIZED</code> inside the window. The previous status is kept on the regularization row.</p>
+  </div>
+
+  <div class="sm">
+    <h4>Leave request</h4>
+    <ul class="chain">
+      <li><span class="chip ini">DRAFT</span><span class="arw">→</span></li>
+      <li><span class="chip warn">PENDING_MANAGER</span><span class="arw">→</span></li>
+      <li><span class="chip warn">PENDING_HR</span><span class="arw">→</span></li>
+      <li><span class="chip ok">APPROVED</span><span class="arw">·</span></li>
+      <li><span class="chip stop">REJECTED</span><span class="arw">·</span></li>
+      <li><span class="chip stop">CANCELLED</span><span class="arw">·</span></li>
+      <li><span class="chip stop">WITHDRAWN</span></li>
+    </ul>
+    <p>The hold is created when the request is submitted and released on rejection, cancellation or withdrawal. <code>PENDING_HR</code> only appears for categories that need a second level.</p>
+  </div>
+
+  <div class="sm">
+    <h4>Comp-off request and credit <span style="text-transform:none;letter-spacing:0;font-family:var(--f-body);color:var(--ok)">— changed in 2.0</span></h4>
+    <ul class="chain">
+      <li><span class="arw">request:</span></li>
+      <li><span class="chip warn">PENDING_MANAGER</span><span class="arw">→</span></li>
+      <li><span class="chip sys">APPROVED_AWAITING_CREDIT</span><span class="arw">→</span></li>
+      <li><span class="chip ok">CREDITED</span><span class="arw">·</span></li>
+      <li><span class="chip stop">REJECTED</span></li>
+    </ul>
+    <ul class="chain">
+      <li><span class="arw">credit:</span></li>
+      <li><span class="chip ok">AVAILABLE</span><span class="arw">→</span></li>
+      <li><span class="chip sys">CONSUMED</span><span class="arw">·</span></li>
+      <li><span class="chip stop">LAPSED</span></li>
+    </ul>
+    <p><code>APPROVED_AWAITING_CREDIT</code> is the state the HR document creates: the manager has approved, but HR has not yet performed the manual credit. Without it the approved-but-uncredited requests are invisible and nobody knows what HR still owes.</p>
+  </div>
+
+  <div class="sm">
+    <h4>Regularization request</h4>
+    <ul class="chain">
+      <li><span class="chip warn">PENDING</span><span class="arw">→</span></li>
+      <li><span class="chip ok">APPROVED</span><span class="arw">·</span></li>
+      <li><span class="chip stop">REJECTED</span><span class="arw">·</span></li>
+      <li><span class="chip stop">EXPIRED</span></li>
+    </ul>
+    <p>Approval and rejection both send a mail. <code>EXPIRED</code> is written by the scheduler when the window closes with no decision.</p>
+  </div>
+</section>
+
+<section id="usecases">
+  <div class="sec-head"><span class="sec-num">25</span><h2>Use cases</h2></div>
+  <p class="lede">Each flow as one row: who starts it, what the engine checks, and what the system writes.</p>
+
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>#</th><th>Use case</th><th>Actor</th><th>Trigger</th><th>Writes</th><th>§</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">UC-01</td><td><strong>Calculate probation end date</strong></td><td>System</td><td>Employee joins</td><td><code>ProbationEndDate</code> from DOJ + <code>ProbationMonths</code></td><td>01</td></tr>
+        <tr><td class="mono">UC-02</td><td><strong>Auto-confirm on probation completion</strong></td><td>Scheduler</td><td>Daily</td><td>Status → Confirmed; categories activate</td><td>01</td></tr>
+        <tr><td class="mono">UC-03</td><td><strong>Change employment status manually</strong></td><td>HR Admin</td><td>Extend, shorten or confirm early</td><td>Status + history row with reason</td><td>01</td></tr>
+        <tr><td class="mono">UC-04</td><td><strong>Allocate probation CL/SL</strong></td><td>Scheduler</td><td>Monthly, while on probation</td><td>1 CL/SL accrual row</td><td>03</td></tr>
+        <tr><td class="mono">UC-05</td><td><strong>Classify excess leave as LWP</strong></td><td>Rule engine</td><td>Balance exhausted at approval</td><td>LWP rows; paid balance untouched</td><td>08</td></tr>
+        <tr><td class="mono">UC-06</td><td><strong>Accrue EL monthly</strong></td><td>Scheduler</td><td>From the probation end date</td><td>EL accrual rows against the FY cycle</td><td>06</td></tr>
+        <tr><td class="mono">UC-07</td><td><strong>Open the financial-year cycle</strong></td><td>Scheduler</td><td>1 April</td><td>New cycle row; CL/SL and EL recalculated</td><td>02 · 05</td></tr>
+        <tr><td class="mono">UC-08</td><td><strong>Open the calendar-year cycle</strong></td><td>Scheduler</td><td>1 January</td><td>New cycle row; floating entitlement reset</td><td>02 · 07</td></tr>
+        <tr><td class="mono">UC-09</td><td><strong>Upload the floating-holiday list</strong></td><td>HR Admin</td><td>Start of the calendar year</td><td>Holiday rows of the restricted type</td><td>07</td></tr>
+        <tr><td class="mono">UC-10</td><td><strong>Avail a floating holiday</strong></td><td>Employee</td><td>Picks from the published list</td><td>Opt-in row; second pick blocked for the year</td><td>07</td></tr>
+        <tr><td class="mono">UC-11</td><td><strong>Raise a comp-off request</strong></td><td>Employee</td><td>Worked a weekend or non-working day</td><td>Request <code>PENDING_MANAGER</code></td><td>09</td></tr>
+        <tr><td class="mono">UC-12</td><td><strong>Approve a comp-off request</strong></td><td>Manager</td><td>Request in queue</td><td>Status → <code>APPROVED_AWAITING_CREDIT</code></td><td>09</td></tr>
+        <tr><td class="mono">UC-13</td><td><strong>Credit the comp-off day</strong></td><td><strong>HR Admin</strong></td><td>Manual, after approval</td><td>1-day credit row</td><td>09</td></tr>
+        <tr><td class="mono">UC-14</td><td><strong>Apply for leave, full or half day</strong></td><td>Employee</td><td>Needs time off</td><td>Request + hold + day rows; LWP split if short</td><td>11</td></tr>
+        <tr><td class="mono">UC-15</td><td><strong>Compute chargeable days</strong></td><td>Rule engine</td><td>At apply, again at approve</td><td>Day rows, sandwich days tagged</td><td>12</td></tr>
+        <tr><td class="mono">UC-16</td><td><strong>Approve leave</strong></td><td>Manager, HR, HR Admin</td><td>Request in queue</td><td>Approval row; debit on commit</td><td>14</td></tr>
+        <tr><td class="mono">UC-17</td><td><strong>Cancel or withdraw</strong></td><td>Employee</td><td>Plans changed</td><td>Reversal; days released</td><td>11</td></tr>
+        <tr><td class="mono">UC-18</td><td><strong>View the leave dashboard</strong></td><td>Employee</td><td>Opens the screen</td><td>— · categories filtered by status</td><td>10</td></tr>
+        <tr><td class="mono">UC-19</td><td><strong>Correct or add leaves</strong></td><td>HR Admin</td><td>Manage Balance screen</td><td>Adjustment row + mandatory reason</td><td>21</td></tr>
+        <tr><td class="mono">UC-20</td><td><strong>Export LWP for payroll</strong></td><td>HR, Payroll</td><td>Salary processing</td><td>— · employee-wise LWP report</td><td>08</td></tr>
+        <tr><td class="mono">UC-21</td><td><strong>Map leave categories to employees</strong></td><td>HR Admin</td><td>Setup, transfer, promotion</td><td>Mapping rows</td><td>13</td></tr>
+        <tr><td class="mono">UC-22</td><td><strong>Check in</strong></td><td>Employee</td><td>Start of day</td><td>Punch row; <code>PRESENT</code> or <code>LATE</code></td><td>15</td></tr>
+        <tr><td class="mono">UC-23</td><td><strong>Check out</strong></td><td>Employee</td><td>End of day</td><td>Punch row; worked minutes</td><td>15</td></tr>
+        <tr><td class="mono">UC-24</td><td><strong>Close the day</strong></td><td>Scheduler</td><td>Nightly</td><td>Final attendance status</td><td>15</td></tr>
+        <tr><td class="mono">UC-25</td><td><strong>Alert on missed check-in</strong></td><td>Scheduler</td><td>Shift start + delay, repeating</td><td>Outbox rows; suppressed on leave</td><td>16</td></tr>
+        <tr><td class="mono">UC-26</td><td><strong>Alert on missed check-out</strong></td><td>Scheduler</td><td>The configured sweep time</td><td>Outbox row; <code>MISSING_PUNCH</code></td><td>16</td></tr>
+        <tr><td class="mono">UC-27</td><td><strong>Raise regularization</strong></td><td>Employee</td><td>An exception day exists</td><td>Request <code>PENDING</code></td><td>17</td></tr>
+        <tr><td class="mono">UC-28</td><td><strong>Decide regularization</strong></td><td>Manager, HR Admin, Admin</td><td>Approval screen</td><td>Day recomputed; mail to employee</td><td>17</td></tr>
+        <tr><td class="mono">UC-29</td><td><strong>Define and assign shifts</strong></td><td>HR Admin</td><td>Setup, joining, shift move</td><td>Shift version, week-off rows, assignment</td><td>18</td></tr>
+        <tr><td class="mono">UC-30</td><td><strong>Grant present-by-default</strong></td><td>HR Admin</td><td>New exemption</td><td>Exemption row</td><td>19</td></tr>
+        <tr><td class="mono">UC-31</td><td><strong>Add, edit, delete a holiday</strong></td><td>HR Admin</td><td>Calendar maintenance</td><td>Holiday row + location links</td><td>20</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="erd" class="domain-db">
+  <div class="sec-head"><span class="sec-num">26</span><h2>Entity relationship diagram</h2></div>
+  <p class="lede"><code>tblEmployeeDetails</code> is the hub. Attendance hangs off one side, leave off the other, and location scopes the configuration both read. Four things changed here in 2.0 — they are marked <span class="src">v2.0</span>.</p>
+
+  <div class="legend tight">
+    <span><i class="sw h"></i>Existing table</span>
+    <span><i class="sw a"></i>Attendance — new</span>
+    <span><i class="sw l"></i>Leave — new</span>
+    <span><i class="sw s"></i>Configuration — new</span>
+    <span><i class="badge pk">PK</i>Primary key</span>
+    <span><i class="badge fk">FK</i>Foreign key</span>
+    <span><i class="badge uq">UQ</i>Unique</span>
+    <span><i class="badge ap">APPEND</i>Append-only</span>
+  </div>
+
+  <div class="note v2"><b>What the HR document changed in the schema.</b> One: <code>tblEmployeeDetails</code> gains an employment status and a per-employee probation duration, plus a history table for manual changes. Two: <code>tblLeaveYear</code> becomes <code>tblLeaveCycle</code> with a cycle type, because financial-year and calendar-year categories run at the same time. Three: comp-off splits into a request and a credit, because the manager approves and HR credits. Four: LWP becomes a real category on the ledger, flagged unpaid so it never offsets a paid balance.</div>
+
+  <h3>The hub</h3>
+  <div class="erd">
+    <div class="erd-col">
+      <span class="ch">Employee and status</span>
+      <div class="ent hub"><span class="eh">dbo.tblEmployeeDetails<span class="es">Gains three columns in 2.0.</span></span>
+        <ul>
+          <li><span>EmployeeDetailId</span><i class="badge pk">PK</i></li>
+          <li><span>WorkLocationId</span><i class="badge fk">FK</i></li>
+          <li><span>ManagerId</span><i class="badge fk">FK</i></li>
+          <li><span>EmploymentType</span></li>
+          <li><span>DateOfJoining</span></li>
+          <li><span>ProbationEndDate</span></li>
+          <li><span>EmploymentStatus — new</span></li>
+          <li><span>ProbationMonths — new</span></li>
+          <li><span>ConfirmedOn — new</span></li>
+        </ul>
+      </div>
+      <div class="ent lv"><span class="eh">tblEmploymentStatusHistory<span class="es">Every manual HR change: extend, shorten, confirm early.</span></span>
+        <ul><li><span>EmploymentStatusHistoryId</span><i class="badge pk">PK</i></li><li><span>EmployeeDetailId</span><i class="badge fk">FK</i></li><li><span>FromStatus, ToStatus</span></li><li><span>OldProbationEndDate</span></li><li><span>NewProbationEndDate</span></li><li><span>Reason, ChangedBy, ChangedAt</span><i class="badge ap">APPEND</i></li></ul>
+      </div>
+      <div class="ent hub"><span class="eh">dbo.tblOrganizationLocation<span class="es">India and US.</span></span>
+        <ul><li><span>LocationId</span><i class="badge pk">PK</i></li></ul>
+      </div>
+      <div class="ent hub"><span class="eh">dbo.tblLeaveType<span class="es">Existing master data. CL/SL is one row, not two.</span></span>
+        <ul><li><span>LeaveTypeId</span><i class="badge pk">PK</i></li></ul>
+      </div>
+      <div class="ent hub"><span class="eh">dbo.tblEmailOutbox<span class="es">Every alert and decision mail.</span></span>
+        <ul><li><span>EmailOutboxId</span><i class="badge pk">PK</i></li></ul>
+      </div>
+    </div>
+
+    <div class="erd-col">
+      <span class="ch">Configuration</span>
+      <div class="ent cfg"><span class="eh">tblLeaveCycle<span class="es">Replaces tblLeaveYear. Financial and calendar cycles coexist.</span></span>
+        <ul>
+          <li><span>LeaveCycleId</span><i class="badge pk">PK</i></li>
+          <li><span>CycleType FINANCIAL / CALENDAR</span><i class="badge uq">UQ</i></li>
+          <li><span>CycleLabel "FY 2026-27"</span></li>
+          <li><span>StartDate, EndDate</span></li>
+          <li><span>IsClosed</span></li>
+        </ul>
+      </div>
+      <div class="ent cfg"><span class="eh">tblAttendanceAlertSetting<span class="es">The repeat interval and window, as data.</span></span>
+        <ul>
+          <li><span>AttendanceAlertSettingId</span><i class="badge pk">PK</i></li>
+          <li><span>LocationId — null = org</span><i class="badge fk">FK</i></li>
+          <li><span>AlertType</span><i class="badge uq">UQ</i></li>
+          <li><span>DelayMinutes, IntervalMinutes</span></li>
+          <li><span>WindowMinutes, SweepTime</span></li>
+        </ul>
+      </div>
+      <div class="ent cfg"><span class="eh">tblSandwichRule<span class="es">The three selectable modes.</span></span>
+        <ul><li><span>SandwichRuleId</span><i class="badge pk">PK</i></li><li><span>Mode</span></li><li><span>LocationId</span><i class="badge fk">FK</i></li></ul>
+      </div>
+      <div class="ent cfg"><span class="eh">tblHolidayType · tblRegularizationType · tblAttendanceStatus<span class="es">Lookups. Only tblRegularizationType is editable master data — the other two carry fixed ids the code branches on.</span></span>
+        <ul><li><span>Name, Description, IsActive</span></li></ul>
+      </div>
+    </div>
+  </div>
+
+  <h3>Leave</h3>
+  <div class="erd">
+    <div class="erd-col">
+      <span class="ch">Policy and eligibility</span>
+      <div class="ent lv"><span class="eh">tblLeavePolicy<span class="es">Gains the cycle type and the probation visibility flag.</span></span>
+        <ul>
+          <li><span>LeavePolicyId</span><i class="badge pk">PK</i></li>
+          <li><span>LeaveTypeId</span><i class="badge fk">FK</i></li>
+          <li><span>LocationId, EmploymentType</span><i class="badge fk">FK</i></li>
+          <li><span>CycleType — new</span></li>
+          <li><span>AvailableDuringProbation</span></li>
+          <li><span>VisibleDuringProbation — new</span></li>
+          <li><span>IsPaid — new, 0 for LWP</span></li>
+          <li><span>TracksBalance — new, 0 for LWP</span></li>
+          <li><span>AccrualFrequency, AccrualDays</span></li>
+          <li><span>AccrualAnchor — new</span></li>
+          <li><span>AnnualQuota — 1 for floating</span></li>
+          <li><span>ProRateOnJoining — new</span></li>
+          <li><span>AllowHalfDay</span></li>
+          <li><span>SandwichRuleId</span><i class="badge fk">FK</i></li>
+          <li><span>ValidityDays — comp-off</span></li>
+          <li><span>EffectiveFrom / To</span></li>
+        </ul>
+      </div>
+      <div class="ent lv"><span class="eh">tblEmployeeLeavePolicy<span class="es">The per-employee override.</span></span>
+        <ul><li><span>EmployeeLeavePolicyId</span><i class="badge pk">PK</i></li><li><span>EmployeeDetailId</span><i class="badge fk">FK</i></li><li><span>LeavePolicyId</span><i class="badge fk">FK</i></li><li><span>OverrideAnnualQuota</span></li><li><span>OverrideAccrualDays</span></li><li><span>Reason</span></li></ul>
+      </div>
+      <div class="ent lv"><span class="eh">tblLeaveMapping<span class="es">Eligibility. A row is a grant.</span></span>
+        <ul><li><span>LeaveMappingId</span><i class="badge pk">PK</i></li><li><span>LeaveTypeId</span><i class="badge fk">FK</i></li><li><span>LocationId, EmploymentType</span><i class="badge fk">FK</i></li><li><span>Gender, MinTenureMonths</span></li></ul>
+      </div>
+    </div>
+
+    <div class="erd-col">
+      <span class="ch">The request</span>
+      <div class="ent lv"><span class="eh">tblLeaveRequest<span class="es">Points at a cycle, and carries the LWP split.</span></span>
+        <ul>
+          <li><span>LeaveRequestId</span><i class="badge pk">PK</i></li>
+          <li><span>EmployeeDetailId</span><i class="badge fk">FK</i></li>
+          <li><span>LeaveTypeId</span><i class="badge fk">FK</i></li>
+          <li><span>LeaveCycleId — new</span><i class="badge fk">FK</i></li>
+          <li><span>FromDate, ToDate</span></li>
+          <li><span>DayPart FULL / 1ST / 2ND</span></li>
+          <li><span>TotalDays, SandwichDays</span></li>
+          <li><span>PaidDays, LWPDays — new</span></li>
+          <li><span>Status</span></li>
+        </ul>
+      </div>
+      <div class="ent lv"><span class="eh">tblLeaveRequestDay<span class="es">One row per date. What the attendance writer iterates.</span></span>
+        <ul><li><span>LeaveRequestDayId</span><i class="badge pk">PK</i></li><li><span>LeaveRequestId + LeaveDate</span><i class="badge uq">UQ</i></li><li><span>DayPart, ChargedDays</span></li><li><span>DayType WORKING / SANDWICH</span></li><li><span>IsLWP — new</span></li></ul>
+      </div>
+      <div class="ent lv"><span class="eh">tblLeaveApproval<span class="es">One row per level acted on.</span></span>
+        <ul><li><span>LeaveApprovalId</span><i class="badge pk">PK</i></li><li><span>LeaveRequestId</span><i class="badge fk">FK</i></li><li><span>ApprovalLevel</span></li><li><span>ApproverId, ApproverRole</span><i class="badge fk">FK</i></li><li><span>Action, Remarks, ActedAt</span><i class="badge ap">APPEND</i></li></ul>
+      </div>
+      <div class="ent att"><span class="eh">tblRestrictedHolidayOptIn<span class="es">The floating pick — 1 per calendar year.</span></span>
+        <ul><li><span>RestrictedHolidayOptInId</span><i class="badge pk">PK</i></li><li><span>EmployeeDetailId + LeaveCycleId</span><i class="badge uq">UQ</i></li><li><span>HolidayId</span><i class="badge fk">FK</i></li><li><span>Status</span></li></ul>
+      </div>
+    </div>
+
+    <div class="erd-col">
+      <span class="ch">Balance and comp-off</span>
+      <div class="ent lv"><span class="eh">tblLeaveLedger<span class="es">Append-only. The balance is the SUM over this and is stored nowhere else.</span></span>
+        <ul>
+          <li><span>LeaveLedgerId</span><i class="badge pk">PK</i></li>
+          <li><span>EmployeeDetailId</span><i class="badge fk">FK</i></li>
+          <li><span>LeaveTypeId</span><i class="badge fk">FK</i></li>
+          <li><span>LeaveCycleId — new</span><i class="badge fk">FK</i></li>
+          <li><span>EntryType</span></li>
+          <li><span>Days — signed</span></li>
+          <li><span>IsHold</span></li>
+          <li><span>SourceType, SourceId</span></li>
+          <li><span>Remarks</span><i class="badge ap">APPEND</i></li>
+        </ul>
+      </div>
+      <div class="ent lv"><span class="eh">tblCompOffRequest<span class="es">New in 2.0. The manager approves this; it does not credit anything.</span></span>
+        <ul><li><span>CompOffRequestId</span><i class="badge pk">PK</i></li><li><span>EmployeeDetailId</span><i class="badge fk">FK</i></li><li><span>WorkedOnDate</span><i class="badge uq">UQ</i></li><li><span>AttendanceDayId</span><i class="badge fk">FK</i></li><li><span>Reason, Status</span></li><li><span>ApprovedBy, ApprovedAt</span><i class="badge fk">FK</i></li></ul>
+      </div>
+      <div class="ent lv"><span class="eh">tblCompOffCredit<span class="es">Created by HR, by hand, after the approval. 1 day.</span></span>
+        <ul><li><span>CompOffCreditId</span><i class="badge pk">PK</i></li><li><span>CompOffRequestId</span><i class="badge uq">UQ</i></li><li><span>EmployeeDetailId</span><i class="badge fk">FK</i></li><li><span>Days — 1.00</span></li><li><span>CreditedBy, CreditedAt</span><i class="badge fk">FK</i></li><li><span>ExpiresOn — nullable</span></li><li><span>RemainingDays, Status</span></li></ul>
+      </div>
+      <div class="ent cfg"><span class="eh">vwLeaveBalance<span class="es">A view, not a table. Per employee, category and cycle.</span></span>
+        <ul><li><span>EmployeeDetailId, LeaveTypeId</span></li><li><span>LeaveCycleId</span></li><li><span>Balance, Available</span></li><li><span>LWPDaysConsumed</span></li></ul>
+      </div>
+    </div>
+  </div>
+
+  <h3>Attendance</h3>
+  <div class="erd">
+    <div class="erd-col">
+      <span class="ch">Shifts</span>
+      <div class="ent att"><span class="eh">tblShift<span class="es">GEN and EVE. Versioned by effective date.</span></span>
+        <ul>
+          <li><span>ShiftId</span><i class="badge pk">PK</i></li>
+          <li><span>ShiftCode</span><i class="badge uq">UQ</i></li>
+          <li><span>LocationId — null = all</span><i class="badge fk">FK</i></li>
+          <li><span>StartTime, EndTime</span></li>
+          <li><span>CrossesMidnight</span></li>
+          <li><span>GraceIn / GraceOutMinutes</span></li>
+          <li><span>FullDay / HalfDayMinutes</span></li>
+          <li><span>EffectiveFrom / To</span></li>
+        </ul>
+      </div>
+      <div class="ent att"><span class="eh">tblShiftWeekOff<span class="es">Day of week + week of month.</span></span>
+        <ul><li><span>ShiftWeekOffId</span><i class="badge pk">PK</i></li><li><span>ShiftId</span><i class="badge fk">FK</i></li><li><span>DayOfWeek, WeekOfMonth</span><i class="badge uq">UQ</i></li></ul>
+      </div>
+      <div class="ent att"><span class="eh">tblEmployeeShift<span class="es">The assignment.</span></span>
+        <ul><li><span>EmployeeShiftId</span><i class="badge pk">PK</i></li><li><span>EmployeeDetailId</span><i class="badge fk">FK</i></li><li><span>ShiftId</span><i class="badge fk">FK</i></li><li><span>EffectiveFrom / To</span></li></ul>
+      </div>
+      <div class="ent att"><span class="eh">tblAttendanceExemption<span class="es">Present by default.</span></span>
+        <ul><li><span>AttendanceExemptionId</span><i class="badge pk">PK</i></li><li><span>EmployeeDetailId</span><i class="badge fk">FK</i></li><li><span>EffectiveFrom / To, Reason</span></li></ul>
+      </div>
+    </div>
+
+    <div class="erd-col">
+      <span class="ch">The day</span>
+      <div class="ent att"><span class="eh">tblAttendanceDay<span class="es">One row per employee per date. The spine.</span></span>
+        <ul>
+          <li><span>AttendanceDayId</span><i class="badge pk">PK</i></li>
+          <li><span>EmployeeDetailId + AttendanceDate</span><i class="badge uq">UQ</i></li>
+          <li><span>ShiftId — the resolved shift</span><i class="badge fk">FK</i></li>
+          <li><span>AttendanceStatusId</span><i class="badge fk">FK</i></li>
+          <li><span>FirstCheckInAt, LastCheckOutAt</span></li>
+          <li><span>WorkedMinutes, LateMinutes</span></li>
+          <li><span>IsDefaultPresent</span></li>
+          <li><span>LeaveRequestId — the join</span><i class="badge fk">FK</i></li>
+          <li><span>HolidayId</span><i class="badge fk">FK</i></li>
+        </ul>
+      </div>
+      <div class="ent att"><span class="eh">tblAttendancePunch<span class="es">Never updated, never deleted. The evidence an approver reads.</span></span>
+        <ul><li><span>PunchId</span><i class="badge pk">PK</i></li><li><span>AttendanceDayId</span><i class="badge fk">FK</i></li><li><span>PunchType IN / OUT</span></li><li><span>PunchAt, Source</span><i class="badge ap">APPEND</i></li></ul>
+      </div>
+      <div class="ent att"><span class="eh">tblRegularizationRequest<span class="es">24-hour window; manager, HR Admin or Admin decides.</span></span>
+        <ul>
+          <li><span>RegularizationRequestId</span><i class="badge pk">PK</i></li>
+          <li><span>EmployeeDetailId + AttendanceDate</span><i class="badge uq">UQ</i></li>
+          <li><span>RegularizationTypeId</span><i class="badge fk">FK</i></li>
+          <li><span>ProposedInAt / OutAt, Reason</span></li>
+          <li><span>Status, DecidedBy, DecidedAt</span><i class="badge fk">FK</i></li>
+          <li><span>PreviousAttendanceStatusId</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="erd-col">
+      <span class="ch">Holidays</span>
+      <div class="ent att"><span class="eh">tblHoliday<span class="es">Normal or Restricted, per calendar year.</span></span>
+        <ul><li><span>HolidayId</span><i class="badge pk">PK</i></li><li><span>HolidayName, HolidayDate</span></li><li><span>HolidayTypeId</span><i class="badge fk">FK</i></li><li><span>HolidayYear</span></li></ul>
+      </div>
+      <div class="ent att"><span class="eh">tblHolidayLocation<span class="es">Many-to-many, so one New Year row serves India and the US.</span></span>
+        <ul><li><span>HolidayLocationId</span><i class="badge pk">PK</i></li><li><span>HolidayId + LocationId</span><i class="badge uq">UQ</i></li></ul>
+      </div>
+      <div class="ent att"><span class="eh">tblRestrictedHolidayMapping<span class="es">Which list an employee may pick from, and how many — 1.</span></span>
+        <ul><li><span>RestrictedHolidayMappingId</span><i class="badge pk">PK</i></li><li><span>LocationId, EmploymentType</span><i class="badge fk">FK</i></li><li><span>LeaveCycleId</span><i class="badge fk">FK</i></li><li><span>PickQuota</span></li></ul>
+      </div>
+    </div>
+  </div>
+
+  <h3>The relationships</h3>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Parent</th><th>Child</th><th>Card.</th><th>Via</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">tblEmployeeDetails</td><td class="mono">tblEmploymentStatusHistory</td><td class="num">1:N</td><td class="mono">EmployeeDetailId</td><td><strong>New in 2.0.</strong> Every manual probation or status change</td></tr>
+        <tr><td class="mono">tblLeaveCycle</td><td class="mono">tblLeaveLedger · tblLeaveRequest</td><td class="num">1:N</td><td class="mono">LeaveCycleId</td><td><strong>New in 2.0.</strong> Financial and calendar cycles coexist</td></tr>
+        <tr><td class="mono">tblEmployeeDetails</td><td class="mono">tblAttendanceDay</td><td class="num">1:N</td><td class="mono">EmployeeDetailId</td><td>Unique on (employee, date)</td></tr>
+        <tr><td class="mono">tblAttendanceDay</td><td class="mono">tblAttendancePunch</td><td class="num">1:N</td><td class="mono">AttendanceDayId</td><td>Many punches per day</td></tr>
+        <tr><td class="mono">tblShift</td><td class="mono">tblAttendanceDay</td><td class="num">1:N</td><td class="mono">ShiftId</td><td>The resolved shift, stored so history survives a change</td></tr>
+        <tr><td class="mono">tblShift</td><td class="mono">tblShiftWeekOff · tblEmployeeShift</td><td class="num">1:N</td><td class="mono">ShiftId</td><td>Week-off pattern, and the assignment</td></tr>
+        <tr><td class="mono">tblOrganizationLocation</td><td class="mono">tblShift · tblHolidayLocation · tblAttendanceAlertSetting</td><td class="num">1:N</td><td class="mono">LocationId</td><td>Location scopes all three</td></tr>
+        <tr><td class="mono">tblHoliday</td><td class="mono">tblHolidayLocation</td><td class="num">N:M</td><td class="mono">HolidayId</td><td>Via the link table</td></tr>
+        <tr><td class="mono">tblHoliday</td><td class="mono">tblRestrictedHolidayOptIn</td><td class="num">1:N</td><td class="mono">HolidayId</td><td>Unique on (employee, cycle) — the 1-per-year cap</td></tr>
+        <tr><td class="mono">tblHoliday</td><td class="mono">tblAttendanceDay</td><td class="num">1:N</td><td class="mono">HolidayId</td><td>Why the day is <code>HOLIDAY</code>, answerable from the row</td></tr>
+        <tr><td class="mono">tblLeaveType</td><td class="mono">tblLeavePolicy · tblLeaveMapping · tblLeaveRequest · tblLeaveLedger</td><td class="num">1:N</td><td class="mono">LeaveTypeId</td><td>The existing master-data row, now with dependants</td></tr>
+        <tr><td class="mono">tblLeavePolicy</td><td class="mono">tblEmployeeLeavePolicy</td><td class="num">1:N</td><td class="mono">LeavePolicyId</td><td>Per-employee override</td></tr>
+        <tr><td class="mono">tblSandwichRule</td><td class="mono">tblLeavePolicy</td><td class="num">1:N</td><td class="mono">SandwichRuleId</td><td>Nullable — no rule means none applies</td></tr>
+        <tr><td class="mono">tblLeaveRequest</td><td class="mono">tblLeaveRequestDay · tblLeaveApproval</td><td class="num">1:N</td><td class="mono">LeaveRequestId</td><td>Per date, and per approval level</td></tr>
+        <tr><td class="mono">tblLeaveRequest</td><td class="mono">tblAttendanceDay</td><td class="num">1:N</td><td class="mono">LeaveRequestId</td><td><strong>The join between the two domains</strong></td></tr>
+        <tr><td class="mono">tblAttendanceDay</td><td class="mono">tblCompOffRequest</td><td class="num">1:1</td><td class="mono">AttendanceDayId</td><td>The worked day the request is raised against</td></tr>
+        <tr><td class="mono">tblCompOffRequest</td><td class="mono">tblCompOffCredit</td><td class="num">1:1</td><td class="mono">CompOffRequestId</td><td><strong>New in 2.0.</strong> Unique — one credit per approved request, created by HR</td></tr>
+        <tr><td class="mono">tblEmployeeDetails</td><td class="mono">tblLeaveLedger</td><td class="num">1:N</td><td class="mono">EmployeeDetailId</td><td>Append-only; every balance read is this query</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p><code>tblLeaveLedger.SourceId</code> carries no foreign key — it points at the leave request, the comp-off credit, a job run or an adjustment depending on <code>SourceType</code>. It is the only polymorphic id in the schema.</p>
+</section>
+
+<section id="appendix" class="domain-db">
+  <div class="sec-head"><span class="sec-num">27</span><h2>Tables</h2></div>
+  <p class="lede">Definitions in migration order. Audit columns are on every table and are not repeated: <code>CreatedBy</code>, <code>ModifiedBy</code>, <code>CreatedAt</code>, <code>ModifiedAt</code>, <code>DeletedAt</code>, with <code>DeletedAt IS NULL</code> meaning live and unique indexes filtered on it. Times are UTC. Append-only tables carry <code>CreatedBy</code> and <code>CreatedAt</code> only.</p>
+
+  <h3>014_employment_confirmation.sql <span class="tag">new in 2.0</span></h3>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Column</th><th>Type</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr class="grp"><td colspan="3">ALTER dbo.tblEmployeeDetails — three new columns</td></tr>
+        <tr><td class="mono">ConfirmationStatus</td><td class="mono">NVARCHAR(20)</td><td><code>PROBATION</code> / <code>CONFIRMED</code>. Default <code>PROBATION</code>. Stored, not derived — HR must be able to confirm somebody early, which a computed value cannot express.<br><strong>Not called <code>EmploymentStatus</code>:</strong> that column has existed on <code>tblEmployeeDetails</code> since migration 001 and answers a different question — Active / OnLeave / NoticePeriod / Exited / Suspended. The two are independent and both are needed: an exited employee was still either confirmed or not, and final settlement reads exactly that</td></tr>
+        <tr><td class="mono">ProbationMonths</td><td class="mono">TINYINT</td><td>Default 3. Per employee, so a different probation length is a field rather than an exception</td></tr>
+        <tr><td class="mono">ConfirmedOn</td><td class="mono">DATE NULL</td><td>When the transition actually happened — may differ from <code>ProbationEndDate</code> if HR confirmed early or late</td></tr>
+        <tr><td class="mono">ProbationEndDate</td><td class="mono">DATE NULL</td><td>Already exists. Now computed as <code>DateOfJoining + ProbationMonths</code> on create, and rewritten when HR extends</td></tr>
+
+        <tr class="grp"><td colspan="3">dbo.tblEmploymentStatusHistory — append-only</td></tr>
+        <tr><td class="mono">EmploymentStatusHistoryId</td><td class="mono">BIGINT IDENTITY</td><td>PK</td></tr>
+        <tr><td class="mono">EmployeeDetailId</td><td class="mono">BIGINT</td><td>FK</td></tr>
+        <tr><td class="mono">FromStatus / ToStatus</td><td class="mono">NVARCHAR(20)</td><td>Both recorded, so a reversal is visible</td></tr>
+        <tr><td class="mono">OldProbationEndDate</td><td class="mono">DATE NULL</td><td>What it was before an extension</td></tr>
+        <tr><td class="mono">NewProbationEndDate</td><td class="mono">DATE NULL</td><td>What it became</td></tr>
+        <tr><td class="mono">ChangeType</td><td class="mono">NVARCHAR(20)</td><td><code>AUTO_CONFIRM</code> / <code>MANUAL_CONFIRM</code> / <code>EXTEND</code> / <code>SHORTEN</code></td></tr>
+        <tr><td class="mono">Reason</td><td class="mono">NVARCHAR(500)</td><td>Mandatory for every manual change</td></tr>
+        <tr><td class="mono">ChangedBy / ChangedAt</td><td class="mono">BIGINT / DATETIME2</td><td>The automatic job writes itself as the actor</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>015_shift.sql</h3>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Column</th><th>Type</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr class="grp"><td colspan="3">dbo.tblShift</td></tr>
+        <tr><td class="mono">ShiftId</td><td class="mono">BIGINT IDENTITY</td><td>PK</td></tr>
+        <tr><td class="mono">ShiftCode</td><td class="mono">NVARCHAR(20)</td><td><code>GEN</code>, <code>EVE</code>. Unique among live rows</td></tr>
+        <tr><td class="mono">LocationId</td><td class="mono">BIGINT NULL</td><td>FK. NULL = every location</td></tr>
+        <tr><td class="mono">StartTime / EndTime</td><td class="mono">TIME(0)</td><td>09:00 / 18:00</td></tr>
+        <tr><td class="mono">CrossesMidnight</td><td class="mono">BIT</td><td>CHECK: must be 1 when EndTime &lt;= StartTime</td></tr>
+        <tr><td class="mono">BreakMinutes</td><td class="mono">INT</td><td>Unpaid, deducted from worked time</td></tr>
+        <tr><td class="mono">GraceInMinutes / GraceOutMinutes</td><td class="mono">INT</td><td>Late begins after grace-in</td></tr>
+        <tr><td class="mono">FullDayMinutes / HalfDayMinutes</td><td class="mono">INT</td><td>What the nightly close compares against</td></tr>
+        <tr><td class="mono">EffectiveFrom / EffectiveTo</td><td class="mono">DATE / DATE NULL</td><td>A timing change writes a new row, so last month's attendance is not recomputed</td></tr>
+
+        <tr class="grp"><td colspan="3">dbo.tblShiftWeekOff</td></tr>
+        <tr><td class="mono">ShiftWeekOffId</td><td class="mono">BIGINT IDENTITY</td><td>PK</td></tr>
+        <tr><td class="mono">ShiftId</td><td class="mono">BIGINT</td><td>FK</td></tr>
+        <tr><td class="mono">DayOfWeek</td><td class="mono">TINYINT</td><td>1 = Sunday … 7 = Saturday</td></tr>
+        <tr><td class="mono">WeekOfMonth</td><td class="mono">TINYINT NULL</td><td>NULL = every week. Alternate Saturday is rows for weeks 2 and 4</td></tr>
+        <tr><td class="mono">—</td><td class="mono">UNIQUE</td><td>(ShiftId, DayOfWeek, WeekOfMonth)</td></tr>
+
+        <tr class="grp"><td colspan="3">dbo.tblEmployeeShift</td></tr>
+        <tr><td class="mono">EmployeeShiftId</td><td class="mono">BIGINT IDENTITY</td><td>PK</td></tr>
+        <tr><td class="mono">EmployeeDetailId / ShiftId</td><td class="mono">BIGINT</td><td>FK</td></tr>
+        <tr><td class="mono">EffectiveFrom / EffectiveTo</td><td class="mono">DATE / DATE NULL</td><td>No overlapping live rows per employee — enforced in the service</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>016_attendance.sql</h3>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Column</th><th>Type</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr class="grp"><td colspan="3">dbo.tblAttendanceStatus — ids fixed in the enum layer</td></tr>
+        <tr><td class="mono">AttendanceStatusId</td><td class="mono">INT</td><td>PK. <code>PRESENT</code>, <code>ABSENT</code>, <code>LATE</code>, <code>HALF_DAY</code>, <code>MISSING_PUNCH</code>, <code>ON_LEAVE</code>, <code>HOLIDAY</code>, <code>WEEK_OFF</code>, <code>REGULARIZED</code></td></tr>
+
+        <tr class="grp"><td colspan="3">dbo.tblAttendanceDay — the spine</td></tr>
+        <tr><td class="mono">AttendanceDayId</td><td class="mono">BIGINT IDENTITY</td><td>PK</td></tr>
+        <tr><td class="mono">EmployeeDetailId</td><td class="mono">BIGINT</td><td>FK</td></tr>
+        <tr><td class="mono">AttendanceDate</td><td class="mono">DATE</td><td><strong>UNIQUE with EmployeeDetailId</strong></td></tr>
+        <tr><td class="mono">ShiftId</td><td class="mono">BIGINT NULL</td><td>FK. The resolved shift, stored so history survives a change</td></tr>
+        <tr><td class="mono">AttendanceStatusId</td><td class="mono">INT</td><td>FK</td></tr>
+        <tr><td class="mono">FirstCheckInAt / LastCheckOutAt</td><td class="mono">DATETIME2 NULL</td><td></td></tr>
+        <tr><td class="mono">WorkedMinutes / LateMinutes</td><td class="mono">INT NULL</td><td>Computed by the close job, never by the client</td></tr>
+        <tr><td class="mono">IsDefaultPresent</td><td class="mono">BIT</td><td>Written by the auto-mark job</td></tr>
+        <tr><td class="mono">LeaveRequestId</td><td class="mono">BIGINT NULL</td><td>FK → tblLeaveRequest, constrained in 016</td></tr>
+        <tr><td class="mono">HolidayId</td><td class="mono">BIGINT NULL</td><td>FK → tblHoliday, constrained in 014</td></tr>
+        <tr><td class="mono">—</td><td class="mono">INDEX</td><td>(AttendanceDate, AttendanceStatusId) for the exception list</td></tr>
+
+        <tr class="grp"><td colspan="3">dbo.tblAttendancePunch — append-only</td></tr>
+        <tr><td class="mono">PunchId</td><td class="mono">BIGINT IDENTITY</td><td>PK</td></tr>
+        <tr><td class="mono">AttendanceDayId</td><td class="mono">BIGINT</td><td>FK</td></tr>
+        <tr><td class="mono">PunchType / PunchAt / Source</td><td class="mono">NVARCHAR(10) / DATETIME2 / NVARCHAR(20)</td><td><code>IN</code> or <code>OUT</code>; web, mobile, biometric, kiosk. No updates, no deletes</td></tr>
+
+        <tr class="grp"><td colspan="3">dbo.tblAttendanceExemption · dbo.tblAttendanceAlertSetting</td></tr>
+        <tr><td class="mono">AttendanceExemptionId</td><td class="mono">BIGINT IDENTITY</td><td>PK. Plus EmployeeDetailId, EffectiveFrom / To, Reason, GrantedBy</td></tr>
+        <tr><td class="mono">AttendanceAlertSettingId</td><td class="mono">BIGINT IDENTITY</td><td>PK. Plus LocationId (NULL = org), AlertType, DelayMinutes, IntervalMinutes, WindowMinutes, SweepTime. Unique on (LocationId, AlertType)</td></tr>
+
+        <tr class="grp"><td colspan="3">dbo.tblRegularizationType · dbo.tblRegularizationRequest</td></tr>
+        <tr><td class="mono">RegularizationTypeId</td><td class="mono">BIGINT IDENTITY</td><td>PK. Master-data shape: missing check-in, missing check-out, late arrival, early exit</td></tr>
+        <tr><td class="mono">RegularizationRequestId</td><td class="mono">BIGINT IDENTITY</td><td>PK</td></tr>
+        <tr><td class="mono">EmployeeDetailId + AttendanceDate</td><td class="mono">BIGINT + DATE</td><td>UNIQUE among PENDING or APPROVED rows, so a day cannot be regularized twice</td></tr>
+        <tr><td class="mono">Status</td><td class="mono">NVARCHAR(20)</td><td><code>PENDING</code> / <code>APPROVED</code> / <code>REJECTED</code> / <code>EXPIRED</code></td></tr>
+        <tr><td class="mono">PreviousAttendanceStatusId</td><td class="mono">INT NULL</td><td>What the day was before approval — what makes the change auditable</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>017_holiday.sql</h3>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Column</th><th>Type</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr class="grp"><td colspan="3">dbo.tblHolidayType — two rows, ids fixed</td></tr>
+        <tr><td class="mono">HolidayTypeId</td><td class="mono">INT</td><td>PK. <code>NORMAL</code>, <code>RESTRICTED</code></td></tr>
+
+        <tr class="grp"><td colspan="3">dbo.tblHoliday</td></tr>
+        <tr><td class="mono">HolidayId</td><td class="mono">BIGINT IDENTITY</td><td>PK</td></tr>
+        <tr><td class="mono">HolidayName / HolidayDate</td><td class="mono">NVARCHAR(150) / DATE</td><td></td></tr>
+        <tr><td class="mono">HolidayTypeId</td><td class="mono">INT</td><td>FK</td></tr>
+        <tr><td class="mono">HolidayYear</td><td class="mono">SMALLINT</td><td>Calendar year. HR uploads a fresh restricted list each year</td></tr>
+        <tr><td class="mono">IsActive</td><td class="mono">BIT</td><td>Delete is a soft delete</td></tr>
+
+        <tr class="grp"><td colspan="3">dbo.tblHolidayLocation</td></tr>
+        <tr><td class="mono">HolidayId + LocationId</td><td class="mono">BIGINT</td><td>UNIQUE together. One New Year row serves India and the US; Thanksgiving serves only the US</td></tr>
+
+        <tr class="grp"><td colspan="3">dbo.tblRestrictedHolidayMapping — which list, and how many picks</td></tr>
+        <tr><td class="mono">RestrictedHolidayMappingId</td><td class="mono">BIGINT IDENTITY</td><td>PK</td></tr>
+        <tr><td class="mono">LocationId / EmploymentType</td><td class="mono">BIGINT NULL / NVARCHAR(30) NULL</td><td>NULL = all</td></tr>
+        <tr><td class="mono">LeaveCycleId</td><td class="mono">BIGINT</td><td>FK → the calendar-year cycle</td></tr>
+        <tr><td class="mono">PickQuota</td><td class="mono">TINYINT</td><td><strong>1</strong> per the HR document. A column, so two picks a year later is configuration</td></tr>
+
+        <tr class="grp"><td colspan="3">dbo.tblRestrictedHolidayOptIn — the employee's pick</td></tr>
+        <tr><td class="mono">RestrictedHolidayOptInId</td><td class="mono">BIGINT IDENTITY</td><td>PK</td></tr>
+        <tr><td class="mono">EmployeeDetailId + LeaveCycleId</td><td class="mono">BIGINT</td><td><strong>UNIQUE</strong> among live rows — this is what enforces 1 per calendar year at the database level, not only in the service</td></tr>
+        <tr><td class="mono">HolidayId</td><td class="mono">BIGINT</td><td>FK</td></tr>
+        <tr><td class="mono">Status</td><td class="mono">NVARCHAR(20)</td><td><code>PENDING</code> / <code>APPROVED</code> / <code>REJECTED</code> / <code>CANCELLED</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>018_leave_policy.sql</h3>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Column</th><th>Type</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr class="grp"><td colspan="3">dbo.tblLeaveCycle — replaces tblLeaveYear</td></tr>
+        <tr><td class="mono">LeaveCycleId</td><td class="mono">BIGINT IDENTITY</td><td>PK</td></tr>
+        <tr><td class="mono">CycleType</td><td class="mono">NVARCHAR(12)</td><td><code>FINANCIAL</code> (1 Apr – 31 Mar) or <code>CALENDAR</code> (1 Jan – 31 Dec)</td></tr>
+        <tr><td class="mono">CycleLabel</td><td class="mono">NVARCHAR(20)</td><td>"FY 2026-27", "CY 2027". What the dashboard tile shows</td></tr>
+        <tr><td class="mono">StartDate / EndDate</td><td class="mono">DATE</td><td>UNIQUE with CycleType</td></tr>
+        <tr><td class="mono">IsClosed</td><td class="mono">BIT</td><td>Stops a backdated application landing in a settled cycle</td></tr>
+
+        <tr class="grp"><td colspan="3">dbo.tblSandwichRule</td></tr>
+        <tr><td class="mono">SandwichRuleId</td><td class="mono">BIGINT IDENTITY</td><td>PK</td></tr>
+        <tr><td class="mono">Mode</td><td class="mono">NVARCHAR(30)</td><td><code>IGNORE_WEEKOFF</code> / <code>COUNT_WHEN_BOTH_FLANKS</code> / <code>COUNT_ALWAYS</code></td></tr>
+        <tr><td class="mono">LocationId</td><td class="mono">BIGINT NULL</td><td>FK</td></tr>
+
+        <tr class="grp"><td colspan="3">dbo.tblLeavePolicy</td></tr>
+        <tr><td class="mono">LeavePolicyId</td><td class="mono">BIGINT IDENTITY</td><td>PK</td></tr>
+        <tr><td class="mono">LeaveTypeId</td><td class="mono">BIGINT</td><td>FK → tblLeaveType. CL/SL is one row</td></tr>
+        <tr><td class="mono">LocationId / EmploymentType</td><td class="mono">BIGINT NULL / NVARCHAR(30) NULL</td><td>NULL = all</td></tr>
+        <tr><td class="mono">CycleType</td><td class="mono">NVARCHAR(12)</td><td><strong>New in 2.0.</strong> <code>FINANCIAL</code> for CL/SL and EL, <code>CALENDAR</code> for floating, <code>NONE</code> for LWP and comp-off</td></tr>
+        <tr><td class="mono">AvailableDuringProbation</td><td class="mono">BIT</td><td>1 for CL/SL and LWP only</td></tr>
+        <tr><td class="mono">VisibleDuringProbation</td><td class="mono">BIT</td><td><strong>New in 2.0.</strong> Drives the dashboard in §10 — separate from availability, so a category can be visible and zero</td></tr>
+        <tr><td class="mono">IsPaid</td><td class="mono">BIT</td><td><strong>New in 2.0.</strong> 0 for LWP</td></tr>
+        <tr><td class="mono">TracksBalance</td><td class="mono">BIT</td><td><strong>New in 2.0.</strong> 0 for LWP — it counts consumption, it has no balance to spend</td></tr>
+        <tr><td class="mono">AccrualFrequency</td><td class="mono">NVARCHAR(20)</td><td><code>MONTHLY</code> / <code>ANNUAL</code> / <code>NONE</code></td></tr>
+        <tr><td class="mono">AccrualDays</td><td class="mono">DECIMAL(5,2)</td><td>1.00 for probation CL/SL and for EL</td></tr>
+        <tr><td class="mono">AccrualAnchor</td><td class="mono">NVARCHAR(30)</td><td><strong>New in 2.0.</strong> <code>CYCLE_START</code> / <code>MONTH_START</code> / <code>PROBATION_END</code> / <code>JOINING_DATE</code>. This is the column that holds the open EL question in §28 — whichever answer HR gives is a configuration value, not a rewrite</td></tr>
+        <tr><td class="mono">ProRateOnJoining</td><td class="mono">BIT</td><td><strong>New in 2.0.</strong> Whether a mid-cycle joiner gets a reduced entitlement</td></tr>
+        <tr><td class="mono">AnnualQuota</td><td class="mono">DECIMAL(5,2) NULL</td><td>1 for floating / restricted</td></tr>
+        <tr><td class="mono">AllowHalfDay</td><td class="mono">BIT</td><td></td></tr>
+        <tr><td class="mono">SandwichRuleId</td><td class="mono">BIGINT NULL</td><td>FK. NULL = no sandwich behaviour</td></tr>
+        <tr><td class="mono">ValidityDays</td><td class="mono">INT NULL</td><td>Comp-off expiry. NULL until HR confirms one</td></tr>
+        <tr><td class="mono">RequiresSecondApproval</td><td class="mono">BIT</td><td>Maternity and paternity go to HR as well as the manager</td></tr>
+        <tr><td class="mono">EffectiveFrom / EffectiveTo</td><td class="mono">DATE / DATE NULL</td><td>A revised policy is a new row</td></tr>
+
+        <tr class="grp"><td colspan="3">dbo.tblEmployeeLeavePolicy · dbo.tblLeaveMapping</td></tr>
+        <tr><td class="mono">EmployeeLeavePolicyId</td><td class="mono">BIGINT IDENTITY</td><td>PK. Plus EmployeeDetailId, LeavePolicyId, OverrideAnnualQuota, OverrideAccrualDays, EffectiveFrom / To, and <code>Reason NVARCHAR(500) NOT NULL</code></td></tr>
+        <tr><td class="mono">LeaveMappingId</td><td class="mono">BIGINT IDENTITY</td><td>PK. Plus LeaveTypeId, LocationId, EmploymentType, Gender, MinTenureMonths. A row is a grant</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>019_leave_request.sql</h3>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Column</th><th>Type</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr class="grp"><td colspan="3">dbo.tblLeaveRequest</td></tr>
+        <tr><td class="mono">LeaveRequestId</td><td class="mono">BIGINT IDENTITY</td><td>PK</td></tr>
+        <tr><td class="mono">EmployeeDetailId / LeaveTypeId</td><td class="mono">BIGINT</td><td>FK</td></tr>
+        <tr><td class="mono">LeaveCycleId</td><td class="mono">BIGINT</td><td><strong>New in 2.0.</strong> FK. Resolved from the policy's cycle type, not from the date alone</td></tr>
+        <tr><td class="mono">FromDate / ToDate</td><td class="mono">DATE</td><td></td></tr>
+        <tr><td class="mono">DayPart</td><td class="mono">NVARCHAR(12)</td><td><code>FULL</code> / <code>FIRST_HALF</code> / <code>SECOND_HALF</code></td></tr>
+        <tr><td class="mono">TotalDays</td><td class="mono">DECIMAL(5,2)</td><td>Chargeable days, after the sandwich mode</td></tr>
+        <tr><td class="mono">SandwichDays</td><td class="mono">DECIMAL(5,2)</td><td>Of which added by the rule</td></tr>
+        <tr><td class="mono">PaidDays / LWPDays</td><td class="mono">DECIMAL(5,2)</td><td><strong>New in 2.0.</strong> The split, stored on the request so the payslip can be explained without recomputing</td></tr>
+        <tr><td class="mono">Status</td><td class="mono">NVARCHAR(20)</td><td><code>DRAFT</code> / <code>PENDING_MANAGER</code> / <code>PENDING_HR</code> / <code>APPROVED</code> / <code>REJECTED</code> / <code>CANCELLED</code> / <code>WITHDRAWN</code></td></tr>
+
+        <tr class="grp"><td colspan="3">dbo.tblLeaveRequestDay — one row per date</td></tr>
+        <tr><td class="mono">LeaveRequestDayId</td><td class="mono">BIGINT IDENTITY</td><td>PK</td></tr>
+        <tr><td class="mono">LeaveRequestId + LeaveDate</td><td class="mono">BIGINT + DATE</td><td>UNIQUE together</td></tr>
+        <tr><td class="mono">DayType</td><td class="mono">NVARCHAR(12)</td><td><code>WORKING</code> / <code>SANDWICH</code></td></tr>
+        <tr><td class="mono">IsLWP</td><td class="mono">BIT</td><td><strong>New in 2.0.</strong> Which specific dates fell through to LWP</td></tr>
+        <tr><td class="mono">ChargedDays</td><td class="mono">DECIMAL(3,2)</td><td>0.50 or 1.00</td></tr>
+
+        <tr class="grp"><td colspan="3">dbo.tblLeaveApproval — append-only</td></tr>
+        <tr><td class="mono">LeaveApprovalId</td><td class="mono">BIGINT IDENTITY</td><td>PK. Plus LeaveRequestId, ApprovalLevel, ApproverId, ApproverRole, Action, Remarks, ActedAt</td></tr>
+
+        <tr class="grp"><td colspan="3">dbo.tblLeaveLedger — append-only. The balance is the SUM over this and is stored nowhere else</td></tr>
+        <tr><td class="mono">LeaveLedgerId</td><td class="mono">BIGINT IDENTITY</td><td>PK</td></tr>
+        <tr><td class="mono">EmployeeDetailId / LeaveTypeId</td><td class="mono">BIGINT</td><td>FK</td></tr>
+        <tr><td class="mono">LeaveCycleId</td><td class="mono">BIGINT</td><td><strong>New in 2.0.</strong> FK. Replaces the LeaveYear integer</td></tr>
+        <tr><td class="mono">EntryType</td><td class="mono">NVARCHAR(25)</td><td><code>OPENING</code> / <code>ACCRUAL</code> / <code>CONFIRMATION_RELEASE</code> / <code>COMP_OFF_CREDIT</code> / <code>HOLD</code> / <code>DEBIT</code> / <code>LWP_DEBIT</code> / <code>REVERSAL</code> / <code>ADJUSTMENT</code> / <code>LAPSE</code></td></tr>
+        <tr><td class="mono">Days</td><td class="mono">DECIMAL(6,2)</td><td><strong>Signed.</strong> A hold is a flag, not a sign</td></tr>
+        <tr><td class="mono">IsHold</td><td class="mono">BIT</td><td>Reserved, not yet spent. Carried by the <code>HOLD</code> and by the <code>REVERSAL</code> that clears it, so an approved request nets to zero held — <code>CK_tblLeaveLedger_HoldIsHold</code>, as widened by 021</td></tr>
+        <tr><td class="mono">SourceType / SourceId</td><td class="mono">NVARCHAR(20) / BIGINT NULL</td><td><strong>No foreign key on SourceId</strong> — it points at four tables depending on SourceType</td></tr>
+        <tr><td class="mono">Remarks</td><td class="mono">NVARCHAR(500) NULL</td><td>Mandatory for <code>ADJUSTMENT</code>, enforced in the service</td></tr>
+        <tr><td class="mono">—</td><td class="mono">INDEX</td><td>(EmployeeDetailId, LeaveTypeId, LeaveCycleId) — every balance read is this query</td></tr>
+
+        <tr class="grp"><td colspan="3">dbo.vwLeaveBalance — a view, not a table</td></tr>
+        <tr><td class="mono">Balance</td><td class="mono">computed</td><td><code>SUM(Days) WHERE IsHold = 0</code>, per employee, category and cycle</td></tr>
+        <tr><td class="mono">Available</td><td class="mono">computed</td><td>Balance − held. What the apply screen checks</td></tr>
+        <tr><td class="mono">LWPDaysConsumed</td><td class="mono">computed</td><td>The <em>negated</em> signed sum of <code>LWP_DEBIT</code> rows, not <code>ABS()</code> — so the positive row written when an approved request is withdrawn cancels the original instead of counting it twice. Never offsets a paid balance; it is a separate figure, per the HR document</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>020_comp_off.sql <span class="tag">restructured in 2.0</span></h3>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Column</th><th>Type</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr class="grp"><td colspan="3">dbo.tblCompOffRequest — what the manager approves</td></tr>
+        <tr><td class="mono">CompOffRequestId</td><td class="mono">BIGINT IDENTITY</td><td>PK</td></tr>
+        <tr><td class="mono">EmployeeDetailId</td><td class="mono">BIGINT</td><td>FK</td></tr>
+        <tr><td class="mono">WorkedOnDate</td><td class="mono">DATE</td><td>UNIQUE with EmployeeDetailId among live rows — one request per worked day</td></tr>
+        <tr><td class="mono">AttendanceDayId</td><td class="mono">BIGINT NULL</td><td>FK. The attendance row that evidences the work</td></tr>
+        <tr><td class="mono">Reason</td><td class="mono">NVARCHAR(500)</td><td></td></tr>
+        <tr><td class="mono">Status</td><td class="mono">NVARCHAR(30)</td><td><code>PENDING_MANAGER</code> / <code>APPROVED_AWAITING_CREDIT</code> / <code>CREDITED</code> / <code>REJECTED</code></td></tr>
+        <tr><td class="mono">ApprovedBy / ApprovedAt</td><td class="mono">BIGINT NULL / DATETIME2 NULL</td><td>The reporting manager. Approval alone credits nothing</td></tr>
+
+        <tr class="grp"><td colspan="3">dbo.tblCompOffCredit — what HR creates, by hand</td></tr>
+        <tr><td class="mono">CompOffCreditId</td><td class="mono">BIGINT IDENTITY</td><td>PK</td></tr>
+        <tr><td class="mono">CompOffRequestId</td><td class="mono">BIGINT</td><td>FK. <strong>UNIQUE</strong> — one credit per approved request, so a day cannot be credited twice</td></tr>
+        <tr><td class="mono">EmployeeDetailId</td><td class="mono">BIGINT</td><td>FK</td></tr>
+        <tr><td class="mono">Days</td><td class="mono">DECIMAL(3,2)</td><td><strong>1.00.</strong> The HR document specifies one day per approved request</td></tr>
+        <tr><td class="mono">CreditedBy / CreditedAt</td><td class="mono">BIGINT / DATETIME2</td><td>HR. Never a job</td></tr>
+        <tr><td class="mono">ExpiresOn</td><td class="mono">DATE NULL</td><td>NULL until HR confirms a validity period — §28</td></tr>
+        <tr><td class="mono">RemainingDays</td><td class="mono">DECIMAL(3,2)</td><td>Denormalised so the apply screen does not join to find what is left</td></tr>
+        <tr><td class="mono">Status</td><td class="mono">NVARCHAR(20)</td><td><code>AVAILABLE</code> / <code>CONSUMED</code> / <code>LAPSED</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Migration order and module ids</h3>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>File</th><th>Tables</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">014_employment_confirmation.sql</td><td class="mono">ALTER tblEmployeeDetails · tblEmploymentStatusHistory</td></tr>
+        <tr><td class="mono">015_shift.sql</td><td class="mono">tblShift · tblShiftWeekOff · tblEmployeeShift</td></tr>
+        <tr><td class="mono">016_attendance.sql</td><td class="mono">tblAttendanceStatus · tblAttendanceDay · tblAttendancePunch · tblAttendanceExemption · tblAttendanceAlertSetting · tblRegularizationType · tblRegularizationRequest</td></tr>
+        <tr><td class="mono">017_holiday.sql</td><td class="mono">tblHolidayType · tblHoliday · tblHolidayLocation · tblRestrictedHolidayMapping · tblRestrictedHolidayOptIn</td></tr>
+        <tr><td class="mono">018_leave_policy.sql</td><td class="mono">tblLeaveCycle · tblSandwichRule · tblLeavePolicy · tblEmployeeLeavePolicy · tblLeaveMapping</td></tr>
+        <tr><td class="mono">019_leave_request.sql</td><td class="mono">tblLeaveRequest · tblLeaveRequestDay · tblLeaveApproval · tblLeaveLedger · vwLeaveBalance</td></tr>
+        <tr><td class="mono">020_comp_off.sql</td><td class="mono">tblCompOffRequest · tblCompOffCredit</td></tr>
+        <tr><td class="mono">021_leave_ledger_fixes.sql</td><td class="mono">Corrects CK_tblLeaveLedger_HoldIsHold and vwLeaveBalance — see below</td></tr>
+        <tr><td class="mono">022_attendance_reference_data.sql</td><td class="mono">Seeds the 9 attendance statuses and 4 regularization reasons</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p><code>tblAttendanceDay.LeaveRequestId</code> is created as a plain column in <code>016</code> and constrained at the bottom of <code>019</code> in its own batch — the same way <code>005</code> settles the <code>WorkLocationId</code> debt from <code>001</code>. <code>tblRestrictedHolidayMapping.LeaveCycleId</code> in <code>017</code> is constrained at the bottom of <code>018</code> for the same reason.</p>
+
+  <div class="note v2">
+    <strong>Why 021 and 022 exist as separate files.</strong>
+    Both corrections belong in the file they amend. They are not in it because a migration is recorded by <em>filename</em>, and <code>016</code> and <code>019</code> had already been applied to the dev database by a server running with <code>DB_AUTO_MIGRATE</code> on — so editing them would have changed nothing for that database and produced two different schemas from one source. The amended files stay as they ran; the corrections are idempotent and leave a fresh database and the dev one identical.
+    <ul>
+      <li><strong>021</strong> widens <code>CK_tblLeaveLedger_HoldIsHold</code> to allow <code>REVERSAL</code> as well as <code>HOLD</code>. The reversal that clears a hold must carry the <code>IsHold</code> flag or the hold never cancels — without it, approving any leave request failed outright, and writing the reversal unflagged instead would have left every employee's <em>available</em> balance permanently short while their actual balance looked correct. It also rewrites <code>vwLeaveBalance.LWPDaysConsumed</code> to negate the signed sum rather than <code>ABS()</code> it, so that withdrawing an approved request cancels its unpaid days instead of counting them twice.</li>
+      <li><strong>022</strong> seeds the nine attendance statuses and the four regularization reasons. Both were written into <code>016</code> after it had already run.</li>
+    </ul>
+    Both were found by running the schema against a real SQL Server and exercising the services before anybody used the module.
+  </div>
+
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Id</th><th>Code</th><th>Screen</th></tr></thead>
+      <tbody>
+        <tr><td class="num">69</td><td class="mono">REGULARIZATION_TYPES</td><td>The correction-reason list, under Master Data</td></tr>
+        <tr><td class="num">70</td><td class="mono">ATTENDANCE_MANAGEMENT</td><td><em>heading</em></td></tr>
+        <tr><td class="num">71</td><td class="mono">MY_ATTENDANCE</td><td>Punch, own calendar, own exceptions</td></tr>
+        <tr><td class="num">72</td><td class="mono">TEAM_ATTENDANCE</td><td>Manager view</td></tr>
+        <tr><td class="num">73</td><td class="mono">REGULARIZATION</td><td>Raise and approve corrections</td></tr>
+        <tr><td class="num">74</td><td class="mono">SHIFTS</td><td>Shift master, week-off patterns, assignment</td></tr>
+        <tr><td class="num">75</td><td class="mono">HOLIDAY_CALENDAR</td><td>Per location, per year, including the floating list</td></tr>
+        <tr><td class="num">76</td><td class="mono">ATTENDANCE_EXEMPTIONS</td><td>Present-by-default grants</td></tr>
+        <tr><td class="num">77</td><td class="mono">ATTENDANCE_ALERTS</td><td>Alert settings</td></tr>
+        <tr><td class="num">80</td><td class="mono">LEAVE_MANAGEMENT</td><td><em>heading</em></td></tr>
+        <tr><td class="num">81</td><td class="mono">MY_LEAVE</td><td>Dashboard, apply, history</td></tr>
+        <tr><td class="num">82</td><td class="mono">TEAM_LEAVE</td><td>Approvals</td></tr>
+        <tr><td class="num">83</td><td class="mono">LEAVE_POLICY</td><td>Policy rows, cycles and overrides</td></tr>
+        <tr><td class="num">84</td><td class="mono">LEAVE_MAPPING</td><td>Leave and restricted-holiday mapping</td></tr>
+        <tr><td class="num">85</td><td class="mono">LEAVE_BALANCE</td><td>Ledger view, corrections, add leaves</td></tr>
+        <tr><td class="num">86</td><td class="mono">COMP_OFF</td><td>Requests, and the HR credit queue</td></tr>
+        <tr><td class="num">87</td><td class="mono">EMPLOYMENT_STATUS</td><td>Probation tracking and manual status change</td></tr>
+        <tr><td class="num">88</td><td class="mono">LWP_REPORT</td><td>Employee-wise LWP for payroll</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="fn"><code>MODULE</code> previously ended at 68. Ids are fixed and permanent — they are stored in <code>tblAccessRight</code>, so renumbering one moves a group's rights onto a different screen. 87 and 88 are new in 2.0; 69 was added during the build for the regularization-reason list.</p>
+
+  <div class="note v2">
+    <strong>Only one of the three lookups is master data.</strong>
+    The earlier draft of this section grouped <code>tblHolidayType</code>, <code>tblRegularizationType</code> and <code>tblAttendanceStatus</code> together as plain Name / Description / IsActive lists that join the shared master-data registry. Only <code>tblRegularizationType</code> does.
+    <ul>
+      <li><code>tblAttendanceStatus</code> and <code>tblHolidayType</code> carry <strong>fixed ids owned by the code</strong>, like <code>tblModule</code>. The nightly close branches on <code>PRESENT</code> and <code>HALF_DAY</code> by name and the calendar branches on <code>RESTRICTED</code>, so a screen that let somebody rename or soft-delete a row would break the job that writes the table — and the breakage would appear hours later, as an entire office marked absent. They are seeded by migration and are not editable.</li>
+      <li><code>tblRegularizationType</code> genuinely is master data: nothing branches on which reason a correction carries, so HR adding "system outage" to the list should not be a release. It joins the registry at <code>/organizations/regularization-types</code> and needs no new service, controller or route.</li>
+    </ul>
+  </div>
+
+  <p>Everything else carries behaviour-bearing columns and gets its own service.</p>
+</section>
+
+<section id="finalise">
+  <div class="sec-head"><span class="sec-num">28</span><h2>To finalise before development<span class="src">HR doc §6</span></h2></div>
+  <p class="lede">Seven questions HR raised themselves, plus three contradictions between the two source documents. The schema is built so that every one of these is a configuration value rather than a rewrite — but the accrual jobs cannot be written until they are answered.</p>
+
+  <h3>HR's own open questions</h3>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>#</th><th>Question</th><th>What it changes</th></tr></thead>
+      <tbody>
+        <tr><td class="num">1</td><td><strong>CL/SL entitlement after probation.</strong> The exact monthly entitlement, and whether the full financial-year entitlement is credited upfront or accrued monthly</td><td><code>AccrualFrequency</code> and <code>AccrualDays</code> on the CL/SL policy, and whether the 1 April job writes one row or twelve</td></tr>
+        <tr><td class="num">2</td><td><strong>EL accrual frequency.</strong> 1 per month or 1 per year — the HR document states both</td><td><code>AccrualDays</code> and <code>AccrualFrequency</code>. A twelvefold difference in every EL balance</td></tr>
+        <tr><td class="num">3</td><td><strong>EL start point.</strong> From the exact probation end date, or from the following month</td><td><code>AccrualAnchor</code> — <code>PROBATION_END</code> or <code>MONTH_START</code></td></tr>
+        <tr><td class="num">4</td><td><strong>Financial-year transition.</strong> How balances are handled at the end of March, including carry-forward or lapse</td><td>The 1 April job. Nothing is carried forward or lapsed until this is decided</td></tr>
+        <tr><td class="num">5</td><td><strong>Mid-year confirmation.</strong> How CL/SL entitlement is calculated when somebody moves from probation to confirmed inside a financial year</td><td><code>ProRateOnJoining</code>, and whether probation months count toward the annual figure</td></tr>
+        <tr><td class="num">6</td><td><strong>Comp-off validity.</strong> Whether credited days expire</td><td><code>ValidityDays</code> on the policy and <code>ExpiresOn</code> on the credit, both nullable until confirmed</td></tr>
+        <tr><td class="num">7</td><td><strong>LWP trigger.</strong> Automatic when paid leave is exhausted, or HR approval first</td><td>Whether the apply flow splits to LWP by itself, or raises it for HR to confirm</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Contradictions between the two source documents</h3>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Topic</th><th>Original requirement list</th><th>HR document</th><th>Taken as</th></tr></thead>
+      <tbody>
+        <tr><td><strong>EL credit date</strong></td><td>"Added on every 1st day of the month"</td><td>"From the probation end date", 1 per month</td><td><strong>HR document</strong>, via <code>AccrualAnchor</code>. But note this is a <em>third</em> answer alongside HR's own open question 3, so all three readings need reconciling in one decision</td></tr>
+        <tr><td><strong>CL and SL</strong></td><td>Two separate leave types</td><td>One combined "Casual / Sick Leave" category</td><td><strong>HR document.</strong> One <code>tblLeaveType</code> row, one balance. Splitting them later means a data migration, so confirm before build</td></tr>
+        <tr><td><strong>Sabbatical</strong></td><td>Listed as a leave type</td><td>Not mentioned anywhere</td><td><strong>Carried forward</strong> as a mapped category with no accrual, but HR should confirm whether it exists at all</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Still unanswered from version 1.0</h3>
+  <div class="grid2">
+    <div class="card"><h4><span class="k">Sandwich</span>Which mode is the default</h4><p>Three modes are built; none is selected. Needed before the chargeable-day calculation can be tested.</p></div>
+    <div class="card"><h4><span class="k">Attendance</span>An absent day with balance available</h4><p>Auto-convert to leave, or leave it absent until the employee applies. The HR document's LWP rule suggests it should fall to LWP, but that is an inference, not a statement.</p></div>
+  </div>
+</section>
+
+<footer>
+  rSTAR HRMS · Attendance and Leave functional blueprint · version 2.0 · drafted for review, not yet implemented<br>
+  Self-contained document — open in any browser, or print to PDF. Sources: the original requirement list, and the HR policy document <em>HRMS – Rules for Leaves Management</em>.
+</footer>
+
+</div>
+</body>
+</html>

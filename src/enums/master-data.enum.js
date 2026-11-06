@@ -52,6 +52,9 @@ export const MASTER_DATA = Object.freeze({
   ASSET_MODELS: 'assetModels',
   QUALIFICATIONS: 'qualifications',
   SPECIALIZATIONS: 'specializations',
+
+  /* The attendance correction reasons - db/migrations/016. */
+  REGULARIZATION_TYPES: 'regularizationTypes',
 });
 
 /**
@@ -549,6 +552,33 @@ export const MASTER_DATA_RESOURCES = Object.freeze([
       deleted: MESSAGES.SPECIALIZATION_DELETED,
       notFound: MESSAGES.SPECIALIZATION_NOT_FOUND,
       nameExists: MESSAGES.SPECIALIZATION_NAME_EXISTS,
+    }),
+  }),
+
+  /*
+    Regularization reasons - db/migrations/016.
+
+    This one IS ordinary master data, unlike the attendance statuses beside
+    it in the same migration. Nothing branches on which reason a correction
+    carries: it is a label on a form, and HR adding "system outage" to the
+    list should not be a release. `inUse` is present because requests point
+    at it, so a type that has been used cannot simply vanish.
+  */
+  Object.freeze({
+    key: MASTER_DATA.REGULARIZATION_TYPES,
+    path: ROUTES.ORGANIZATIONS.MASTER_DATA.RESOURCE.REGULARIZATION_TYPES,
+    moduleId: MODULE.REGULARIZATION_TYPES,
+    idProp: 'regularizationTypeId',
+    hasParentDepartment: false,
+    messages: Object.freeze({
+      listed: MESSAGES.REGULARIZATION_TYPES_FETCHED,
+      fetched: MESSAGES.REGULARIZATION_TYPE_FETCHED,
+      created: MESSAGES.REGULARIZATION_TYPE_CREATED,
+      updated: MESSAGES.REGULARIZATION_TYPE_UPDATED,
+      deleted: MESSAGES.REGULARIZATION_TYPE_DELETED,
+      notFound: MESSAGES.REGULARIZATION_TYPE_NOT_FOUND,
+      nameExists: MESSAGES.REGULARIZATION_TYPE_NAME_EXISTS,
+      inUse: MESSAGES.REGULARIZATION_TYPE_IN_USE,
     }),
   }),
 ]);

@@ -54,6 +54,8 @@ import {
   AssetModel,
   Qualification,
   Specialization,
+  RegularizationType,
+  RegularizationRequest,
   EmployeeDetails,
   MASTER_DATA_PUBLIC_PROPS,
 } from '../models/index.js';
@@ -94,6 +96,10 @@ const MODELS = Object.freeze({
   [MASTER_DATA.ASSET_MODELS]: AssetModel,
   [MASTER_DATA.QUALIFICATIONS]: Qualification,
   [MASTER_DATA.SPECIALIZATIONS]: Specialization,
+
+  /* From db/migrations/016, not 009 - but the same three columns and the
+     same loop. See the note on its registry entry in master-data.enum.js. */
+  [MASTER_DATA.REGULARIZATION_TYPES]: RegularizationType,
 });
 
 /**
@@ -121,6 +127,19 @@ const DEPENDANTS = Object.freeze({
     column: EmployeeDetails.col('designationId'),
     code: ERROR_CODE.DESIGNATION_IN_USE,
     countProp: 'employees',
+  }),
+
+  /*
+    A regularization type that requests have been raised under cannot be
+    deleted: tblRegularizationRequest.RegularizationTypeId is a real foreign
+    key, and the history would otherwise lose the reason a correction was
+    made. Switching it off (IsActive = 0) is the way to retire one.
+  */
+  [MASTER_DATA.REGULARIZATION_TYPES]: Object.freeze({
+    table: RegularizationRequest.table,
+    column: RegularizationRequest.col('regularizationTypeId'),
+    code: ERROR_CODE.MASTER_DATA_NOT_FOUND,
+    countProp: 'requests',
   }),
 });
 

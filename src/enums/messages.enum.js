@@ -395,4 +395,217 @@ export const MESSAGES = Object.freeze({
   ERROR_LOG_DELETED: 'Error log deleted',
   ERROR_LOG_NOT_FOUND: 'That error log entry does not exist',
   ERROR_LOG_DATE_RANGE: 'From date cannot be after to date',
+
+  /* --- Regularization types: master data (016) ------------------------- */
+
+  REGULARIZATION_TYPES_FETCHED: 'Regularization types fetched',
+  REGULARIZATION_TYPE_FETCHED: 'Regularization type fetched',
+  REGULARIZATION_TYPE_CREATED: 'Regularization type created',
+  REGULARIZATION_TYPE_UPDATED: 'Regularization type updated',
+  REGULARIZATION_TYPE_DELETED: 'Regularization type deleted',
+  REGULARIZATION_TYPE_NOT_FOUND: 'That regularization type does not exist',
+  REGULARIZATION_TYPE_NAME_EXISTS: 'A regularization type with that name already exists',
+  REGULARIZATION_TYPE_IN_USE: 'Requests have been raised under this type, so it cannot be deleted',
+
+  /* --- Shifts (015) ---------------------------------------------------- */
+
+  SHIFTS_FETCHED: 'Shifts fetched',
+  SHIFT_FETCHED: 'Shift fetched',
+  SHIFT_CREATED: 'Shift created',
+  SHIFT_UPDATED: 'Shift updated',
+  SHIFT_DELETED: 'Shift deleted',
+  SHIFT_NOT_FOUND: 'That shift does not exist',
+  SHIFT_CODE_EXISTS: 'A shift with that code already starts on that date',
+  SHIFT_IN_USE: 'Employees are still assigned to this shift',
+  SHIFT_WEEK_OFFS_FETCHED: 'Week offs fetched',
+  SHIFT_WEEK_OFFS_SAVED: 'Week offs saved',
+
+  SHIFT_ASSIGNMENTS_FETCHED: 'Shift assignments fetched',
+  SHIFT_ASSIGNED: 'Shift assigned',
+  SHIFT_ASSIGNMENT_UPDATED: 'Shift assignment updated',
+  SHIFT_ASSIGNMENT_DELETED: 'Shift assignment removed',
+  SHIFT_ASSIGNMENT_NOT_FOUND: 'That shift assignment does not exist',
+  SHIFT_ASSIGNMENT_OVERLAP: 'This employee already has a shift covering those dates',
+  EMPLOYEE_SHIFT_FETCHED: 'Employee shift fetched',
+  NO_SHIFT_ASSIGNED: 'No shift is assigned to this employee on that date',
+
+  /* --- Attendance (016) ------------------------------------------------ */
+
+  ATTENDANCE_FETCHED: 'Attendance fetched',
+  ATTENDANCE_DAY_FETCHED: 'Attendance day fetched',
+  ATTENDANCE_SUMMARY_FETCHED: 'Attendance summary fetched',
+  ATTENDANCE_EXCEPTIONS_FETCHED: 'Attendance exceptions fetched',
+  CHECKED_IN: 'Checked in',
+  CHECKED_OUT: 'Checked out',
+  ALREADY_CHECKED_IN: 'You are already checked in. Check out before checking in again',
+  NOT_CHECKED_IN: 'You have not checked in yet today',
+  ATTENDANCE_DATE_RANGE: 'From date cannot be after to date',
+  ATTENDANCE_RANGE_TOO_WIDE: 'Attendance can be fetched for at most 366 days at a time',
+  ATTENDANCE_DAY_NOT_FOUND: 'There is no attendance record for that date',
+  PUNCH_IN_FUTURE: 'A punch cannot be recorded for a time in the future',
+
+  /* --- Regularization (016) -------------------------------------------- */
+
+  REGULARIZATIONS_FETCHED: 'Regularization requests fetched',
+  REGULARIZATION_FETCHED: 'Regularization request fetched',
+  REGULARIZATION_CREATED: 'Regularization request submitted',
+  REGULARIZATION_APPROVED: 'Regularization approved',
+  REGULARIZATION_REJECTED: 'Regularization rejected',
+  REGULARIZATION_CANCELLED: 'Regularization request cancelled',
+  REGULARIZATION_NOT_FOUND: 'That regularization request does not exist',
+  REGULARIZATION_WINDOW_CLOSED:
+    'The window for correcting this day has closed. Please contact HR',
+  REGULARIZATION_ALREADY_OPEN: 'There is already an open regularization request for that day',
+  REGULARIZATION_NOT_PENDING: 'This request has already been decided',
+  REGULARIZATION_SELF_APPROVAL: 'You cannot approve your own regularization request',
+
+  /* --- Holidays (017) -------------------------------------------------- */
+
+  HOLIDAYS_FETCHED: 'Holidays fetched',
+  HOLIDAY_FETCHED: 'Holiday fetched',
+  HOLIDAY_CREATED: 'Holiday created',
+  HOLIDAY_UPDATED: 'Holiday updated',
+  HOLIDAY_DELETED: 'Holiday deleted',
+  HOLIDAY_NOT_FOUND: 'That holiday does not exist',
+  HOLIDAY_EXISTS: 'A holiday with that name already falls on that date',
+  HOLIDAY_TYPES_FETCHED: 'Holiday types fetched',
+  HOLIDAY_NEEDS_LOCATION: 'A holiday must be observed at at least one location',
+
+  RESTRICTED_OPTIONS_FETCHED: 'Restricted holiday options fetched',
+  RESTRICTED_OPT_IN_FETCHED: 'Restricted holiday selection fetched',
+  RESTRICTED_OPT_IN_CREATED: 'Restricted holiday selected',
+  RESTRICTED_OPT_IN_APPROVED: 'Restricted holiday approved',
+  RESTRICTED_OPT_IN_REJECTED: 'Restricted holiday rejected',
+  RESTRICTED_OPT_IN_CANCELLED: 'Restricted holiday selection cancelled',
+  RESTRICTED_OPT_IN_NOT_FOUND: 'That restricted holiday selection does not exist',
+  RESTRICTED_QUOTA_USED: 'You have already used your restricted holiday for this year',
+  RESTRICTED_NOT_ELIGIBLE: 'You are not mapped to a restricted holiday list for this year',
+  RESTRICTED_WRONG_TYPE: 'That holiday is not a restricted holiday',
+
+  RESTRICTED_MAPPINGS_FETCHED: 'Restricted holiday mappings fetched',
+  RESTRICTED_MAPPING_CREATED: 'Restricted holiday mapping created',
+  RESTRICTED_MAPPING_UPDATED: 'Restricted holiday mapping updated',
+  RESTRICTED_MAPPING_DELETED: 'Restricted holiday mapping deleted',
+  RESTRICTED_MAPPING_NOT_FOUND: 'That restricted holiday mapping does not exist',
+  RESTRICTED_MAPPING_EXISTS: 'A mapping already exists for that cohort and cycle',
+
+  /* --- Exemptions and alerts (016) ------------------------------------- */
+
+  EXEMPTIONS_FETCHED: 'Attendance exemptions fetched',
+  EXEMPTION_CREATED: 'Attendance exemption granted',
+  EXEMPTION_UPDATED: 'Attendance exemption updated',
+  EXEMPTION_DELETED: 'Attendance exemption withdrawn',
+  EXEMPTION_NOT_FOUND: 'That attendance exemption does not exist',
+
+  ALERT_SETTINGS_FETCHED: 'Alert settings fetched',
+  ALERT_SETTING_CREATED: 'Alert setting created',
+  ALERT_SETTING_UPDATED: 'Alert setting updated',
+  ALERT_SETTING_DELETED: 'Alert setting deleted',
+  ALERT_SETTING_NOT_FOUND: 'That alert setting does not exist',
+  ALERT_SETTING_EXISTS: 'An alert setting already exists for that location and type',
+
+  /* --- Leave cycles and policy (018) ----------------------------------- */
+
+  LEAVE_CYCLES_FETCHED: 'Leave cycles fetched',
+  LEAVE_CYCLE_CREATED: 'Leave cycle created',
+  LEAVE_CYCLE_UPDATED: 'Leave cycle updated',
+  LEAVE_CYCLE_CLOSED: 'Leave cycle closed',
+  LEAVE_CYCLE_NOT_FOUND: 'That leave cycle does not exist',
+  LEAVE_CYCLE_EXISTS: 'A cycle of that type already starts on that date',
+  LEAVE_CYCLE_IS_CLOSED: 'That leave cycle has been closed and can no longer be changed',
+  LEAVE_CYCLE_MISSING: 'No leave cycle covers that date. Ask HR to create one',
+
+  LEAVE_POLICIES_FETCHED: 'Leave policies fetched',
+  LEAVE_POLICY_FETCHED: 'Leave policy fetched',
+  LEAVE_POLICY_CREATED: 'Leave policy created',
+  LEAVE_POLICY_UPDATED: 'Leave policy updated',
+  LEAVE_POLICY_DELETED: 'Leave policy deleted',
+  LEAVE_POLICY_NOT_FOUND: 'That leave policy does not exist',
+  LEAVE_POLICY_EXISTS: 'A policy already covers that leave type and cohort from that date',
+  LEAVE_POLICY_MISSING: 'No leave policy applies to you for that leave type',
+
+  SANDWICH_RULES_FETCHED: 'Sandwich rules fetched',
+  SANDWICH_RULE_CREATED: 'Sandwich rule created',
+  SANDWICH_RULE_UPDATED: 'Sandwich rule updated',
+  SANDWICH_RULE_DELETED: 'Sandwich rule deleted',
+  SANDWICH_RULE_NOT_FOUND: 'That sandwich rule does not exist',
+  SANDWICH_RULE_NAME_EXISTS: 'A sandwich rule with that name already exists',
+  SANDWICH_RULE_IN_USE: 'Leave policies still use this sandwich rule',
+
+  LEAVE_OVERRIDES_FETCHED: 'Leave policy overrides fetched',
+  LEAVE_OVERRIDE_CREATED: 'Leave policy override created',
+  LEAVE_OVERRIDE_UPDATED: 'Leave policy override updated',
+  LEAVE_OVERRIDE_DELETED: 'Leave policy override removed',
+  LEAVE_OVERRIDE_NOT_FOUND: 'That leave policy override does not exist',
+
+  LEAVE_MAPPINGS_FETCHED: 'Leave mappings fetched',
+  LEAVE_MAPPING_CREATED: 'Leave mapping created',
+  LEAVE_MAPPING_UPDATED: 'Leave mapping updated',
+  LEAVE_MAPPING_DELETED: 'Leave mapping deleted',
+  LEAVE_MAPPING_NOT_FOUND: 'That leave mapping does not exist',
+  LEAVE_MAPPING_EXISTS: 'That leave type is already mapped to that cohort',
+
+  /* --- Leave requests (019) -------------------------------------------- */
+
+  LEAVE_DASHBOARD_FETCHED: 'Leave dashboard fetched',
+  LEAVE_TYPES_AVAILABLE_FETCHED: 'Available leave types fetched',
+  LEAVE_PREVIEW_FETCHED: 'Leave charge preview calculated',
+  LEAVE_REQUESTS_FETCHED: 'Leave requests fetched',
+  LEAVE_REQUEST_FETCHED: 'Leave request fetched',
+  LEAVE_REQUEST_CREATED: 'Leave request submitted',
+  LEAVE_REQUEST_APPROVED: 'Leave request approved',
+  LEAVE_REQUEST_REJECTED: 'Leave request rejected',
+  LEAVE_REQUEST_CANCELLED: 'Leave request cancelled',
+  LEAVE_REQUEST_WITHDRAWN: 'Leave request withdrawn',
+  LEAVE_REQUEST_NOT_FOUND: 'That leave request does not exist',
+  LEAVE_REQUEST_NOT_PENDING: 'This leave request has already been decided',
+  LEAVE_REQUEST_OVERLAP: 'You already have leave applied for on one or more of those dates',
+  LEAVE_INSUFFICIENT_BALANCE: 'You do not have enough balance for that leave type',
+  LEAVE_NOT_AVAILABLE_ON_PROBATION: 'That leave type is not available during probation',
+  LEAVE_NOT_MAPPED: 'That leave type is not available to you',
+  LEAVE_HALF_DAY_NOT_ALLOWED: 'That leave type cannot be taken as a half day',
+  LEAVE_NO_WORKING_DAYS: 'Those dates contain no working days to charge',
+  LEAVE_BACKDATED_NOT_ALLOWED: 'That leave type cannot be applied for retrospectively',
+  LEAVE_NOTICE_REQUIRED: 'That leave type must be applied for further in advance',
+  LEAVE_SELF_APPROVAL: 'You cannot approve your own leave request',
+  LEAVE_NOT_YOUR_REPORT: 'You are not an approver for that employee',
+
+  /* --- Balances and the ledger (019) ----------------------------------- */
+
+  LEAVE_BALANCES_FETCHED: 'Leave balances fetched',
+  LEAVE_BALANCE_FETCHED: 'Leave balance fetched',
+  LEAVE_LEDGER_FETCHED: 'Leave ledger fetched',
+  LEAVE_BALANCE_ADJUSTED: 'Leave balance adjusted',
+  LEAVE_BALANCE_GRANTED: 'Leave granted',
+  LEAVE_ADJUSTMENT_NEEDS_REMARKS: 'A reason is required for a manual balance adjustment',
+  LEAVE_ADJUSTMENT_WOULD_GO_NEGATIVE:
+    'That adjustment would take the balance below zero. Record it as leave without pay instead',
+  LWP_REPORT_FETCHED: 'Leave without pay report fetched',
+
+  /* --- Comp-off (020) --------------------------------------------------- */
+
+  COMP_OFF_REQUESTS_FETCHED: 'Comp-off requests fetched',
+  COMP_OFF_REQUEST_CREATED: 'Comp-off request submitted',
+  COMP_OFF_APPROVED: 'Comp-off approved. It now awaits an HR credit',
+  COMP_OFF_REJECTED: 'Comp-off request rejected',
+  COMP_OFF_CANCELLED: 'Comp-off request cancelled',
+  COMP_OFF_CREDITED: 'Comp-off credited',
+  COMP_OFF_CREDITS_FETCHED: 'Comp-off credits fetched',
+  COMP_OFF_NOT_FOUND: 'That comp-off request does not exist',
+  COMP_OFF_ALREADY_REQUESTED: 'A comp-off has already been requested for that day',
+  COMP_OFF_NOT_PENDING: 'This comp-off request has already been decided',
+  COMP_OFF_NOT_APPROVED: 'Only an approved comp-off request can be credited',
+  COMP_OFF_ALREADY_CREDITED: 'That comp-off request has already been credited',
+  COMP_OFF_FUTURE_DATE: 'A comp-off cannot be claimed for a day that has not happened yet',
+  COMP_OFF_WORKING_DAY:
+    'That day was a working day for this employee, so no comp-off is due for it',
+
+  /* --- Probation and confirmation (014) --------------------------------- */
+
+  CONFIRMATION_DUE_FETCHED: 'Employees due for confirmation fetched',
+  CONFIRMATION_HISTORY_FETCHED: 'Confirmation history fetched',
+  EMPLOYEE_CONFIRMED: 'Employee confirmed',
+  PROBATION_EXTENDED: 'Probation period updated',
+  ALREADY_CONFIRMED: 'That employee has already been confirmed',
+  PROBATION_END_BEFORE_JOINING: 'The probation end date cannot fall before the joining date',
 });

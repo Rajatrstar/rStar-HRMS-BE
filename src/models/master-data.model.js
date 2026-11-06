@@ -298,6 +298,23 @@ export const Specialization = defineModel({
 });
 
 /**
+ * dbo.tblRegularizationType - why an attendance correction was raised.
+ *
+ * From db/migrations/016, not 009, and it belongs here anyway: it is the
+ * same three columns served by the same loop. Its two neighbours in that
+ * migration, tblAttendanceStatus and tblHolidayType, look like master data
+ * and are NOT - the code branches on them, so they carry fixed ids and live
+ * in attendance.model.js and holiday.model.js.
+ */
+export const RegularizationType = defineModel({
+  table: 'dbo.tblRegularizationType',
+  columns: {
+    regularizationTypeId: { column: 'RegularizationTypeId', type: sql.BigInt, identity: true },
+    ...masterColumns(),
+  },
+});
+
+/**
  * What a master row hands back to a client, after its own id.
  *
  * The audit columns are deliberately absent, exactly as they are for an
