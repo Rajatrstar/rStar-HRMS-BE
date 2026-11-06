@@ -266,21 +266,30 @@
 			"type": "string"
 		},
 		{
+			"key": "inviteEmail",
 			"key": "selfEmployeeDetailId",
 			"value": "",
 			"type": "string"
 		},
 		{
+			"key": "invitePassword",
 			"key": "shiftCode",
 			"value": "",
 			"type": "string"
 		},
 		{
+			"key": "inviteOtp",
 			"key": "shiftId",
 			"value": "",
 			"type": "string"
 		},
 		{
+			"key": "inviteNewPassword",
+			"value": "Welcome-2026!",
+			"type": "string"
+		},
+		{
+			"key": "inviteAccessToken",
 			"key": "employeeShiftId",
 			"value": "",
 			"type": "string"
@@ -11664,7 +11673,426 @@
 					}
 				},
 				{
-					"name": "9. save work experience",
+					"name": "9. invite employee",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('login created', () => pm.response.to.have.status(201));",
+									"",
+									"// `data` is predeclared by the Postman sandbox - see Auth / 1. login.",
+									"const payload = pm.response.json().data;",
+									"pm.test('for the employee\\'s work email, waiting on a new password', () => {",
+									"  pm.expect(payload.loginEmail).to.eql(pm.collectionVariables.get('employeeEmail').toLowerCase());",
+									"  pm.expect(payload.mustChangePassword).to.eql(true);",
+									"  pm.expect(payload.resent).to.eql(false);",
+									"  pm.expect(payload.sentTo).to.be.a('string').and.not.empty;",
+									"});",
+									"pm.collectionVariables.set('inviteEmail', payload.loginEmail);",
+									"",
+									"// The temporary password comes back only when the server has",
+									"// OTP_IN_RESPONSE=true (development only). Otherwise copy it from the",
+									"// invite email (or the server log when DefaultOTP is on) into",
+									"// {{invitePassword}} yourself.",
+									"if (payload.temporaryPassword) {",
+									"  pm.collectionVariables.set('invitePassword', payload.temporaryPassword);",
+									"} else {",
+									"  console.warn('No temporaryPassword in response - set OTP_IN_RESPONSE=true or fill {{invitePassword}} by hand.');",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}/invite",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}",
+								"invite"
+							]
+						},
+						"description": "No body. Creates the employee's row in dbo.EmployeeLogin with a random temporary password (stored as a bcrypt hash) and MustChangePassword = 1, and emails the login email and the temporary password to HR (INVITE_NOTIFY_EMAIL) - not to the employee.\n\nNeeds Add on Employees, the same right as creating the employee."
+					}
+				},
+				{
+					"name": "10. invite again (resends a new temporary password)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('re-issued', () => pm.response.to.have.status(200));",
+									"",
+									"const payload = pm.response.json().data;",
+									"pm.test('flagged as a resend', () => pm.expect(payload.resent).to.eql(true));",
+									"",
+									"// The password from the first invite has just stopped working.",
+									"// The temporary password comes back only when the server has",
+									"// OTP_IN_RESPONSE=true (development only). Otherwise copy it from the",
+									"// invite email (or the server log when DefaultOTP is on) into",
+									"// {{invitePassword}} yourself.",
+									"if (payload.temporaryPassword) {",
+									"  pm.collectionVariables.set('invitePassword', payload.temporaryPassword);",
+									"} else {",
+									"  console.warn('No temporaryPassword in response - set OTP_IN_RESPONSE=true or fill {{invitePassword}} by hand.');",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}/invite",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}",
+								"invite"
+							]
+						},
+						"description": "Until the employee has set their own password, inviting again replaces the temporary password and mails the new one. The fix for a lost email is pressing the button again."
+					}
+				},
+				{
+					"name": "11. login as the invited employee",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('temporary password accepted', () => pm.response.to.have.status(200));",
+									"",
+									"const payload = pm.response.json().data;",
+									"pm.test('and step 2 must be set-password', () => {",
+									"  pm.expect(payload.mustChangePassword).to.eql(true);",
+									"});",
+									"",
+									"if (payload.otp) {",
+									"  pm.collectionVariables.set('inviteOtp', payload.otp);",
+									"} else {",
+									"  console.warn('No OTP in response - set OTP_IN_RESPONSE=true or fill {{inviteOtp}} by hand.');",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"auth": {
+							"type": "noauth"
+						},
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{inviteEmail}}\",\n  \"password\": \"{{invitePassword}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						},
+						"description": "Step 1 of a first sign-in. The same /auth/login as everyone else: password checked, OTP sent. mustChangePassword: true tells the client to show the set-password step instead of verify-otp."
+					}
+				},
+				{
+					"name": "12. verify-otp with a temporary password (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('refused', () => pm.response.to.have.status(403));",
+									"pm.test('until a password is set', () => {",
+									"  pm.expect(pm.response.json().details.code).to.eql('PASSWORD_CHANGE_REQUIRED');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"auth": {
+							"type": "noauth"
+						},
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{inviteEmail}}\",\n  \"otp\": \"{{inviteOtp}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/verify-otp",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"verify-otp"
+							]
+						},
+						"description": "The code is right, but an account on a temporary password cannot sign in through verify-otp - only through set-password. The OTP is not spent, so the next request can still use it."
+					}
+				},
+				{
+					"name": "13. set-password too short (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('refused', () => pm.response.to.have.status(400));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"auth": {
+							"type": "noauth"
+						},
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{inviteEmail}}\",\n  \"otp\": \"{{inviteOtp}}\",\n  \"newPassword\": \"short\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/set-password",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"set-password"
+							]
+						},
+						"description": "newPassword must be 8 to 72 characters, the same rule as reset-password."
+					}
+				},
+				{
+					"name": "14. set-password",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('password set and signed in', () => pm.response.to.have.status(200));",
+									"",
+									"const payload = pm.response.json().data;",
+									"pm.test('with a token pair', () => {",
+									"  pm.expect(payload.accessToken).to.be.a('string').and.not.empty;",
+									"  pm.expect(payload.refreshToken).to.be.a('string').and.not.empty;",
+									"});",
+									"",
+									"// Kept apart from {{accessToken}}: the rest of the folder still runs as",
+									"// the administrator.",
+									"pm.collectionVariables.set('inviteAccessToken', payload.accessToken);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"auth": {
+							"type": "noauth"
+						},
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{inviteEmail}}\",\n  \"otp\": \"{{inviteOtp}}\",\n  \"newPassword\": \"{{inviteNewPassword}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/set-password",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"set-password"
+							]
+						},
+						"description": "Step 2 of a first sign-in, in place of verify-otp. Checks the OTP, writes the new password's hash, clears MustChangePassword and the OTP in one statement, and returns the same token pair verify-otp does - setting the password is signing in.\n\nRefused with 400 if the new password is the temporary one."
+					}
+				},
+				{
+					"name": "15. invite after the password is set (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Every endpoint answers in the same envelope - see 'Response contract'",
+									"// in the README. Asserting it here means a regression shows up on any",
+									"// request, not just the one somebody remembered to check.",
+									"pm.test('envelope is well formed', () => {",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('success');",
+									"  pm.expect(body).to.have.property('statusCode', pm.response.code);",
+									"  pm.expect(body).to.have.property('message');",
+									"  pm.expect(body).to.have.property('data');",
+									"  pm.expect(body.success).to.eql(pm.response.code < 400);",
+									"});",
+									"",
+									"pm.test('refused', () => pm.response.to.have.status(409));",
+									"pm.test('the login is the employee\\'s now', () => {",
+									"  pm.expect(pm.response.json().details.code).to.eql('LOGIN_ALREADY_EXISTS');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/employees/{{employeeDetailId}}/invite",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"employees",
+								"{{employeeDetailId}}",
+								"invite"
+							]
+						},
+						"description": "Once the employee has chosen their own password the login is theirs. Re-inviting would overwrite it with one HR has seen, so it is refused; a forgotten password goes through forgot-password instead."
+					}
+				},
+				{
+					"name": "16. save work experience",
 					"event": [
 						{
 							"listen": "test",
@@ -11725,7 +12153,7 @@
 					}
 				},
 				{
-					"name": "10. edit, add and remove work experience rows",
+					"name": "17. edit, add and remove work experience rows",
 					"event": [
 						{
 							"listen": "test",
@@ -11793,7 +12221,7 @@
 					}
 				},
 				{
-					"name": "11. work experience with bad rows (should fail)",
+					"name": "18. work experience with bad rows (should fail)",
 					"event": [
 						{
 							"listen": "test",
@@ -11854,7 +12282,7 @@
 					}
 				},
 				{
-					"name": "12. get work experience",
+					"name": "19. get work experience",
 					"event": [
 						{
 							"listen": "test",
@@ -11897,7 +12325,7 @@
 					}
 				},
 				{
-					"name": "13. save education",
+					"name": "20. save education",
 					"event": [
 						{
 							"listen": "test",
@@ -11962,7 +12390,7 @@
 					}
 				},
 				{
-					"name": "14. get education",
+					"name": "21. get education",
 					"event": [
 						{
 							"listen": "test",
@@ -12005,7 +12433,7 @@
 					}
 				},
 				{
-					"name": "15. pick a relationship for the dependent",
+					"name": "22. pick a relationship for the dependent",
 					"event": [
 						{
 							"listen": "test",
@@ -12049,7 +12477,7 @@
 					}
 				},
 				{
-					"name": "16. save dependents",
+					"name": "23. save dependents",
 					"event": [
 						{
 							"listen": "test",
@@ -12110,7 +12538,7 @@
 					}
 				},
 				{
-					"name": "17. dependent without a relationship (should fail)",
+					"name": "24. dependent without a relationship (should fail)",
 					"event": [
 						{
 							"listen": "test",
@@ -12169,7 +12597,7 @@
 					}
 				},
 				{
-					"name": "18. get dependents",
+					"name": "25. get dependents",
 					"event": [
 						{
 							"listen": "test",
@@ -12212,7 +12640,7 @@
 					}
 				},
 				{
-					"name": "19. upload PAN",
+					"name": "26. upload PAN",
 					"event": [
 						{
 							"listen": "test",
@@ -12272,7 +12700,7 @@
 					}
 				},
 				{
-					"name": "20. upload Aadhaar",
+					"name": "27. upload Aadhaar",
 					"event": [
 						{
 							"listen": "test",
@@ -12327,7 +12755,7 @@
 					}
 				},
 				{
-					"name": "21. upload with no file (should fail)",
+					"name": "28. upload with no file (should fail)",
 					"event": [
 						{
 							"listen": "test",
@@ -12374,7 +12802,7 @@
 					}
 				},
 				{
-					"name": "22. upload an unknown document type (should fail)",
+					"name": "29. upload an unknown document type (should fail)",
 					"event": [
 						{
 							"listen": "test",
@@ -12428,7 +12856,7 @@
 					}
 				},
 				{
-					"name": "23. list documents",
+					"name": "30. list documents",
 					"event": [
 						{
 							"listen": "test",
@@ -12481,7 +12909,7 @@
 					}
 				},
 				{
-					"name": "24. download the PAN file",
+					"name": "31. download the PAN file",
 					"event": [
 						{
 							"listen": "test",
@@ -12508,7 +12936,7 @@
 					}
 				},
 				{
-					"name": "25. download without a token (should fail)",
+					"name": "32. download without a token (should fail)",
 					"event": [
 						{
 							"listen": "test",
@@ -12548,7 +12976,7 @@
 					}
 				},
 				{
-					"name": "26. delete the PAN document",
+					"name": "33. delete the PAN document",
 					"event": [
 						{
 							"listen": "test",
@@ -12591,7 +13019,7 @@
 					}
 				},
 				{
-					"name": "27. delete the PAN document again (should fail)",
+					"name": "34. delete the PAN document again (should fail)",
 					"event": [
 						{
 							"listen": "test",
@@ -12635,7 +13063,7 @@
 					}
 				},
 				{
-					"name": "28. deactivate with no exit details (should fail)",
+					"name": "35. deactivate with no exit details (should fail)",
 					"event": [
 						{
 							"listen": "test",
@@ -12696,7 +13124,7 @@
 					}
 				},
 				{
-					"name": "29. deactivate with an impossible date (should fail)",
+					"name": "36. deactivate with an impossible date (should fail)",
 					"event": [
 						{
 							"listen": "test",
@@ -12755,7 +13183,7 @@
 					}
 				},
 				{
-					"name": "30. deactivate employee",
+					"name": "37. deactivate employee",
 					"event": [
 						{
 							"listen": "test",
@@ -12817,7 +13245,7 @@
 					}
 				},
 				{
-					"name": "31. deactivate again (should fail)",
+					"name": "38. deactivate again (should fail)",
 					"event": [
 						{
 							"listen": "test",
@@ -12876,7 +13304,7 @@
 					}
 				},
 				{
-					"name": "32. delete employee",
+					"name": "39. delete employee",
 					"event": [
 						{
 							"listen": "test",
@@ -12921,7 +13349,7 @@
 					}
 				},
 				{
-					"name": "33. get deleted employee (should fail)",
+					"name": "40. get deleted employee (should fail)",
 					"event": [
 						{
 							"listen": "test",
@@ -12965,7 +13393,7 @@
 					}
 				},
 				{
-					"name": "34. employees without token (should fail)",
+					"name": "41. employees without token (should fail)",
 					"event": [
 						{
 							"listen": "test",

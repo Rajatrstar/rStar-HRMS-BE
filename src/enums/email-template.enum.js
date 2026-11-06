@@ -13,4 +13,5 @@
 export const EMAIL_TEMPLATE = Object.freeze({
   OTP_LOGIN: 'otp-login',
   PASSWORD_RESET: 'password-reset',
+  EMPLOYEE_INVITE: 'employee-invite',
 });

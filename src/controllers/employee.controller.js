@@ -10,6 +10,7 @@
  */
 import * as employeeService from '../services/employee.service.js';
 import { EXIT_STATUSES } from '../services/employee.service.js';
+import { inviteEmployee } from '../services/employee-invite.service.js';
 import { sendSuccess } from '../helpers/response.helper.js';
 import { validateBody, validateParams } from '../helpers/validation.helper.js';
 import {
@@ -271,6 +272,19 @@ export async function deactivate(req, res) {
   return sendSuccess(res, {
     statusCode: HTTP_STATUS.OK,
     message: MESSAGES.EMPLOYEE_DEACTIVATED,
+    data,
+  });
+}
+
+/** POST /api/v1/employees/:employeeDetailId/invite - no body. */
+export async function invite(req, res) {
+  const { employeeDetailId } = validateParams(req.params, EMPLOYEE_PARAM);
+
+  const data = await inviteEmployee(req.access.employeeDetailId, employeeDetailId);
+
+  return sendSuccess(res, {
+    statusCode: data.resent ? HTTP_STATUS.OK : HTTP_STATUS.CREATED,
+    message: data.resent ? MESSAGES.EMPLOYEE_INVITE_RESENT : MESSAGES.EMPLOYEE_INVITE_SENT,
     data,
   });
 }

@@ -15,6 +15,7 @@
  * The hash format is unchanged - the same $2b$ string bcryptjs produced, and
  * hashes written by it still verify. Nothing in the database needed migrating.
  */
+import { randomInt } from 'node:crypto';
 import { hash, verify } from '@node-rs/bcrypt';
 import { env } from '../config/env.js';
 
@@ -41,4 +42,33 @@ export function verifyPassword(plainText, storedHash) {
 export async function fakeVerifyPassword(plainText) {
   await verify(plainText, DUMMY_HASH);
   return false;
+}
+
+/*
+  Characters a person has to read off an email and type, so the ones that
+  look alike in common fonts are left out: 0/O/o, 1/l/I.
+*/
+const TEMP_PASSWORD_SETS = [
+  'ABCDEFGHJKLMNPQRSTUVWXYZ',
+  'abcdefghijkmnpqrstuvwxyz',
+  '23456789',
+  '@#$%&*!?',
+];
+
+/**
+ * A one-off password for an invited employee, who must replace it on first
+ * sign-in. Twelve characters with at least one from each set, drawn with
+ * crypto.randomInt so it is not guessable from Math.random state.
+ */
+export function generateTemporaryPassword(length = 12) {
+  const all = TEMP_PASSWORD_SETS.join('');
+  const chars = TEMP_PASSWORD_SETS.map((set) => set[randomInt(set.length)]);
+  while (chars.length < length) chars.push(all[randomInt(all.length)]);
+
+  // Fisher-Yates, so the guaranteed characters are not always the first four.
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = randomInt(i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join('');
 }

@@ -1,0 +1,13 @@
+Hello,
+
+A login account has been created for {{employeeName}} ({{employeeCode}}).
+Please share these details with them.
+
+    Login email:         {{loginEmail}}
+    Temporary password:  {{temporaryPassword}}
+
+On first sign-in at {{loginUrl}} they will be asked for the emailed
+verification code and to choose their own password. The temporary password
+stops working once they do.
+
+rSTAR HRMS
